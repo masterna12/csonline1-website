@@ -1822,45 +1822,7 @@ export default function AdminDashboard({
                           </div>
                         </div>
 
-                        {/* Presets Gallery Grid */}
-                        <div className="space-y-2 pt-2">
-                          <label className="text-[10px] text-slate-550 font-bold block pl-0.5">Pilihan Foto Profil Cepat (Presets):</label>
-                          <div className="grid grid-cols-6 gap-3 pt-1">
-                            {[
-                              { label: 'Wanita 1 (Rina)', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200' },
-                              { label: 'Pria Taktis (Zulfikar)', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200' },
-                              { label: 'Pria Professional', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
-                              { label: 'Wanita Professional', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
-                              { label: 'Male Modern', url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200' },
-                              { label: 'Corporate Tech', url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' }
-                            ].map((imgItem, idx) => (
-                              <button
-                                key={idx}
-                                id={`preset_avatar_${idx}`}
-                                type="button"
-                                onClick={() => setSettingAvatar(imgItem.url)}
-                                title={imgItem.label}
-                                className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition-all p-0.5 hover:scale-105 active:scale-95 cursor-pointer ${
-                                  settingAvatar === imgItem.url ? 'border-indigo-650 scale-102 ring-2 ring-indigo-500/20' : 'border-slate-200'
-                                }`}
-                              >
-                                <img 
-                                  src={imgItem.url} 
-                                  alt={imgItem.label}
-                                  className="w-full h-full object-cover rounded-xl"
-                                  referrerPolicy="no-referrer"
-                                />
-                                {settingAvatar === imgItem.url && (
-                                  <div className="absolute inset-x-0 inset-y-0 bg-indigo-600/20 flex items-center justify-center">
-                                    <div className="bg-indigo-600 text-white rounded-full p-0.5">
-                                      <Check size={8} strokeWidth={4} />
-                                    </div>
-                                  </div>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+
                       </div>
 
                       {/* Section 2: Kredensial Keamanan */}
