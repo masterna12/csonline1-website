@@ -3,7 +3,7 @@ export interface Employee {
   nip: string;
   name: string;
   role: string;
-  department: 'IT' | 'Marketing' | 'Finance' | 'Operations' | 'HR';
+  department: string;
   email: string;
   phone: string;
   avatar: string;

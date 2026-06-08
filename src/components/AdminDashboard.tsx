@@ -6,7 +6,7 @@ import {
   ArrowUpRight, Building2, UserCheck, Eye, Trash2,
   Shield, Settings, Menu, ChevronRight, HardHat,
   AlertTriangle, RefreshCw, Layers, Bell, Package,
-  ArrowRight, Download, Send, Globe, Check, User, LogOut
+  ArrowRight, Download, Send, Globe, Check, User, LogOut, Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, Report, Attendance } from '../types';
@@ -27,10 +27,15 @@ interface AdminDashboardProps {
   onAddEmployee: (emp: Employee) => void;
   onUpdateReportStatus: (id: string, status: 'Disetujui' | 'Ditolak', notes?: string) => void;
   onDeleteEmployee: (id: string) => void;
+  onDeleteReport: (id: string) => void;
   onShowAlert: (title: string, message: string, type: 'success' | 'alert') => void;
   onAddReport: (rep: Report) => void;
   onLogout?: () => void;
   onImportReports?: (imported: Report[]) => void;
+  adminName: string;
+  adminAvatar: string;
+  adminPassword: string;
+  onUpdateAdminProfile: (name: string, avatar: string, pass: string) => void;
 }
 
 export default function AdminDashboard({
@@ -40,16 +45,22 @@ export default function AdminDashboard({
   onAddEmployee,
   onUpdateReportStatus,
   onDeleteEmployee,
+  onDeleteReport,
   onShowAlert,
   onAddReport,
   onLogout,
-  onImportReports
+  onImportReports,
+  adminName,
+  adminAvatar,
+  adminPassword,
+  onUpdateAdminProfile
 }: AdminDashboardProps) {
   // Sidebar tab management
-  // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master
-  const [activeSubTab, setActiveSubTab] = useState<'ringkasan' | 'pegawai' | 'laporan' | 'kehadiran'>('ringkasan');
+  // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun
+  const [activeSubTab, setActiveSubTab] = useState<'ringkasan' | 'pegawai' | 'laporan' | 'kehadiran' | 'pengaturan'>('ringkasan');
   const [searchQuery, setSearchQuery] = useState('');
   const [deptFilter, setDeptFilter] = useState<string>('Semua');
+  const [reportDeptFilter, setReportDeptFilter] = useState<string>('Semua');
   const [locationFilter, setLocationFilter] = useState('Semua Lokasi');
   const [periodFilter, setPeriodFilter] = useState('25A - JUNI 2026');
 
@@ -195,9 +206,9 @@ export default function AdminDashboard({
   const [newEmpName, setNewEmpName] = useState('');
   const [newEmpNip, setNewEmpNip] = useState('');
   const [newEmpRole, setNewEmpRole] = useState('');
-  const [newEmpDept, setNewEmpDept] = useState<'IT' | 'Marketing' | 'Finance' | 'Operations' | 'HR'>('IT');
-  const [newEmpEmail, setNewEmpEmail] = useState('');
-  const [newEmpPhone, setNewEmpPhone] = useState('');
+  const [newEmpDept, setNewEmpDept] = useState('');
+  const [newEmpEmail, setNewEmpEmail] = useState('-');
+  const [newEmpPhone, setNewEmpPhone] = useState('-');
   const [newEmpAvatar, setNewEmpAvatar] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200');
 
   // Modal state for manual report inputs
@@ -216,6 +227,23 @@ export default function AdminDashboard({
   const [selectedReportForAction, setSelectedReportForAction] = useState<Report | null>(null);
   const [actionType, setActionType] = useState<'Approve' | 'Reject' | null>(null);
   const [adminFeedbackNotes, setAdminFeedbackNotes] = useState('');
+  const [deletingReportId, setDeletingReportId] = useState<string | null>(null);
+
+  // Settings Form State
+  const [settingName, setSettingName] = useState(adminName);
+  const [settingAvatar, setSettingAvatar] = useState(adminAvatar);
+  const [settingPassword, setSettingPassword] = useState(adminPassword);
+  const [settingPasswordConfirm, setSettingPasswordConfirm] = useState(adminPassword);
+  const [settingOldPassword, setSettingOldPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  React.useEffect(() => {
+    setSettingName(adminName);
+    setSettingAvatar(adminAvatar);
+    setSettingPassword(adminPassword);
+    setSettingPasswordConfirm(adminPassword);
+    setSettingOldPassword('');
+  }, [adminName, adminAvatar, adminPassword, activeSubTab]);
 
   // Sidebar responsive collapse
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -240,7 +268,7 @@ export default function AdminDashboard({
 
   const handleAddEmployeeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEmpName.trim() || !newEmpRole.trim() || !newEmpEmail.trim()) {
+    if (!newEmpName.trim() || !newEmpRole.trim()) {
       onShowAlert('Validasi Gagal', 'Harap isi semua kolom wajib untuk mendaftarkan pegawai!', 'alert');
       return;
     }
@@ -252,8 +280,8 @@ export default function AdminDashboard({
       nip: brandNewNip,
       role: newEmpRole,
       department: newEmpDept,
-      email: newEmpEmail,
-      phone: newEmpPhone || "0812-7000-8800",
+      email: "-",
+      phone: "-",
       avatar: newEmpAvatar,
       status: 'Aktif',
       joinDate: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -266,8 +294,8 @@ export default function AdminDashboard({
     setNewEmpName('');
     setNewEmpNip('');
     setNewEmpRole('');
-    setNewEmpEmail('');
-    setNewEmpPhone('');
+    setNewEmpEmail('-');
+    setNewEmpPhone('-');
     setIsAddModalOpen(false);
     setIsAddingInline(false);
   };
@@ -381,6 +409,8 @@ export default function AdminDashboard({
     onShowAlert('Data Disinkronkan', 'Mengambil data real-time terbaru dari satgas lapangan...', 'success');
   };
 
+  const uniqueDepartments = Array.from(new Set(employees.map(emp => emp.department).filter(Boolean)));
+
   // Searching and category filtering routines
   const filteredEmployees = employees.filter(emp => {
     const matchesSearch = emp.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -390,11 +420,13 @@ export default function AdminDashboard({
     return matchesSearch && matchesFilter;
   });
 
+  const uniqueReportDepartments = Array.from(new Set(reports.map(rep => rep.department).filter(Boolean)));
+
   const filteredReports = reports.filter(rep => {
     const matchesSearch = rep.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           rep.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           rep.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = deptFilter === 'Semua' || rep.department === deptFilter;
+    const matchesFilter = reportDeptFilter === 'Semua' || rep.department === reportDeptFilter;
     return matchesSearch && matchesFilter;
   });
 
@@ -526,6 +558,18 @@ export default function AdminDashboard({
               Sesi Akun
             </span>
             <button
+              id="sidebar_btn_pengaturan"
+              onClick={() => { setActiveSubTab('pengaturan'); setSearchQuery(''); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left ${
+                activeSubTab === 'pengaturan' 
+                  ? 'bg-[#1e293b] text-[#38bdf8] border-l-4 border-sky-500 shadow-inner' 
+                  : 'text-slate-400 hover:bg-[#151f32] hover:text-slate-100'
+              }`}
+            >
+              <Settings size={15} className={activeSubTab === 'pengaturan' ? 'text-sky-400' : 'text-slate-400'} />
+              {isSidebarOpen && <span>Pengaturan Akun</span>}
+            </button>
+            <button
               id="sidebar_btn_logout"
               onClick={onLogout || (() => onShowAlert('Pemberitahuan', 'Sesi login administrator terenkripsi aman.', 'alert'))}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-400 hover:bg-rose-950/20 hover:text-rose-300 transition-all text-left cursor-pointer active:scale-95"
@@ -577,20 +621,20 @@ export default function AdminDashboard({
             </div>
 
             {/* Admin Settings Gear */}
-            <div className="shrink-0 cursor-pointer p-1 rounded-lg hover:bg-slate-800" onClick={() => onShowAlert('Konfigurasi', 'Mengatur otentikasi kunci enkripsi server.', 'success')}>
-              <Settings size={16} className="text-slate-400" />
+            <div className="shrink-0 cursor-pointer p-1 rounded-lg hover:bg-slate-800" onClick={() => { setActiveSubTab('pengaturan'); setSearchQuery(''); }}>
+              <Settings size={16} className="text-slate-400 hover:text-slate-200" />
             </div>
 
             {/* Profile Avatar & Metadata */}
-            <div className="flex items-center gap-2.5 pl-3 border-l border-slate-850">
+            <div className="flex items-center gap-2.5 pl-3 border-l border-slate-850 cursor-pointer select-none" onClick={() => { setActiveSubTab('pengaturan'); setSearchQuery(''); }}>
               <img 
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200"
+                src={adminAvatar}
                 alt="Administrator Avatar"
                 className="w-8 h-8 rounded-full border-2 border-indigo-500 object-cover"
                 referrerPolicy="no-referrer"
               />
               <div className="hidden sm:block text-left text-xs leading-none">
-                <p className="font-extrabold text-white">Bangka Belitung</p>
+                <p className="font-extrabold text-white">{adminName}</p>
                 <span className="text-[9px] text-[#38bdf8] font-semibold mt-1 block">Administrator</span>
               </div>
             </div>
@@ -895,7 +939,7 @@ export default function AdminDashboard({
                               id="inline_emp_role"
                               type="text" 
                               required
-                              placeholder="Contoh: Koordinator Scan Sektor"
+                              placeholder="Contoh: Pelaksana"
                               value={newEmpRole}
                               onChange={(e) => setNewEmpRole(e.target.value)}
                               className="w-full bg-slate-50 border border-slate-305 p-3 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
@@ -904,64 +948,60 @@ export default function AdminDashboard({
 
                           <div className="space-y-1">
                             <label className="text-[10px] text-slate-550 uppercase font-black pl-0.5">Unit Kerja / Divisi *</label>
-                            <select 
+                            <input 
                               id="inline_emp_dept"
-                              value={newEmpDept}
-                              onChange={(e) => setNewEmpDept(e.target.value as any)}
-                              className="w-full bg-slate-50 border border-slate-305 p-3 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs cursor-pointer shadow-inner"
-                            >
-                              <option value="IT">IT</option>
-                              <option value="Operations">Operations (Operasional Lapangan)</option>
-                              <option value="Marketing">Marketing / Penjualan</option>
-                              <option value="Finance">Finance / Keuangan</option>
-                              <option value="HR">HR / Kepegawaian</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* Email & Phone */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] text-slate-550 uppercase font-black pl-0.5">Alamat Email Aktif *</label>
-                            <input 
-                              id="inline_emp_email"
-                              type="email" 
-                              required
-                              placeholder="contoh@haleyorapower.co.id"
-                              value={newEmpEmail}
-                              onChange={(e) => setNewEmpEmail(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-305 p-3 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[10px] text-slate-550 uppercase font-black pl-0.5">Nomor Telepon (WhatsApp) *</label>
-                            <input 
-                              id="inline_emp_phone"
                               type="text" 
                               required
-                              placeholder="Contoh: 0812-7000-8800"
-                              value={newEmpPhone}
-                              onChange={(e) => setNewEmpPhone(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-305 p-3 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
+                              placeholder="Contoh: PT. PLN ( Persero ) UP3 Bangka"
+                              value={newEmpDept}
+                              onChange={(e) => setNewEmpDept(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-305 p-3 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner font-bold"
                             />
                           </div>
                         </div>
 
-                        {/* Avatar Picker Choice */}
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-slate-550 uppercase font-black pl-0.5">Profil Gambar Preset *</label>
-                          <select 
-                            id="inline_emp_avatar"
-                            value={newEmpAvatar}
-                            onChange={(e) => setNewEmpAvatar(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-305 p-3 rounded-xl outline-none focus:border-indigo-400 text-slate-805 text-xs shadow-inner cursor-pointer"
-                          >
-                            <option value="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200">Foto Wanita 1 (Direksi/Staf)</option>
-                            <option value="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200">Foto Pria 1 (Taktik Sektor)</option>
-                            <option value="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200">Foto Pria 2 (Teknisi Lapangan)</option>
-                            <option value="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200">Foto Wanita 2 (Staf Keuangan)</option>
-                          </select>
+                        {/* Avatar Picker Choice (File Upload / URL Input) */}
+                        <div className="space-y-2 animate-fade-in bg-slate-50/55 p-3 rounded-2xl border border-slate-200">
+                          <label className="text-[10px] text-slate-550 uppercase font-black pl-0.5 block">Avatar Profil (File lokal / URL) *</label>
+                          <div className="flex gap-2">
+                            <input 
+                              id="inline_emp_avatar_url"
+                              type="text" 
+                              required
+                              placeholder="Masukkan URL foto atau unggah berkas lokal"
+                              value={newEmpAvatar}
+                              onChange={(e) => setNewEmpAvatar(e.target.value)}
+                              className="flex-1 bg-white border border-slate-300 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-400 font-mono text-slate-700 truncate"
+                            />
+                            <label className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5 shrink-0 select-none">
+                              <Upload size={14} />
+                              <span>Pilih Berkas</span>
+                              <input 
+                                id="inline_emp_avatar_file"
+                                type="file" 
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    if (file.size > 2 * 1024 * 1024) {
+                                      onShowAlert('Kapasitas Penuh', 'Batas maksimal ukuran file gambar adalah 2MB.', 'alert');
+                                      return;
+                                    }
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      if (typeof reader.result === 'string') {
+                                        setNewEmpAvatar(reader.result);
+                                        onShowAlert('File Terunggah', 'Berhasil memproses & mengunggah file foto lokal Anda.', 'success');
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                                className="hidden" 
+                              />
+                            </label>
+                          </div>
+                          <p className="text-[9px] text-slate-400 leading-normal pl-0.5">Mendukung unggah berkas langsung dari komputer Anda atau sematkan alamat url gambar eksternal.</p>
                         </div>
 
                         {/* Actions Inside */}
@@ -1008,12 +1048,10 @@ export default function AdminDashboard({
                       onChange={(e) => setDeptFilter(e.target.value)}
                       className="bg-[#f8fafc] border border-slate-300 rounded-xl p-2 px-3 text-slate-650 text-xs outline-none font-bold"
                     >
-                      <option value="Semua">Semua Divisi</option>
-                      <option value="IT">IT</option>
-                      <option value="Operations">Operations / Lapangan</option>
-                      <option value="Marketing">Marketing / Penjualan</option>
-                      <option value="Finance">Finance</option>
-                      <option value="HR">HR</option>
+                      <option value="Semua">Semua Divisi / Unit Kerja</option>
+                      {uniqueDepartments.map(dept => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1026,18 +1064,15 @@ export default function AdminDashboard({
                         <tr className="border-b border-slate-200 text-slate-500 font-extrabold text-[10px] uppercase bg-slate-50 select-none">
                           <th className="p-4 pl-6">Foto & Nama Lengkap</th>
                           <th className="p-4">NIP (Nomor Induk)</th>
-                          <th className="p-4">ID Sistem</th>
+                          <th className="p-4">Unit Kerja / Divisi</th>
                           <th className="p-4">Jabatan</th>
-                          <th className="p-4">Hubungi Personil</th>
-                          <th className="p-4">Terdaftar Sejak</th>
-                          <th className="p-4">Status Kerja</th>
                           <th className="p-4 text-center pr-6">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {filteredEmployees.length === 0 ? (
                           <tr>
-                            <td colSpan={8} className="p-12 text-center text-slate-400 italic">
+                            <td colSpan={5} className="p-12 text-center text-slate-400 italic">
                               Tidak ditemukan data personil/pegawai yang sesuai pencarian.
                             </td>
                           </tr>
@@ -1046,36 +1081,18 @@ export default function AdminDashboard({
                             <tr key={emp.id} className="hover:bg-slate-55/70 transition-colors">
                               <td className="p-4 pl-6 flex items-center gap-3">
                                 <img 
-                                  src={emp.avatar} 
+                                  src={emp.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'} 
                                   alt={emp.name} 
                                   className="w-10 h-10 rounded-full object-cover border border-slate-200"
                                   referrerPolicy="no-referrer"
                                 />
                                 <div>
                                   <p className="font-sans font-extrabold text-slate-800 leading-tight text-xs">{emp.name}</p>
-                                  <span className="text-[9px] text-[#0284c7] bg-sky-50 border border-sky-100 px-1.5 py-0.2 rounded font-black mt-1 inline-block">
-                                    {emp.department === 'Operations' ? 'Operations Lapangan' : emp.department}
-                                  </span>
                                 </div>
                               </td>
                               <td className="p-4 font-mono font-bold text-slate-600">{emp.nip || '199001150021'}</td>
-                              <td className="p-4 font-mono text-[10px] text-slate-450">{emp.id}</td>
+                              <td className="p-4 text-slate-705 font-bold">{emp.department}</td>
                               <td className="p-4 text-slate-700 font-extrabold">{emp.role}</td>
-                              <td className="p-4 text-slate-550 space-y-0.5">
-                                <p className="flex items-center gap-1 text-[10px]"><Mail size={10} className="text-slate-400" /> {emp.email}</p>
-                                <p className="flex items-center gap-1 text-[10px]"><Phone size={10} className="text-slate-400" /> {emp.phone}</p>
-                              </td>
-                              <td className="p-4 text-slate-500">{emp.joinDate || '01 Jun 2025'}</td>
-                              <td className="p-4 mt-1">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black ${
-                                  emp.status === 'Aktif' 
-                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                                    : 'bg-amber-100 text-amber-800 border border-amber-200'
-                                }`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${emp.status === 'Aktif' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-                                  {emp.status}
-                                </span>
-                              </td>
                               <td className="p-4 text-center pr-6">
                                 <button
                                   id={`delete_emp_view_btn_${emp.id}`}
@@ -1332,19 +1349,17 @@ export default function AdminDashboard({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase font-black text-slate-400">Kelompok Sektor:</span>
+                    <span className="text-[10px] uppercase font-black text-slate-400">Filter:</span>
                     <select 
                       id="laporan_dept_select"
-                      value={deptFilter} 
-                      onChange={(e) => setDeptFilter(e.target.value)}
+                      value={reportDeptFilter} 
+                      onChange={(e) => setReportDeptFilter(e.target.value)}
                       className="bg-[#f8fafc] border border-slate-300 rounded-xl p-2 px-3 text-slate-650 text-xs outline-none font-bold"
                     >
-                      <option value="Semua">Semua Divisi</option>
-                      <option value="IT">IT</option>
-                      <option value="Operations">Operations / Lapangan</option>
-                      <option value="Marketing">Marketing</option>
-                      <option value="Finance">Finance</option>
-                      <option value="HR">HR</option>
+                      <option value="Semua">Semua Unit Kerja</option>
+                      {uniqueReportDepartments.map(dept => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1358,14 +1373,25 @@ export default function AdminDashboard({
                   ) : (
                     filteredReports.map((rep) => (
                       <div key={rep.id} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm relative">
-                        {/* Status Label */}
-                        <span className={`absolute top-5 right-5 text-[9px] font-black py-1 px-3 rounded-full border ${
-                          rep.status === 'Disetujui' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
-                          rep.status === 'Ditolak' ? 'bg-rose-50 text-rose-700 border-rose-300' :
-                          'bg-amber-50 text-amber-700 border-amber-300'
-                        }`}>
-                          {rep.status}
-                        </span>
+                        {/* Status Label & Delete Action */}
+                        <div className="absolute top-5 right-5 flex items-center gap-2">
+                          <span className={`text-[9px] font-black py-1 px-3 rounded-full border select-none ${
+                            rep.status === 'Disetujui' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
+                            rep.status === 'Ditolak' ? 'bg-rose-50 text-rose-700 border-rose-300' :
+                            'bg-amber-50 text-amber-700 border-amber-300'
+                          }`}>
+                            {rep.status}
+                          </span>
+                          
+                          <button
+                            id={`report_btn_delete_${rep.id}`}
+                            onClick={() => setDeletingReportId(rep.id)}
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 p-1.5 rounded-xl transition duration-200 focus:outline-none focus:ring-2 focus:ring-rose-500/20 active:scale-95 cursor-pointer flex items-center justify-center shrink-0"
+                            title="Hapus Data Pelaporan"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
 
                         {/* Top author details */}
                         <div className="flex items-center gap-3">
@@ -1443,8 +1469,38 @@ export default function AdminDashboard({
                           )}
                         </div>
 
-                        {/* Interactive verification block */}
-                        {rep.status === 'Pending' ? (
+                        {/* Interactive verification / delete confirmation block */}
+                        {deletingReportId === rep.id ? (
+                          <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs animate-fade-in pl-3.5 pr-3.5 pt-3.5 pb-3.5">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="text-rose-600 shrink-0" size={16} />
+                              <div>
+                                <span className="font-extrabold text-rose-950 block">Hapus Data Pelaporan Permanen?</span>
+                                <span className="text-[10px] text-rose-600 block mt-0.5 font-semibold">Tindakan ini tidak dapat dibatalkan dan data laporan akan dihapus seketika.</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button 
+                                id={`confirm_delete_cancel_${rep.id}`}
+                                onClick={() => setDeletingReportId(null)}
+                                className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer"
+                              >
+                                Batal
+                              </button>
+                              <button 
+                                id={`confirm_delete_yes_${rep.id}`}
+                                onClick={() => {
+                                  onDeleteReport(rep.id);
+                                  setDeletingReportId(null);
+                                }}
+                                className="bg-rose-600 hover:bg-rose-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                              >
+                                <Trash2 size={12} />
+                                <span>Ya, Hapus</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : rep.status === 'Pending' ? (
                           <div className="flex items-center gap-3 pl-1 pt-3 border-t border-slate-105">
                             <button
                               id={`report_approve_btn_${rep.id}`}
@@ -1607,6 +1663,316 @@ export default function AdminDashboard({
               </motion.div>
             )}
 
+            {activeSubTab === 'pengaturan' && (
+              <motion.div
+                key="tab_prisma_pengaturan"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6 text-left font-sans"
+              >
+                <div className="pb-2 border-b border-slate-300">
+                  <h1 className="text-xl md:text-2xl font-black text-slate-900 font-sans">Pengaturan Akun Administrator</h1>
+                  <p className="text-xs text-slate-500 mt-0.5">Ubah nama taktis, tautan foto avatar profil, serta kunci sandi enkripsi login</p>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  
+                  {/* Left Column: Visual Card Preview of Active Admin Profile */}
+                  <div className="lg:col-span-4 space-y-4">
+                    <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-md border border-slate-800 text-center relative overflow-hidden">
+                      <div className="absolute -right-10 -top-10 w-32 h-32 bg-sky-500/10 rounded-full blur-2xl"></div>
+                      <div className="absolute -left-10 -bottom-10 w-32 h-32 bg-indigo-505/10 rounded-full blur-2xl"></div>
+                      
+                      <div className="relative inline-block mb-4 mt-2">
+                        <img 
+                          src={settingAvatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200"}
+                          alt="Avatar Administrator Preview"
+                          className="w-24 h-24 rounded-full border-4 border-indigo-500/50 object-cover mx-auto shadow-lg"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
+                          }}
+                        />
+                        <div className="absolute bottom-0 right-0 p-1 px-2.5 bg-indigo-650 border border-indigo-400 rounded-full text-[9px] font-bold text-white shadow">
+                          Admin
+                        </div>
+                      </div>
+
+                      <h3 className="text-base font-black text-white">{settingName || "Administrator"}</h3>
+                      <p className="text-[10px] text-sky-450 font-bold uppercase tracking-widest mt-1">PT. Haleyora Powerindo</p>
+                      
+                      <div className="mt-6 pt-5 border-t border-slate-850 grid grid-cols-2 gap-4 text-left">
+                        <div className="space-y-0.5">
+                          <span className="text-[9px] text-slate-500 uppercase font-black block">ID Login</span>
+                          <span className="text-xs font-mono font-bold text-slate-300">admin</span>
+                        </div>
+                        <div className="space-y-0.5 text-right">
+                          <span className="text-[9px] text-slate-500 uppercase font-black block">Level Akses</span>
+                          <span className="text-xs text-sky-400 font-bold">SU / Supervisor</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-slate-850 text-[10px] text-slate-400 leading-relaxed text-left">
+                        <p className="italic">Gunakan formulir di sebelah kanan untuk memperbarui identitas kredensial keamanan Anda secara langsung.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Interactive Update Forms */}
+                  <div className="lg:col-span-8 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      
+                      if (!settingName.trim()) {
+                        onShowAlert('Nama Diperlukan', 'Nama administrator tidak boleh kosong.', 'alert');
+                        return;
+                      }
+                      if (!settingPassword.trim()) {
+                        onShowAlert('Password Diperlukan', 'Password tidak boleh kosong.', 'alert');
+                        return;
+                      }
+
+                      // Check if password has changed from current adminPassword
+                      if (settingPassword !== adminPassword) {
+                        if (!settingOldPassword) {
+                          onShowAlert('Sandi Lama Diperlukan', 'Konfirmasi kata sandi lama diperlukan untuk memperbarui keamanan password baru.', 'alert');
+                          return;
+                        }
+                        if (settingOldPassword !== adminPassword) {
+                          onShowAlert('Sandi Lama Salah', 'Kata sandi saat ini yang Anda masukkan salah. Perubahan sandi baru ditolak.', 'alert');
+                          return;
+                        }
+                        if (settingPassword !== settingPasswordConfirm) {
+                          onShowAlert('Sandi Tidak Cocok', 'Silakan periksa kembali kecocokan password baru Anda.', 'alert');
+                          return;
+                        }
+                      }
+
+                      onUpdateAdminProfile(settingName, settingAvatar, settingPassword);
+                      onShowAlert('Kredensial Diperbarui', 'Konfigurasi identitas & password baru admin berhasil disimpan sistem.', 'success');
+                    }} className="space-y-5">
+                      
+                      {/* Section 1: Profil Akun */}
+                      <div className="space-y-4">
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 bg-indigo-505 rounded-full"></span>
+                          Detail Profil Administrator
+                        </h4>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Nama */}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] text-slate-550 uppercase font-bold pl-0.5">Nama Sektor / Sebutan Taktis *</label>
+                            <input 
+                              id="setting_admin_name"
+                              type="text" 
+                              required
+                              placeholder="Contoh: Bangka Belitung atau Jakarta Barat"
+                              value={settingName}
+                              onChange={(e) => setSettingName(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-400 font-bold text-slate-800"
+                            />
+                            <p className="text-[9px] text-slate-400 leading-normal">Nama ini akan tercantum sebagai nama administrator di header atas dashboard.</p>
+                          </div>
+
+                          {/* Avatar URL / Local File Upload */}
+                          <div className="space-y-1.5 animate-fade-in">
+                            <label className="text-[10px] text-slate-550 uppercase font-bold pl-0.5">Avatar Foto (File lokal / URL) *</label>
+                            
+                            <div className="flex gap-2">
+                              <input 
+                                id="setting_admin_avatar_url"
+                                type="text" 
+                                required
+                                placeholder="Pilih file lokal atau masukkan URL foto profil (https://...)"
+                                value={settingAvatar}
+                                onChange={(e) => setSettingAvatar(e.target.value)}
+                                className="flex-1 bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-400 font-mono text-slate-700 truncate"
+                              />
+                              <label className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5 shrink-0 select-none">
+                                <Upload size={14} />
+                                <span>Pilih Berkas</span>
+                                <input 
+                                  id="setting_admin_avatar_file"
+                                  type="file" 
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      if (file.size > 2 * 1024 * 1024) {
+                                        onShowAlert('Kapasitas Penuh', 'Batas maksimal ukuran file gambar adalah 2MB.', 'alert');
+                                        return;
+                                      }
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        if (typeof reader.result === 'string') {
+                                          setSettingAvatar(reader.result);
+                                          onShowAlert('File Terunggah', 'Berhasil memproses & mengunggah file foto lokal Anda.', 'success');
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                  className="hidden" 
+                                />
+                              </label>
+                            </div>
+                            <p className="text-[9px] text-slate-400 leading-normal">Mendukung unggah berkas langsung dari komputer Anda atau sematkan alamat url gambar eksternal.</p>
+                          </div>
+                        </div>
+
+                        {/* Presets Gallery Grid */}
+                        <div className="space-y-2 pt-2">
+                          <label className="text-[10px] text-slate-550 font-bold block pl-0.5">Pilihan Foto Profil Cepat (Presets):</label>
+                          <div className="grid grid-cols-6 gap-3 pt-1">
+                            {[
+                              { label: 'Wanita 1 (Rina)', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200' },
+                              { label: 'Pria Taktis (Zulfikar)', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200' },
+                              { label: 'Pria Professional', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
+                              { label: 'Wanita Professional', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+                              { label: 'Male Modern', url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200' },
+                              { label: 'Corporate Tech', url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' }
+                            ].map((imgItem, idx) => (
+                              <button
+                                key={idx}
+                                id={`preset_avatar_${idx}`}
+                                type="button"
+                                onClick={() => setSettingAvatar(imgItem.url)}
+                                title={imgItem.label}
+                                className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition-all p-0.5 hover:scale-105 active:scale-95 cursor-pointer ${
+                                  settingAvatar === imgItem.url ? 'border-indigo-650 scale-102 ring-2 ring-indigo-500/20' : 'border-slate-200'
+                                }`}
+                              >
+                                <img 
+                                  src={imgItem.url} 
+                                  alt={imgItem.label}
+                                  className="w-full h-full object-cover rounded-xl"
+                                  referrerPolicy="no-referrer"
+                                />
+                                {settingAvatar === imgItem.url && (
+                                  <div className="absolute inset-x-0 inset-y-0 bg-indigo-600/20 flex items-center justify-center">
+                                    <div className="bg-indigo-600 text-white rounded-full p-0.5">
+                                      <Check size={8} strokeWidth={4} />
+                                    </div>
+                                  </div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Section 2: Kredensial Keamanan */}
+                      <div className="space-y-4 pt-4 border-t border-slate-100">
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+                          Ubah Kunci Sandi Keamanan
+                        </h4>
+
+                        {/* Old password field - ONLY required and shown when password is changed */}
+                        {settingPassword !== adminPassword && (
+                          <motion.div 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="space-y-1.5 bg-amber-50/50 border border-amber-250 p-3.5 rounded-2xl"
+                          >
+                            <label className="text-[10px] text-amber-805 uppercase font-bold pl-0.5 flex items-center gap-1.5">
+                              <span>Masukkan Kata Sandi Lama Saat Ini *</span>
+                              <span className="text-[9px] font-normal text-amber-600">(Wajib diisi untuk memverifikasi penggantian sandi baru)</span>
+                            </label>
+                            <input 
+                              id="setting_admin_old_password"
+                              type={showPassword ? "text" : "password"}
+                              required={settingPassword !== adminPassword}
+                              placeholder="Masukkan kata sandi lama Anda saat ini"
+                              value={settingOldPassword}
+                              onChange={(e) => setSettingOldPassword(e.target.value)}
+                              className="w-full bg-white border border-amber-300 p-2.5 rounded-xl text-xs outline-none focus:border-amber-400 font-mono text-slate-850 font-bold"
+                            />
+                          </motion.div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Kata Sandi Baru */}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] text-slate-550 uppercase font-bold pl-0.5">Kata Sandi Baru *</label>
+                            <input 
+                              id="setting_admin_password"
+                              type={showPassword ? "text" : "password"}
+                              required
+                              placeholder="Masukkan password baru"
+                              value={settingPassword}
+                              onChange={(e) => setSettingPassword(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-400 font-mono text-slate-850"
+                            />
+                          </div>
+
+                          {/* Konfirmasi Kata Sandi Baru */}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] text-slate-550 uppercase font-bold pl-0.5">Konfirmasi Kata Sandi Baru *</label>
+                            <input 
+                              id="setting_admin_password_confirm"
+                              type={showPassword ? "text" : "password"}
+                              required
+                              placeholder="Ketik ulang password baru"
+                              value={settingPasswordConfirm}
+                              onChange={(e) => setSettingPasswordConfirm(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-400 font-mono text-slate-850"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Show/Hide password checkbox toggle */}
+                        <div className="flex items-center gap-2 pl-0.5">
+                          <input 
+                            id="toggle_setting_show_pass"
+                            type="checkbox"
+                            checked={showPassword}
+                            onChange={(e) => setShowPassword(e.target.checked)}
+                            className="bg-slate-100 border-slate-300 rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer"
+                          />
+                          <label htmlFor="toggle_setting_show_pass" className="text-[11px] text-slate-600 select-none cursor-pointer font-medium">
+                            Tampilkan Password Enkripsi
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Action buttons footer */}
+                      <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          id="btn_cancel_settings"
+                          onClick={() => {
+                            setSettingName(adminName);
+                            setSettingAvatar(adminAvatar);
+                            setSettingPassword(adminPassword);
+                            setSettingPasswordConfirm(adminPassword);
+                            setActiveSubTab('ringkasan');
+                          }}
+                          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-all cursor-pointer active:scale-95"
+                        >
+                          Batal
+                        </button>
+                        <button
+                          type="submit"
+                          id="btn_save_settings"
+                          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center gap-2"
+                        >
+                          <Check size={14} className="text-white" strokeWidth={3} />
+                          Simpan Perubahan Kredensial
+                        </button>
+                      </div>
+
+                    </form>
+                  </div>
+
+                </div>
+
+              </motion.div>
+            )}
+
           </AnimatePresence>
 
         </div>
@@ -1664,12 +2030,12 @@ export default function AdminDashboard({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">Jabatan (Role) :</label>
+                    <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">Jabatan (Role) *</label>
                     <input 
                       id="input_add_emp_role"
                       type="text" 
                       required 
-                      placeholder="Teknisi Sektor"
+                      placeholder="Contoh: Pelaksana"
                       value={newEmpRole}
                       onChange={(e) => setNewEmpRole(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-indigo-400"
@@ -1677,63 +2043,60 @@ export default function AdminDashboard({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">Divisi Kantor :</label>
-                    <select 
+                    <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">Unit Kerja / Divisi *</label>
+                    <input 
                       id="select_add_emp_dept"
+                      type="text"
+                      required
+                      placeholder="Contoh: PT. PLN ( Persero ) UP3 Bangka"
                       value={newEmpDept}
-                      onChange={(e) => setNewEmpDept(e.target.value as any)}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-slate-700"
-                    >
-                      <option value="IT">IT</option>
-                      <option value="Marketing">Marketing</option>
-                      <option value="Finance">Finance</option>
-                      <option value="Operations">Operations</option>
-                      <option value="HR">HR</option>
-                    </select>
+                      onChange={(e) => setNewEmpDept(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-slate-700 font-bold"
+                    />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">Alamat Email :</label>
+                <div className="space-y-2 animate-fade-in bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                  <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5 block">Avatar Profil (File lokal / URL) *</label>
+                  <div className="flex gap-2">
                     <input 
-                      id="input_add_emp_email"
-                      type="email" 
-                      required 
-                      placeholder="contoh@haleyora.co.id"
-                      value={newEmpEmail}
-                      onChange={(e) => setNewEmpEmail(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-indigo-400"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">Nomor Telepon/HP *</label>
-                    <input 
-                      id="input_add_emp_phone"
+                      id="select_add_emp_avatar_url"
                       type="text" 
                       required
-                      placeholder="0812-7000-8800"
-                      value={newEmpPhone}
-                      onChange={(e) => setNewEmpPhone(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-indigo-400"
+                      placeholder="Masukkan URL foto atau unggah berkas"
+                      value={newEmpAvatar}
+                      onChange={(e) => setNewEmpAvatar(e.target.value)}
+                      className="flex-1 bg-white border border-slate-300 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-400 font-mono text-slate-700 truncate"
                     />
+                    <label className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5 shrink-0 select-none">
+                      <Upload size={14} />
+                      <span>Pilih Berkas</span>
+                      <input 
+                        id="select_add_emp_avatar_file"
+                        type="file" 
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 2 * 1024 * 1024) {
+                              onShowAlert('Kapasitas Penuh', 'Batas maksimal ukuran file gambar adalah 2MB.', 'alert');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              if (typeof reader.result === 'string') {
+                                setNewEmpAvatar(reader.result);
+                                onShowAlert('File Terunggah', 'Berhasil memproses & mengunggah file foto lokal Anda.', 'success');
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="hidden" 
+                      />
+                    </label>
                   </div>
-                </div>
-
-                <div className="space-y-1 col-span-2">
-                  <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">Avatar Profil :</label>
-                  <select 
-                    id="select_add_emp_avatar"
-                    value={newEmpAvatar}
-                    onChange={(e) => setNewEmpAvatar(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-slate-650 cursor-pointer"
-                  >
-                    <option value="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200">Foto Wanita (Rina)</option>
-                    <option value="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200">Foto Pria (Zulfikar)</option>
-                    <option value="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200">Foto Pria 2 (Rudi)</option>
-                    <option value="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200">Foto Wanita 2 (Siti)</option>
-                  </select>
+                  <p className="text-[9px] text-slate-400 leading-normal pl-0.5">Mendukung unggah berkas langsung dari komputer Anda atau sematkan alamat url gambar eksternal.</p>
                 </div>
 
                 <div className="pt-3 flex justify-end gap-2 border-t border-slate-150">

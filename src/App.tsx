@@ -22,6 +22,26 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
+  // Administrator Profile states
+  const [adminName, setAdminName] = useState<string>(() => {
+    return localStorage.getItem('step_admin_name') || 'Bangka Belitung';
+  });
+  const [adminAvatar, setAdminAvatar] = useState<string>(() => {
+    return localStorage.getItem('step_admin_avatar') || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
+  });
+  const [adminPassword, setAdminPassword] = useState<string>(() => {
+    return localStorage.getItem('step_admin_password') || 'admin';
+  });
+
+  const handleUpdateAdminProfile = (newName: string, newAvatar: string, newPass: string) => {
+    setAdminName(newName);
+    setAdminAvatar(newAvatar);
+    setAdminPassword(newPass);
+    localStorage.setItem('step_admin_name', newName);
+    localStorage.setItem('step_admin_avatar', newAvatar);
+    localStorage.setItem('step_admin_password', newPass);
+  };
+
   // Global React States
   const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
   const [attendance, setAttendance] = useState<Attendance[]>(INITIAL_ATTENDANCE);
@@ -81,11 +101,11 @@ export default function App() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (userId.trim().toLowerCase() === 'admin' && password === 'admin') {
+    if (userId.trim().toLowerCase() === 'admin' && password === adminPassword) {
       setIsLoggedIn(true);
       localStorage.setItem('step_is_logged_in', 'true');
       setLoginError('');
-      handleShowAlert('Login Berhasil', 'Selamat datang kembali, Administrator.', 'success');
+      handleShowAlert('Login Berhasil', `Selamat datang kembali, ${adminName}.`, 'success');
     } else {
       setLoginError('ID User atau Password salah!');
       handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
@@ -131,6 +151,11 @@ export default function App() {
 
   const handleAddReport = (newRep: Report) => {
     setReports(prev => [newRep, ...prev]);
+  };
+
+  const handleDeleteReport = (id: string) => {
+    setReports(prev => prev.filter(r => r.id !== id));
+    handleShowAlert('Laporan Dihapus', 'Data laporan patroli berhasil dihapus dari sistem.', 'success');
   };
 
   const handleUpdateReportStatus = (id: string, status: 'Disetujui' | 'Ditolak', notes?: string) => {
@@ -240,8 +265,8 @@ export default function App() {
 
           {/* Hint credential */}
           <div className="mt-6 pt-4 border-t border-slate-900 text-center">
-            <span className="text-[9px] font-mono text-slate-500">
-              Hint: ID User & Password = <strong className="text-indigo-400">admin</strong>
+            <span className="text-[9px] font-mono text-slate-500 text-center block leading-relaxed">
+              ID User: <strong className="text-indigo-405">admin</strong> &bull; Password: <strong className="text-indigo-405">{adminPassword}</strong>
             </span>
           </div>
         </motion.div>
@@ -332,10 +357,15 @@ export default function App() {
             onAddEmployee={handleAddEmployee}
             onUpdateReportStatus={handleUpdateReportStatus}
             onDeleteEmployee={handleDeleteEmployee}
+            onDeleteReport={handleDeleteReport}
             onShowAlert={handleShowAlert}
             onAddReport={handleAddReport}
             onLogout={handleLogout}
             onImportReports={handleImportReports}
+            adminName={adminName}
+            adminAvatar={adminAvatar}
+            adminPassword={adminPassword}
+            onUpdateAdminProfile={handleUpdateAdminProfile}
           />
         </div>
       </main>
