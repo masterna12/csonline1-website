@@ -12,6 +12,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Employee, Report, Attendance, SystemNotification } from './types';
 import { INITIAL_EMPLOYEES, INITIAL_ATTENDANCE, INITIAL_REPORTS } from './data';
 import AdminDashboard from './components/AdminDashboard';
+import { 
+  collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot 
+} from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from './firebase';
 
 export default function App() {
   // Authentication States
@@ -43,9 +47,177 @@ export default function App() {
   };
 
   // Global React States
-  const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
-  const [attendance, setAttendance] = useState<Attendance[]>(INITIAL_ATTENDANCE);
-  const [reports, setReports] = useState<Report[]>(INITIAL_REPORTS);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [attendance, setAttendance] = useState<Attendance[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
+
+  // Real-time synchronization and automatic seeding with Firestore
+  React.useEffect(() => {
+    // 1. Listen to dashboard (reports) collection
+    const unsubReports = onSnapshot(collection(db, 'dashboard'), (snapshot) => {
+      const docsList: Report[] = [];
+      snapshot.forEach((docVal) => {
+        docsList.push(docVal.data() as Report);
+      });
+      
+      // Sort reports by date (latest first)
+      docsList.sort((a, b) => {
+        const dateA = a.date || "";
+        const dateB = b.date || "";
+        if (dateA !== dateB) {
+          return dateB.localeCompare(dateA);
+        }
+        return b.id.localeCompare(a.id);
+      });
+      setReports(docsList);
+
+      // Auto-feed initial reports if firestore is empty
+      if (snapshot.empty) {
+        const defaultReports: Report[] = [
+          {
+            id: 'REP301',
+            employeeId: 'EMP001',
+            nip: '19980512',
+            employeeName: 'Zulfikar Murfhy',
+            role: 'Sektor Leader',
+            department: 'IT Sektor Bangka',
+            date: '2026-06-09',
+            type: 'Teknis',
+            title: 'Patroli Gardu Induk Pangkalpinang',
+            description: 'Melakukan inspeksi visual dan pemindaian termal pada kubikel Gardu Induk Pangkalpinang. Parameter operasional dalam batas aman.',
+            status: 'Disetujui',
+            notes: 'Pekerjaan sesuai dengan standard operating procedure.',
+            location: {
+              name: 'Gardu Induk Pangkalpinang',
+              coordinates: '-2.1299, 106.1138'
+            },
+            photoIndoor: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300',
+            photoOutdoor: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300'
+          },
+          {
+            id: 'REP302',
+            employeeId: 'EMP002',
+            nip: '19971030',
+            employeeName: 'Pratama Satria',
+            role: 'Petugas Yantek',
+            department: 'Yantek Belitung',
+            date: '2026-06-08',
+            type: 'Operasional',
+            title: 'Perbaikan Jaringan Tegangan Rendah JTR',
+            description: 'Mengatasi gangguan jaringan akibat ranting pohon tumbang di area Tanjung Pandan. Penormalan aliran listrik berhasil diselesaikan aman.',
+            status: 'Pending',
+            location: {
+              name: 'Tanjung Pandan, Belitung',
+              coordinates: '-2.7303, 107.6366'
+            },
+            photoIndoor: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300',
+            photoOutdoor: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300'
+          }
+        ];
+        defaultReports.forEach((rep) => {
+          setDoc(doc(db, 'dashboard', rep.id), rep).catch(e => console.error('Error seeding report: ', e));
+        });
+      }
+    }, (error) => {
+      console.error("Firestore onSnapshot 'dashboard' error:", error);
+    });
+
+    // 2. Listen to employees collection
+    const unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
+      const docsList: Employee[] = [];
+      snapshot.forEach((docVal) => {
+        docsList.push(docVal.data() as Employee);
+      });
+      // Sort employees
+      docsList.sort((a, b) => a.id.localeCompare(b.id));
+      setEmployees(docsList);
+
+      if (snapshot.empty) {
+        const defaultEmployees: Employee[] = [
+          {
+            id: 'EMP001',
+            nip: '19980512',
+            name: 'Zulfikar Murfhy',
+            role: 'Sektor Leader',
+            department: 'IT Sektor Bangka',
+            email: 'zulfikarmurfhy12@gmail.com',
+            phone: '081234567890',
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+            status: 'Aktif',
+            joinDate: '01 Jan 2024'
+          },
+          {
+            id: 'EMP002',
+            nip: '19971030',
+            name: 'Pratama Satria',
+            role: 'Petugas Yantek',
+            department: 'Yantek Belitung',
+            email: 'pratama.satria@haleyorapower.co.id',
+            phone: '081234567891',
+            avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&q=80&w=200',
+            status: 'Aktif',
+            joinDate: '15 Mar 2024'
+          }
+        ];
+        defaultEmployees.forEach((emp) => {
+          setDoc(doc(db, 'employees', emp.id), emp).catch(e => console.error('Error seeding employee: ', e));
+        });
+      }
+    }, (error) => {
+      console.error("Firestore onSnapshot 'employees' error:", error);
+    });
+
+    // 3. Listen to attendance collection
+    const unsubAttendance = onSnapshot(collection(db, 'attendance'), (snapshot) => {
+      const docsList: Attendance[] = [];
+      snapshot.forEach((docVal) => {
+        docsList.push(docVal.data() as Attendance);
+      });
+      // Sort attendance by date/id
+      docsList.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+      setAttendance(docsList);
+
+      if (snapshot.empty) {
+        const defaultAttendance: Attendance[] = [
+          {
+            id: 'ATT501',
+            employeeId: 'EMP001',
+            employeeName: 'Zulfikar Murfhy',
+            department: 'IT Sektor Bangka',
+            date: '2026-06-09',
+            clockIn: '07:42',
+            clockOut: '16:05',
+            status: 'Tepat Waktu',
+            locationIn: 'Sektor Bangka Belitung Hub',
+            locationOut: 'Sektor Bangka Belitung Hub'
+          },
+          {
+            id: 'ATT502',
+            employeeId: 'EMP002',
+            employeeName: 'Pratama Satria',
+            department: 'Yantek Belitung',
+            date: '2026-06-09',
+            clockIn: '07:58',
+            clockOut: '16:00',
+            status: 'Tepat Waktu',
+            locationIn: 'Posko Yantek Belitung',
+            locationOut: 'Posko Yantek Belitung'
+          }
+        ];
+        defaultAttendance.forEach((att) => {
+          setDoc(doc(db, 'attendance', att.id), att).catch(e => console.error('Error seeding attendance: ', e));
+        });
+      }
+    }, (error) => {
+      console.error("Firestore onSnapshot 'attendance' error:", error);
+    });
+
+    return () => {
+      unsubReports();
+      unsubEmployees();
+      unsubAttendance();
+    };
+  }, []);
   
   // Real-time floating notifications
   const [notifications, setNotifications] = useState<SystemNotification[]>([
@@ -120,61 +292,83 @@ export default function App() {
     handleShowAlert('Logout Berhasil', 'Sesi administrasi telah diakhiri dengan aman.', 'success');
   };
 
-  const handleAddEmployee = (newEmp: Employee) => {
-    setEmployees(prev => [...prev, newEmp]);
+  const handleAddEmployee = async (newEmp: Employee) => {
+    try {
+      await setDoc(doc(db, 'employees', newEmp.id), newEmp);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `employees/${newEmp.id}`);
+    }
   };
 
-  const handleDeleteEmployee = (id: string) => {
-    setEmployees(prev => prev.filter(e => e.id !== id));
-    // clean up reports or attendance
-    setReports(prev => prev.filter(r => r.employeeId !== id));
-    setAttendance(prev => prev.filter(a => a.employeeId !== id));
+  const handleDeleteEmployee = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'employees', id));
+      // also cleanup standard reports and attendance in firestore to avoid orphaned documents
+      reports.filter(r => r.employeeId === id).forEach(async (r) => {
+        await deleteDoc(doc(db, 'dashboard', r.id));
+      });
+      attendance.filter(a => a.employeeId === id).forEach(async (a) => {
+        await deleteDoc(doc(db, 'attendance', a.id));
+      });
+      handleShowAlert('Pegawai Dihapus', 'Data pegawai beserta laporan & kehadirannya telah dihapus.', 'success');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `employees/${id}`);
+    }
   };
 
-  const handleAddAttendance = (newAtt: Attendance) => {
-    setAttendance(prev => {
-      // If today's attendance exists, update it, otherwise insert it
-      const matchIndex = prev.findIndex(
-        (a) => a.employeeId === newAtt.employeeId && a.date === newAtt.date
-      );
-      if (matchIndex > -1) {
-        const updated = [...prev];
-        updated[matchIndex] = {
-          ...updated[matchIndex],
-          ...newAtt
-        };
-        return updated;
+  const handleAddAttendance = async (newAtt: Attendance) => {
+    try {
+      await setDoc(doc(db, 'attendance', newAtt.id), newAtt);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `attendance/${newAtt.id}`);
+    }
+  };
+
+  const handleAddReport = async (newRep: Report) => {
+    try {
+      await setDoc(doc(db, 'dashboard', newRep.id), newRep);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `dashboard/${newRep.id}`);
+    }
+  };
+
+  const handleDeleteReport = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'dashboard', id));
+      handleShowAlert('Laporan Dihapus', 'Data laporan patroli berhasil dihapus dari sistem.', 'success');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `dashboard/${id}`);
+    }
+  };
+
+  const handleUpdateReportStatus = async (id: string, status: 'Disetujui' | 'Ditolak', notes?: string) => {
+    try {
+      const reportRef = doc(db, 'dashboard', id);
+      const updateData: Partial<Report> = { status };
+      if (notes !== undefined) {
+        updateData.notes = notes;
       }
-      return [newAtt, ...prev];
-    });
+      await updateDoc(reportRef, updateData);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `dashboard/${id}`);
+    }
   };
 
-  const handleAddReport = (newRep: Report) => {
-    setReports(prev => [newRep, ...prev]);
-  };
-
-  const handleDeleteReport = (id: string) => {
-    setReports(prev => prev.filter(r => r.id !== id));
-    handleShowAlert('Laporan Dihapus', 'Data laporan patroli berhasil dihapus dari sistem.', 'success');
-  };
-
-  const handleUpdateReportStatus = (id: string, status: 'Disetujui' | 'Ditolak', notes?: string) => {
-    setReports(prev => 
-      prev.map(r => r.id === id ? { ...r, status, notes } : r)
-    );
-  };
-
-  const handleImportReports = (imported: Report[]) => {
-    setReports(prev => {
-      const existingIds = new Set(prev.map(r => r.id));
+  const handleImportReports = async (imported: Report[]) => {
+    try {
+      const existingIds = new Set(reports.map(r => r.id));
       const filteredNew = imported.filter(r => !existingIds.has(r.id));
       if (filteredNew.length === 0) {
         handleShowAlert('Sinkronisasi Selesai', 'Semua data dari Google Sheet sudah ada di dalam sistem.', 'success');
-        return prev;
+        return;
+      }
+      for (const r of filteredNew) {
+        await setDoc(doc(db, 'dashboard', r.id), r);
       }
       handleShowAlert('Impor Berhasil', `Berhasil menyinkronkan & mengimpor ${filteredNew.length} laporan baru dari Google Sheets.`, 'success');
-      return [...filteredNew, ...prev];
-    });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'dashboard-import');
+    }
   };
 
   const handleDismissNotification = (id: string) => {

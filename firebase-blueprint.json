@@ -1,0 +1,77 @@
+{
+  "entities": {
+    "dashboard": {
+      "title": "Dashboard",
+      "description": "Laporan patroli dan aktivitas sektor lapangan PT. Haleyora Powerindo Bangka Belitung",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "nip": { "type": "string" },
+        "employeeName": { "type": "string" },
+        "role": { "type": "string" },
+        "department": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string" },
+        "notes": { "type": "string" },
+        "location": { "type": "object" },
+        "photoIndoor": { "type": "string" },
+        "photoOutdoor": { "type": "string" }
+      },
+      "required": ["id", "employeeName", "nip", "role", "date"]
+    },
+    "employees": {
+      "title": "Employee",
+      "description": "Data pegawai PT. Haleyora Powerindo Bangka Belitung",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nip": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "department": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "avatar": { "type": "string" },
+        "status": { "type": "string" },
+        "joinDate": { "type": "string" }
+      },
+      "required": ["id", "nip", "name", "role", "department"]
+    },
+    "attendance": {
+      "title": "Attendance",
+      "description": "Presensi harian pegawai",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "employeeName": { "type": "string" },
+        "department": { "type": "string" },
+        "date": { "type": "string" },
+        "clockIn": { "type": "string" },
+        "clockOut": { "type": "string" },
+        "status": { "type": "string" },
+        "locationIn": { "type": "string" },
+        "locationOut": { "type": "string" }
+      },
+      "required": ["id", "employeeId", "employeeName", "date", "status"]
+    }
+  },
+  "firestore": {
+    "dashboard": {
+      "schema": "dashboard",
+      "description": "Koleksi data utama laporan aktivitas lapangan"
+    },
+    "employees": {
+      "schema": "employees",
+      "description": "Koleksi data master pegawai"
+    },
+    "attendance": {
+      "schema": "attendance",
+      "description": "Koleksi data kehadiran/presensi pegawai"
+    }
+  }
+}
