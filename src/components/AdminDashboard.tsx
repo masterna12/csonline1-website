@@ -216,7 +216,7 @@ export default function AdminDashboard({
   const [addRepName, setAddRepName] = useState('');
   const [addRepNip, setAddRepNip] = useState('');
   const [addRepRole, setAddRepRole] = useState('');
-  const [addRepDept, setAddRepDept] = useState('IT');
+  const [addRepDept, setAddRepDept] = useState('');
   const [addRepType, setAddRepType] = useState<'Operasional' | 'Teknis' | 'Penjualan' | 'Administrasi' | 'Lainnya'>('Operasional');
   const [addRepTitle, setAddRepTitle] = useState('');
   const [addRepDesc, setAddRepDesc] = useState('');
@@ -377,6 +377,10 @@ export default function AdminDashboard({
       onShowAlert('Validasi Gagal', 'Harap isi Jabatan!' ,'alert');
       return;
     }
+    if (!addRepDept.trim()) {
+      onShowAlert('Validasi Gagal', 'Harap isi Unit Kerja / Divisi!', 'alert');
+      return;
+    }
 
     const finalTitle = addRepTitle.trim() || `Laporan - ${addRepDept}`;
     const finalDesc = addRepDesc.trim() || "Menyelesaikan aktivitas patroli harian, inspeksi kelayakan instrumen, dan sinkronisasi laporan koordinat lapangan PT Haleyora Powerindo.";
@@ -408,6 +412,7 @@ export default function AdminDashboard({
     setAddRepName('');
     setAddRepNip('');
     setAddRepRole('');
+    setAddRepDept('');
     setAddRepTitle('');
     setAddRepDesc('');
     setAddRepIndoor('https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300');
@@ -2251,18 +2256,15 @@ export default function AdminDashboard({
 
                   <div className="space-y-1">
                     <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">Unit Kerja / Divisi *</label>
-                    <select 
-                      id="select_manual_rep_dept"
+                    <input 
+                      id="input_manual_rep_dept"
+                      type="text" 
+                      required 
+                      placeholder="PT PLN ( Persero ) UP3 Bangka"
                       value={addRepDept}
                       onChange={(e) => setAddRepDept(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs text-slate-705"
-                    >
-                      <option value="IT">IT</option>
-                      <option value="Marketing">Marketing</option>
-                      <option value="Finance">Finance</option>
-                      <option value="Operations">Operations</option>
-                      <option value="HR">HR</option>
-                    </select>
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs text-slate-800 placeholder-slate-400"
+                    />
                   </div>
                 </div>
 
