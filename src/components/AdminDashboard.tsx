@@ -68,7 +68,7 @@ export default function AdminDashboard({
   // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun
   const [activeSubTab, setActiveSubTab] = useState<'ringkasan' | 'pegawai' | 'laporan' | 'kehadiran' | 'pengaturan'>('ringkasan');
   const [searchQuery, setSearchQuery] = useState('');
-  const [reportSubTab, setReportSubTab] = useState<'semua' | 'draft'>('semua');
+  const [reportSubTab, setReportSubTab] = useState<'semua' | 'draft' | 'rekap_kinerja'>('semua');
   const [deptFilter, setDeptFilter] = useState<string>('Semua');
   const [reportDeptFilter, setReportDeptFilter] = useState<string>('Semua');
   const [locationFilter, setLocationFilter] = useState('Semua Lokasi');
@@ -261,6 +261,113 @@ export default function AdminDashboard({
     setSettingPasswordConfirm(adminPassword);
     setSettingOldPassword('');
   }, [adminName, adminAvatar, adminPassword, activeSubTab]);
+
+  // Master Sub-Tab state
+  const [masterSubTab, setMasterSubTab] = useState<'lokasi' | 'jabatan' | 'struktur'>('lokasi');
+
+  // Master Lokasi Kerja states
+  const [locations, setLocations] = useState<{ id: string; name: string; level: number; parentId?: string; barcode?: string; jamKerja?: string; posCount?: number }[]>(() => {
+    try {
+      const saved = localStorage.getItem('hpi_locations');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [employeeLocations, setEmployeeLocations] = useState<{ [employeeId: string]: string }>(() => {
+    try {
+      const saved = localStorage.getItem('hpi_employee_locations');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Master Jabatan states
+  const [jabatans, setJabatans] = useState<{ id: string; name: string; level: number; parentId?: string }[]>(() => {
+    try {
+      const saved = localStorage.getItem('hpi_jabatans');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [employeeJabatans, setEmployeeJabatans] = useState<{ [employeeId: string]: string }>(() => {
+    try {
+      const saved = localStorage.getItem('hpi_employee_jabatans');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Master Search & Filter states
+  const [masterSearchQuery, setMasterSearchQuery] = useState('');
+  const [masterParentFilter, setMasterParentFilter] = useState('Semua');
+
+  // Modal states for adding/editing Master items
+  const [isAddLocationModalOpen, setIsAddLocationModalOpen] = useState(false);
+  const [locationNameInput, setLocationNameInput] = useState('');
+  const [locationLevelInput, setLocationLevelInput] = useState(1);
+  const [locationParentInput, setLocationParentInput] = useState('');
+  const [locationBarcodeInput, setLocationBarcodeInput] = useState('');
+  const [locationJamInput, setLocationJamInput] = useState('8 Jam Kerja');
+  const [locationPosInput, setLocationPosInput] = useState(1);
+  const [editingLocationId, setEditingLocationId] = useState<string | null>(null);
+
+  // Modal states for adding/editing Jabatan items
+  const [isAddJabatanModalOpen, setIsAddJabatanModalOpen] = useState(false);
+  const [jabatanNameInput, setJabatanNameInput] = useState('');
+  const [jabatanLevelInput, setJabatanLevelInput] = useState(1);
+  const [jabatanParentInput, setJabatanParentInput] = useState('');
+  const [editingJabatanId, setEditingJabatanId] = useState<string | null>(null);
+
+  // Modal states for assigning Employees to Locations
+  const [isAssignEmployeeModalOpen, setIsAssignEmployeeModalOpen] = useState(false);
+  const [selectedLocationForAssignment, setSelectedLocationForAssignment] = useState<string | null>(null);
+  
+  // Modal states for assigning Employees to Jabatan
+  const [isAssignJabatanModalOpen, setIsAssignJabatanModalOpen] = useState(false);
+  const [selectedJabatanForAssignment, setSelectedJabatanForAssignment] = useState<string | null>(null);
+
+  // Modal state for structural view of Organization
+  const [isOrgModalOpen, setIsOrgModalOpen] = useState(false);
+
+  // Detail view of employees assigned to a specific Jabatan
+  const [selectedJabatanForDetail, setSelectedJabatanForDetail] = useState<string | null>(null);
+
+  // Confirmation states for deleting Master items
+  const [locationIdToDelete, setLocationIdToDelete] = useState<string | null>(null);
+  const [jabatanIdToDelete, setJabatanIdToDelete] = useState<string | null>(null);
+
+  // States for Rekap Kinerja Bulanan
+  const [rekapMonth, setRekapMonth] = useState<number>(() => {
+    // Default to current month of latest report or current date
+    return new Date().getMonth() + 1;
+  });
+  const [rekapYear, setRekapYear] = useState<number>(() => {
+    return new Date().getFullYear();
+  });
+  const [rekapSearchText, setRekapSearchText] = useState<string>('');
+  const [selectedEmpForRekapDetail, setSelectedEmpForRekapDetail] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    localStorage.setItem('hpi_locations', JSON.stringify(locations));
+  }, [locations]);
+
+  React.useEffect(() => {
+    localStorage.setItem('hpi_employee_locations', JSON.stringify(employeeLocations));
+  }, [employeeLocations]);
+
+  React.useEffect(() => {
+    localStorage.setItem('hpi_jabatans', JSON.stringify(jabatans));
+  }, [jabatans]);
+
+  React.useEffect(() => {
+    localStorage.setItem('hpi_employee_jabatans', JSON.stringify(employeeJabatans));
+  }, [employeeJabatans]);
 
   // Sidebar responsive collapse
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -568,6 +675,115 @@ export default function AdminDashboard({
 
   const handleRefresh = () => {
     onShowAlert('Data Disinkronkan', 'Mengambil data real-time terbaru dari satgas lapangan...', 'success');
+  };
+
+  const handleSaveLocation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locationNameInput.trim()) {
+      onShowAlert('Nama Kosong', 'Nama lokasi kerja harus diisi.', 'alert');
+      return;
+    }
+    if (editingLocationId) {
+      setLocations(locations.map(loc => loc.id === editingLocationId ? {
+        ...loc,
+        name: locationNameInput.trim()
+      } : loc));
+      onShowAlert('Sukses', 'Lokasi kerja berhasil diperbarui.', 'success');
+    } else {
+      const parentId = locationParentInput || undefined;
+      const level = parentId ? (locations.find(l => l.id === parentId)?.level || 1) + 1 : 1;
+      const newLoc = {
+        id: 'LOC_' + Date.now().toString().slice(-6),
+        name: locationNameInput.trim(),
+        level: level,
+        parentId: parentId,
+        barcode: 'LOC-' + Math.floor(100 + Math.random() * 900),
+        jamKerja: '8 Jam Kerja',
+        posCount: 1
+      };
+      setLocations([...locations, newLoc]);
+      onShowAlert('Sukses', 'Lokasi kerja baru berhasil ditambahkan.', 'success');
+    }
+    setIsAddLocationModalOpen(false);
+    setLocationNameInput('');
+    setLocationLevelInput(1);
+    setLocationParentInput('');
+    setLocationBarcodeInput('');
+    setLocationJamInput('8 Jam Kerja');
+    setLocationPosInput(1);
+    setEditingLocationId(null);
+  };
+
+  const handleDeleteLocation = (id: string) => {
+    // Delete location and its sub-locations recursively
+    const locationsToDelete = [id];
+    
+    // Find nested sub-locations
+    const getChildrenIds = (parentId: string) => {
+      locations.forEach(loc => {
+        if (loc.parentId === parentId && !locationsToDelete.includes(loc.id)) {
+          locationsToDelete.push(loc.id);
+          getChildrenIds(loc.id);
+        }
+      });
+    };
+    getChildrenIds(id);
+
+    setLocations(locations.filter(loc => !locationsToDelete.includes(loc.id)));
+
+    // Clean up employee locations assignments mapping
+    const updatedAssignments = { ...employeeLocations };
+    Object.keys(updatedAssignments).forEach(empId => {
+      if (locationsToDelete.includes(updatedAssignments[empId])) {
+        delete updatedAssignments[empId];
+      }
+    });
+    setEmployeeLocations(updatedAssignments);
+    onShowAlert('Sukses', 'Lokasi kerja dan seluruh sub-lokasinya berhasil dihapus.', 'success');
+  };
+
+  const handleSaveJabatan = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!jabatanNameInput.trim()) {
+      onShowAlert('Nama Kosong', 'Nama jabatan / posisi harus diisi.', 'alert');
+      return;
+    }
+    if (editingJabatanId) {
+      setJabatans(jabatans.map(j => j.id === editingJabatanId ? {
+        ...j,
+        name: jabatanNameInput.trim(),
+        level: jabatanLevelInput,
+        parentId: jabatanParentInput || undefined
+      } : j));
+      onShowAlert('Sukses', 'Jabatan berhasil diperbarui.', 'success');
+    } else {
+      const newJab = {
+        id: 'JAB_' + Date.now().toString().slice(-6),
+        name: jabatanNameInput.trim(),
+        level: jabatanLevelInput,
+        parentId: jabatanParentInput || undefined
+      };
+      setJabatans([...jabatans, newJab]);
+      onShowAlert('Sukses', 'Jabatan baru berhasil ditambahkan.', 'success');
+    }
+    setIsAddJabatanModalOpen(false);
+    setJabatanNameInput('');
+    setJabatanLevelInput(1);
+    setJabatanParentInput('');
+    setEditingJabatanId(null);
+  };
+
+  const handleDeleteJabatan = (id: string) => {
+    setJabatans(jabatans.filter(j => j.id !== id));
+    // Clean up employee assignments mapping
+    const updatedAssignments = { ...employeeJabatans };
+    Object.keys(updatedAssignments).forEach(empId => {
+      if (updatedAssignments[empId] === id) {
+        delete updatedAssignments[empId];
+      }
+    });
+    setEmployeeJabatans(updatedAssignments);
+    onShowAlert('Sukses', 'Jabatan berhasil dihapus.', 'success');
   };
 
   const handleExportExcel = () => {
@@ -1591,7 +1807,7 @@ export default function AdminDashboard({
                   <button
                     onClick={() => setReportSubTab('draft')}
                     className={`pb-2 px-4 font-black uppercase tracking-wider relative transition-all flex items-center gap-1.5 ${
-                      reportSubTab === 'draft' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-slate-400 hover:text-slate-600'
+                      reportSubTab === 'draft' ? 'text-[#0284c7] border-b-2 border-[#0284c7]' : 'text-slate-400 hover:text-slate-600'
                     }`}
                   >
                     <span>Draft Laporan ({draftReports.length})</span>
@@ -1601,9 +1817,17 @@ export default function AdminDashboard({
                       </span>
                     )}
                   </button>
+                  <button
+                    onClick={() => setReportSubTab('rekap_kinerja')}
+                    className={`pb-2 px-4 font-black uppercase tracking-wider relative transition-all flex items-center gap-1.5 ${
+                      reportSubTab === 'rekap_kinerja' ? 'text-[#0284c7] border-b-2 border-[#0284c7]' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    <span>Rekap Kinerja Bulanan</span>
+                  </button>
                 </div>
 
-                {reportSubTab === 'semua' ? (
+                {reportSubTab === 'semua' && (
                   <>
                     {/* GOOGLE SHEETS INTEGRATION DASH WIDGET */}
                     <div id="google_sheets_sync_card" className="bg-gradient-to-r from-sky-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-5 border border-sky-500/25 shadow-lg relative overflow-hidden">
@@ -2071,7 +2295,9 @@ export default function AdminDashboard({
                   )}
                 </div>
               </>
-            ) : (
+            )}
+
+            {reportSubTab === 'draft' && (
               <div className="space-y-4">
                 {/* Draft Info Header */}
                 <div className="bg-gradient-to-r from-amber-500/10 via-amber-600/5 to-slate-50 border border-amber-500/30 p-5 rounded-2xl text-xs space-y-3">
@@ -2189,10 +2415,352 @@ export default function AdminDashboard({
                 )}
               </div>
             )}
+
+            {reportSubTab === 'rekap_kinerja' && (() => {
+              const belongsToMonthYear = (dateStr: string, targetMonth: number, targetYear: number) => {
+                if (!dateStr) return false;
+                const parts = dateStr.split('-');
+                if (parts.length < 2) return false;
+                const yr = parseInt(parts[0], 10);
+                const mo = parseInt(parts[1], 10);
+                return yr === targetYear && mo === targetMonth;
+              };
+
+              const monthsList = [
+                { value: 1, label: 'Januari' },
+                { value: 2, label: 'Februari' },
+                { value: 3, label: 'Maret' },
+                { value: 4, label: 'April' },
+                { value: 5, label: 'Mei' },
+                { value: 6, label: 'Juni' },
+                { value: 7, label: 'Juli' },
+                { value: 8, label: 'Agustus' },
+                { value: 9, label: 'September' },
+                { value: 10, label: 'Oktober' },
+                { value: 11, label: 'November' },
+                { value: 12, label: 'Desember' }
+              ];
+
+              const yearsList = [2024, 2025, 2026, 2027];
+
+              const filteredEmployees = employees.filter(emp => {
+                if (!rekapSearchText.trim()) return true;
+                const query = rekapSearchText.toLowerCase();
+                return emp.name.toLowerCase().includes(query) ||
+                       emp.nip.toLowerCase().includes(query) ||
+                       (emp.department && emp.department.toLowerCase().includes(query)) ||
+                       (emp.role && emp.role.toLowerCase().includes(query));
+              });
+
+              const employeePerformance = filteredEmployees.map(emp => {
+                const empReports = reports.filter(r => r.employeeId === emp.id && belongsToMonthYear(r.date, rekapMonth, rekapYear));
+                
+                const uniqueDates = Array.from(new Set(empReports.map(r => r.date)));
+                const workingDaysCount = uniqueDates.length;
+
+                const indoorDates = Array.from(new Set(
+                  empReports
+                    .filter(r => r.photoIndoor && r.photoIndoor.trim() !== '')
+                    .map(r => r.date)
+                ));
+                const countIndoorDays = indoorDates.length;
+
+                const outdoorDates = Array.from(new Set(
+                  empReports
+                    .filter(r => r.photoOutdoor && r.photoOutdoor.trim() !== '')
+                    .map(r => r.date)
+                ));
+                const countOutdoorDays = outdoorDates.length;
+
+                const totalReports = empReports.length;
+
+                const indoorPercentage = workingDaysCount > 0 ? Math.round((countIndoorDays / workingDaysCount) * 100) : 0;
+                const outdoorPercentage = workingDaysCount > 0 ? Math.round((countOutdoorDays / workingDaysCount) * 100) : 0;
+
+                const finalIndoorPercentage = indoorPercentage > 100 ? 100 : indoorPercentage;
+                const finalOutdoorPercentage = outdoorPercentage > 100 ? 100 : outdoorPercentage;
+
+                let scoreText = 'KURANG';
+                let scoreColor = 'bg-rose-500 text-white';
+                if (workingDaysCount > 0) {
+                  const combinedPct = (finalIndoorPercentage + finalOutdoorPercentage) / 2;
+                  if (combinedPct >= 90) {
+                    scoreText = 'SANGAT BAIK';
+                    scoreColor = 'bg-emerald-600 text-white';
+                  } else if (combinedPct >= 60) {
+                    scoreText = 'BAIK (OPTIMAL)';
+                    scoreColor = 'bg-sky-600 text-white font-black';
+                  } else if (combinedPct >= 30) {
+                    scoreText = 'CUKUP';
+                    scoreColor = 'bg-amber-500 text-slate-950 font-black';
+                  } else {
+                    scoreText = 'KURANG';
+                    scoreColor = 'bg-rose-500 text-white';
+                  }
+                }
+
+                return {
+                  employee: emp,
+                  reportsCount: totalReports,
+                  workingDaysCount,
+                  countIndoorDays,
+                  countOutdoorDays,
+                  indoorPercentage: finalIndoorPercentage,
+                  outdoorPercentage: finalOutdoorPercentage,
+                  scoreText,
+                  scoreColor
+                };
+              });
+
+              const totalActiveInRekap = employeePerformance.filter(x => x.reportsCount > 0).length;
+              const perfectPerformers = employeePerformance.filter(x => x.indoorPercentage >= 90 && x.outdoorPercentage >= 90).length;
+              const totalMonthlyIndoor = reports.filter(r => belongsToMonthYear(r.date, rekapMonth, rekapYear) && r.photoIndoor && r.photoIndoor.trim() !== '').length;
+              const totalMonthlyOutdoor = reports.filter(r => belongsToMonthYear(r.date, rekapMonth, rekapYear) && r.photoOutdoor && r.photoOutdoor.trim() !== '').length;
+
+              return (
+                <div className="space-y-5 text-slate-800 font-sans mt-3">
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex flex-col gap-1.5 text-left">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">PILIH BULAN</span>
+                        <select
+                          value={rekapMonth}
+                          onChange={(e) => setRekapMonth(Number(e.target.value))}
+                          className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-sky-500 transition-colors w-40 cursor-pointer text-left"
+                        >
+                          {monthsList.map(m => (
+                            <option key={m.value} value={m.value}>{m.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 text-left">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">TAHUN</span>
+                        <select
+                          value={rekapYear}
+                          onChange={(e) => setRekapYear(Number(e.target.value))}
+                          className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-sky-500 transition-colors w-28 cursor-pointer text-left"
+                        >
+                          {yearsList.map(y => (
+                            <option key={y} value={y}>{y}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 flex-1 min-w-[200px] text-left">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">PENCARIAN PEGAWAI</span>
+                        <div className="relative">
+                          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            placeholder="Cari nama, NIP, atau unit kerja..."
+                            value={rekapSearchText}
+                            onChange={(e) => setRekapSearchText(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 p-2.5 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-sky-500 transition-colors placeholder:text-slate-400 placeholder:font-bold"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-end gap-2 shrink-0 self-end lg:self-auto">
+                      <button
+                        onClick={() => {
+                          setRekapMonth(new Date().getMonth() + 1);
+                          setRekapYear(new Date().getFullYear());
+                          setRekapSearchText('');
+                        }}
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold px-4 py-3 rounded-xl transition cursor-pointer active:scale-95"
+                      >
+                        Reset Filter
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-100 p-4 rounded-2xl flex items-center justify-between shadow-sm">
+                      <div className="space-y-1 text-left">
+                        <span className="text-[9px] font-black text-sky-600 block uppercase tracking-wider">● Pegawai Kirim Laporan</span>
+                        <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">{totalActiveInRekap} / {employees.length}</h3>
+                        <p className="text-[9px] text-slate-400 font-semibold">Tercatat aktif di bulan {monthsList.find(m => m.value === rekapMonth)?.label}</p>
+                      </div>
+                      <div className="bg-sky-100/85 text-sky-600 p-2.5 rounded-xl">
+                        <Users size={18} />
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-100 p-4 rounded-2xl flex items-center justify-between shadow-sm">
+                      <div className="space-y-1 text-left">
+                        <span className="text-[9px] font-black text-emerald-600 block uppercase tracking-wider">● Kepatuhan Sempurna (≥90%)</span>
+                        <h3 className="text-xl font-extrabold text-slate-905 tracking-tight">{perfectPerformers} Pegawai</h3>
+                        <p className="text-[9px] text-slate-400 font-semibold">Mengirim foto Indoor & Outdoor rutin</p>
+                      </div>
+                      <div className="bg-emerald-100/85 text-emerald-600 p-2.5 rounded-xl">
+                        <CheckCircle2 size={18} />
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-teal-50 to-sky-50 border border-teal-100 p-4 rounded-2xl flex items-center justify-between shadow-sm">
+                      <div className="space-y-1 text-left">
+                        <span className="text-[9px] font-black text-teal-600 block uppercase tracking-wider">● Total Foto Selfie Indoor</span>
+                        <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">{totalMonthlyIndoor} Foto</h3>
+                        <p className="text-[9px] text-slate-400 font-semibold">Dokumentasi absensi selfie pegawai</p>
+                      </div>
+                      <div className="bg-teal-100/85 text-teal-600 p-2.5 rounded-xl">
+                        <UserCheck size={18} />
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 p-4 rounded-2xl flex items-center justify-between shadow-sm">
+                      <div className="space-y-1 text-left">
+                        <span className="text-[9px] font-black text-amber-600 block uppercase tracking-wider">● Total Foto Sektor Outdoor</span>
+                        <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">{totalMonthlyOutdoor} Foto</h3>
+                        <p className="text-[9px] text-slate-400 font-semibold">Dokumentasi hasil kerja sektor lapangan</p>
+                      </div>
+                      <div className="bg-amber-100/85 text-amber-600 p-2.5 rounded-xl">
+                        <MapPin size={18} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-slate-205 overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-150 text-[10px] uppercase font-black text-slate-500 tracking-wider">
+                            <th className="py-3 px-4 text-center w-12">No</th>
+                            <th className="py-3 px-4">Nama Personil / NIP</th>
+                            <th className="py-3 px-4">Jabatan & Unit</th>
+                            <th className="py-3 px-4 text-center">Hari Kerja Pelaporan</th>
+                            <th className="py-3 px-4 text-center">Foto Selfie Indoor</th>
+                            <th className="py-3 px-4 text-center">Foto Sektor Outdoor</th>
+                            <th className="py-3 px-4 text-center">Status Rekapitulasi</th>
+                            <th className="py-3 px-4 text-center w-24">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs">
+                          {employeePerformance.length === 0 ? (
+                            <tr>
+                              <td colSpan={8} className="py-10 text-center text-slate-400 italic font-semibold">
+                                Tidak ada pegawai yang ditemukan. Silakan sesuaikan pencarian.
+                              </td>
+                            </tr>
+                          ) : (
+                            employeePerformance.map((item, index) => {
+                              const emp = item.employee;
+                              return (
+                                <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
+                                  <td className="py-3 px-4 text-center text-slate-400 font-bold font-mono">
+                                    {index + 1}
+                                  </td>
+                                  
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center gap-3">
+                                      {emp.avatar ? (
+                                        <img src={emp.avatar} alt={emp.name} className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0" referrerPolicy="no-referrer" />
+                                      ) : (
+                                        <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-extrabold flex items-center justify-center shrink-0 uppercase border border-slate-200">
+                                          {emp.name.slice(0, 2)}
+                                        </div>
+                                      )}
+                                      <div>
+                                        <div className="font-extrabold text-slate-800 tracking-tight leading-tight">{emp.name}</div>
+                                        <div className="text-[10px] text-slate-400 font-mono font-bold mt-0.5">NIP {emp.nip}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  <td className="py-3 px-4 text-left">
+                                    <div className="font-bold text-slate-700 leading-tight">
+                                      {emp.role || 'Tenaga Lapangan'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-bold tracking-tight uppercase mt-0.5">
+                                      {emp.department || 'Operasional'}
+                                    </div>
+                                  </td>
+
+                                  <td className="py-3 px-4 text-center">
+                                    <span className="font-mono bg-slate-100 text-slate-705 border border-slate-200/60 px-2 rounded-lg font-bold">
+                                      {item.workingDaysCount} Hari
+                                    </span>
+                                  </td>
+
+                                  <td className="py-3 px-4">
+                                    <div className="flex flex-col items-center justify-center gap-1.5">
+                                      <div className="font-mono font-bold text-slate-700 text-[11px]">
+                                        {item.countIndoorDays} / {item.workingDaysCount || '—'}
+                                      </div>
+                                      {item.workingDaysCount > 0 ? (
+                                        <div className="w-20 bg-slate-100 h-1 rounded-full overflow-hidden border border-slate-200">
+                                          <div 
+                                            className={`h-full rounded-full ${item.indoorPercentage >= 80 ? 'bg-emerald-500' : item.indoorPercentage >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                            style={{ width: `${item.indoorPercentage}%` }}
+                                          />
+                                        </div>
+                                      ) : (
+                                        <span className="text-[10px] text-slate-400 italic">Tidak ada laporan</span>
+                                      )}
+                                      {item.workingDaysCount > 0 && (
+                                        <span className={`text-[9px] font-bold ${item.indoorPercentage >= 80 ? 'text-emerald-600' : item.indoorPercentage >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>
+                                          {item.indoorPercentage}% Selesai
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  <td className="py-3 px-4">
+                                    <div className="flex flex-col items-center justify-center gap-1.5">
+                                      <div className="font-mono font-bold text-slate-700 text-[11px]">
+                                        {item.countOutdoorDays} / {item.workingDaysCount || '—'}
+                                      </div>
+                                      {item.workingDaysCount > 0 ? (
+                                        <div className="w-20 bg-slate-100 h-1 rounded-full overflow-hidden border border-slate-200">
+                                          <div 
+                                            className={`h-full rounded-full ${item.outdoorPercentage >= 80 ? 'bg-sky-500' : item.outdoorPercentage >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                            style={{ width: `${item.outdoorPercentage}%` }}
+                                          />
+                                        </div>
+                                      ) : (
+                                        <span className="text-[10px] text-slate-400 italic">Tidak ada laporan</span>
+                                      )}
+                                      {item.workingDaysCount > 0 && (
+                                        <span className={`text-[9px] font-bold ${item.outdoorPercentage >= 80 ? 'text-sky-600' : item.outdoorPercentage >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>
+                                          {item.outdoorPercentage}% Selesai
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  <td className="py-3 px-4 text-center select-none">
+                                    <span className={`inline-block py-1 px-3.5 rounded-full text-[9px] font-black tracking-wider uppercase ${item.scoreColor}`}>
+                                      {item.scoreText}
+                                    </span>
+                                  </td>
+
+                                  <td className="py-3 px-4 text-center">
+                                    <button
+                                      onClick={() => setSelectedEmpForRekapDetail(emp.id)}
+                                      className="bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-[10px] font-bold py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all mx-auto active:scale-95 cursor-pointer"
+                                      title="Lihat Detail Foto Bulanan"
+                                    >
+                                      <Eye size={12} />
+                                      <span>Rincian</span>
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </motion.div>
         )}
 
-            {/* TAB 4: DATA MASTER (PRESENSI LOG REGISTER & ATTENDANCE RECAP) */}
+            {/* TAB 4: DATA MASTER (LOKASI KERJA, JABATAN & STRUKTUR ORGANISASI) */}
             {activeSubTab === 'kehadiran' && (
               <motion.div
                 key="tab_prisma_kehadiran"
@@ -2201,117 +2769,561 @@ export default function AdminDashboard({
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-4 text-left font-sans"
               >
-                <div className="pb-2 border-b border-slate-350">
-                  <h1 className="text-xl md:text-2xl font-black text-slate-900">Data Master Register Presensi</h1>
-                  <p className="text-xs text-slate-500 mt-0.5">Rekapitulasi geo-absensi harian satgas lapangan terintegrasi jam digital</p>
-                </div>
-
-                {/* Stats recap row */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white p-4 rounded-2xl border border-slate-200 text-xs shadow-sm">
-                  <div className="space-y-0.5 border-r border-slate-100 pr-2">
-                    <p className="text-[10px] text-slate-400 uppercase font-black">Presentase Kehadiran</p>
-                    <p className="text-xl font-black text-emerald-600">
-                      {totalEmployees > 0 ? Math.round((presentTodayCount / totalEmployees) * 100) : 100}% <span className="text-[10px] text-slate-400 font-normal">hari ini</span>
+                {/* Horizontal sub-tabs for Data Master */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-205 pb-3 gap-3">
+                  <div>
+                    <h1 className="text-xl md:text-2xl font-black text-slate-900">
+                      Master {masterSubTab === 'lokasi' ? 'Lokasi Kerja' : masterSubTab === 'jabatan' ? 'Manajemen Jabatan' : 'Struktur Organisasi'}
+                    </h1>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {masterSubTab === 'lokasi' 
+                        ? 'Manajemen lokasi & penempatan wilayah kerja pegawai terintegrasi' 
+                        : masterSubTab === 'jabatan'
+                          ? 'Konfigurasi profil jabatan hierarkis dan tingkat kewenangan satgas'
+                          : 'Visualisasi bagan struktur komando formal PT Haleyora Powerindo'}
                     </p>
                   </div>
-                  <div className="space-y-0.5 border-r border-slate-100 pr-2">
-                    <p className="text-[10px] text-slate-400 uppercase font-black">Pegawai Terlambat</p>
-                    <p className="text-xl font-black text-amber-600">{lateTodayCount} <span className="text-[10px] text-slate-400 font-normal">personil</span></p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <p className="text-[10px] text-slate-400 uppercase font-black">Total Register Log</p>
-                    <p className="text-xl font-black text-slate-800">{filteredAttendance.length} <span className="text-[10px] text-slate-400 font-normal">rekap</span></p>
-                  </div>
-                </div>
-
-                {/* Filter and research */}
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
-                  <div className="relative w-full md:w-80">
-                    <Search className="absolute left-3 top-3 text-slate-400" size={14} />
-                    <input 
-                      id="kehadiran_search"
-                      type="text" 
-                      placeholder="Cari register (Nama, Status, Unit)..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-[#f8fafc] border border-slate-300 rounded-xl py-2 pl-9 pr-3 text-slate-705 text-xs outline-none"
-                    />
-                  </div>
-
-                  <div className="flex gap-2.5 items-center">
-                    <span className="text-[10px] uppercase font-black text-slate-400">Unit Sektor:</span>
-                    <select
-                      id="kehadiran_dept_filter"
-                      value={deptFilter}
-                      onChange={(e) => setDeptFilter(e.target.value)}
-                      className="bg-[#f8fafc] border border-slate-300 rounded-xl p-2 px-3 text-slate-650 text-xs outline-none font-bold"
+                  
+                  <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:self-auto shadow-inner">
+                    <button
+                      onClick={() => { setMasterSubTab('lokasi'); setMasterSearchQuery(''); }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        masterSubTab === 'lokasi' 
+                          ? 'bg-white text-sky-600 shadow-sm' 
+                          : 'text-slate-600 hover:text-slate-933'
+                      }`}
                     >
-                      <option value="Semua">Semua Divisi</option>
-                      <option value="IT">IT</option>
-                      <option value="Operations">Operations / Lapangan</option>
-                      <option value="Marketing">Marketing</option>
-                      <option value="Finance">Finance</option>
-                      <option value="HR">HR</option>
-                    </select>
+                      Lokasi Kerja
+                    </button>
+                    <button
+                      onClick={() => { setMasterSubTab('jabatan'); setMasterSearchQuery(''); }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        masterSubTab === 'jabatan' 
+                          ? 'bg-white text-sky-600 shadow-sm' 
+                          : 'text-slate-600 hover:text-slate-933'
+                      }`}
+                    >
+                      Daftar Jabatan
+                    </button>
+                    <button
+                      onClick={() => { setMasterSubTab('struktur'); setMasterSearchQuery(''); }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        masterSubTab === 'struktur' 
+                          ? 'bg-white text-sky-600 shadow-sm' 
+                          : 'text-slate-600 hover:text-slate-933'
+                      }`}
+                    >
+                      Hirarki & Struktur
+                    </button>
                   </div>
                 </div>
 
-                {/* Attendance master logs card table */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
-                  <div className="min-w-full overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-slate-500 font-extrabold text-[10px] uppercase bg-slate-50 select-none">
-                          <th className="p-4 pl-6">Nama Pegawai / Sektor</th>
-                          <th className="p-4">Tanggal Presensi</th>
-                          <th className="p-4">Waktu Masuk (Clock-In)</th>
-                          <th className="p-4">Waktu Keluar (Clock-Out)</th>
-                          <th className="p-4">Pos Koordinat Absen</th>
-                          <th className="p-4">Status Verifikasi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {filteredAttendance.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="p-10 text-slate-400 italic text-center">
-                              Tidak ada log presensi harian yang sesuai filter pencarian.
-                            </td>
-                          </tr>
+                {/* 1. SUB-TAB: LOKASI KERJA */}
+                {masterSubTab === 'lokasi' && (
+                  <div className="space-y-4">
+                    {/* Stats Rows */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="flex bg-[#009bca] text-white rounded-xl overflow-hidden shadow-sm">
+                        <div className="p-4 bg-[#0089b2] flex items-center justify-center w-14">
+                          <MapPin size={24} />
+                        </div>
+                        <div className="p-3 flex-1">
+                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase">TOTAL LOKASI KERJA</p>
+                          <p className="text-xl font-black mt-0.5">{locations.length}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex bg-[#10b981] text-white rounded-xl overflow-hidden shadow-sm">
+                        <div className="p-4 bg-[#059669] flex items-center justify-center w-14">
+                          <Check size={24} />
+                        </div>
+                        <div className="p-3 flex-1">
+                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase">LOKASI SUDAH ADA PEGAWAI</p>
+                          <p className="text-xl font-black mt-0.5">
+                            {locations.filter(loc => Object.values(employeeLocations).includes(loc.id)).length}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex bg-[#f97316] text-white rounded-xl overflow-hidden shadow-sm">
+                        <div className="p-4 bg-[#ea580c] flex items-center justify-center w-14">
+                          <AlertTriangle size={24} />
+                        </div>
+                        <div className="p-3 flex-1">
+                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase">LOKASI BELUM ADA PEGAWAI</p>
+                          <p className="text-xl font-black mt-0.5">
+                            {locations.filter(loc => !Object.values(employeeLocations).includes(loc.id)).length}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex bg-[#2563eb] text-white rounded-xl overflow-hidden shadow-sm">
+                        <div className="p-4 bg-[#1d4ed8] flex items-center justify-center w-14">
+                          <Users size={24} />
+                        </div>
+                        <div className="p-3 flex-1">
+                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase">TOTAL PEGAWAI</p>
+                          <p className="text-xl font-black mt-0.5">{employees.length}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex bg-[#12a176] text-white rounded-xl overflow-hidden shadow-sm">
+                        <div className="p-4 bg-[#0d845f] flex items-center justify-center w-14">
+                          <UserCheck size={24} />
+                        </div>
+                        <div className="p-3 flex-1">
+                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase">PEGAWAI SUDAH PUNYA LOKASI</p>
+                          <p className="text-xl font-black mt-0.5">
+                            {employees.filter(emp => employeeLocations[emp.id]).length}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex bg-[#ef4444] text-white rounded-xl overflow-hidden shadow-sm">
+                        <div className="p-4 bg-[#dc2626] flex items-center justify-center w-14">
+                          <XCircle size={24} />
+                        </div>
+                        <div className="p-3 flex-1">
+                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase">PEGAWAI BELUM PUNYA LOKASI</p>
+                          <p className="text-xl font-black mt-0.5">
+                            {employees.filter(emp => !employeeLocations[emp.id]).length}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Filter and search bar */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-205 shadow-sm space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between gap-4">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-3.5 text-slate-400" size={13} />
+                        <input
+                          id="loc_search_query"
+                          type="text"
+                          placeholder="Cari ID / Lokasi / Barcode..."
+                          value={masterSearchQuery}
+                          onChange={(e) => setMasterSearchQuery(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2.5 pl-9 pr-3 text-slate-800 text-xs outline-none focus:bg-white focus:border-sky-500 transition-colors"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] uppercase font-black text-slate-400">Filter Parent:</span>
+                        <select
+                          id="loc_parent_filter"
+                          value={masterParentFilter}
+                          onChange={(e) => setMasterParentFilter(e.target.value)}
+                          className="bg-slate-50 border border-slate-300 rounded-xl py-2 px-3 text-slate-705 text-xs outline-none font-bold"
+                        >
+                          <option value="Semua">-- Semua Parent --</option>
+                          {locations.filter(l => l.level === 1).map(l => (
+                            <option key={l.id} value={l.id}>{l.name}</option>
+                          ))}
+                        </select>
+
+                        <button
+                          onClick={() => {
+                            setMasterSearchQuery('');
+                            setMasterParentFilter('Semua');
+                          }}
+                          className="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                        >
+                          <RefreshCw size={12} />
+                          <span>Reset</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Dark headers with locations list */}
+                    <div className="bg-[#2a3042] text-white rounded-2xl border border-slate-700 shadow-md overflow-hidden">
+                      <div className="px-5 py-4 flex items-center justify-between border-b border-slate-700 bg-[#222736]">
+                        <div className="flex items-center gap-2">
+                          <Building2 size={16} className="text-sky-400" />
+                          <h2 className="text-sm font-black tracking-wider uppercase">Daftar Lokasi Kerja</h2>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setEditingLocationId(null);
+                            setLocationNameInput('');
+                            setLocationLevelInput(1);
+                            setLocationParentInput('');
+                            setLocationBarcodeInput('');
+                            setLocationJamInput('8 Jam Kerja');
+                            setLocationPosInput(1);
+                            setIsAddLocationModalOpen(true);
+                          }}
+                          className="bg-white text-slate-900 hover:bg-slate-50 font-black text-[11px] uppercase tracking-wider py-2 px-4 rounded-xl flex items-center gap-1 cursor-pointer active:scale-95 transition"
+                        >
+                          <Plus size={13} className="stroke-[3]" />
+                          <span>Tambah Lokasi</span>
+                        </button>
+                      </div>
+
+                      <div className="p-4 bg-slate-50 text-slate-800 divide-y divide-slate-100">
+                        {locations.length === 0 ? (
+                          <div className="text-center py-10 text-slate-400 italic">
+                            Belum ada lokasi kerja. Silakan klik "Tambah Lokasi" untuk mendaftarkan wilayah tugas satgas baru.
+                          </div>
                         ) : (
-                          filteredAttendance.map((att) => (
-                            <tr key={att.id} className="hover:bg-slate-55/70 transition-colors">
-                              <td className="p-4 pl-6">
-                                <p className="font-extrabold text-slate-800 text-xs">{att.employeeName}</p>
-                                <span className="text-[9px] text-slate-450 uppercase font-black tracking-wider block mt-0.5">{att.department === 'Operations' ? 'OPERASIONAL LAPANGAN' : att.department}</span>
-                              </td>
-                              <td className="p-4 font-mono text-slate-600 font-bold">{att.date}</td>
-                              <td className="p-4 text-emerald-600 font-bold font-mono text-[11px]">{att.clockIn || '--:--'}</td>
-                              <td className="p-4 text-slate-500 font-bold font-mono text-[11px]">{att.clockOut || 'Aktif'}</td>
-                              <td className="p-4">
-                                <div className="flex items-center gap-1 text-slate-500">
-                                  <MapPin size={11} className="text-sky-500 shrink-0" />
-                                  <span className="truncate max-w-[190px]">{att.locationIn || 'GPS Terverifikasi'}</span>
+                          (() => {
+                            const filtered = locations.filter(loc => {
+                              const matchSearch = masterSearchQuery ? (
+                                loc.name.toLowerCase().includes(masterSearchQuery.toLowerCase()) ||
+                                (loc.barcode && loc.barcode.toLowerCase().includes(masterSearchQuery.toLowerCase())) ||
+                                loc.id.toLowerCase().includes(masterSearchQuery.toLowerCase())
+                              ) : true;
+                              const matchParent = masterParentFilter !== 'Semua' ? loc.parentId === masterParentFilter : true;
+                              return matchSearch && matchParent;
+                            });
+
+                            if (filtered.length === 0) {
+                              return (
+                                <div className="text-center py-8 text-slate-400 italic">
+                                  Laporan pencarian lokasi kosong.
                                 </div>
-                              </td>
-                              <td className="p-4">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black ${
-                                  att.status === 'Tepat Waktu' 
-                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                                    : att.status === 'Terlambat' 
-                                      ? 'bg-amber-100 text-amber-800 border border-amber-250' 
-                                      : 'bg-rose-100 text-rose-800 border border-rose-200'
-                                }`}>
-                                  {att.status}
-                                </span>
+                              );
+                            }
+
+                            return filtered.map((loc) => {
+                              const assignedToThisLoc = employees.filter(emp => employeeLocations[emp.id] === loc.id);
+                              
+                              return (
+                                <div key={loc.id} className="py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-100/50 px-2.5 rounded-xl transition font-sans">
+                                  <div className="flex items-start gap-2.5">
+                                    <MapPin size={16} className="text-sky-500 shrink-0 mt-0.5" />
+                                    <div>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <h3 className="font-extrabold text-sm text-slate-800 tracking-tight">{loc.name}</h3>
+                                        {loc.level > 1 && (
+                                          <span className="bg-slate-100 text-slate-605 border border-slate-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                                            Sub Level {loc.level - 1}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {loc.parentId && (
+                                        <p className="text-[10px] text-slate-400 mt-1">
+                                          Parent Unit: <span className="font-bold text-sky-600">{locations.find(p => p.id === loc.parentId)?.name || loc.parentId}</span>
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-1.5 self-end md:self-auto font-sans">
+                                    {/* Assigned employees display and management button */}
+                                    <button
+                                      onClick={() => {
+                                        setSelectedLocationForAssignment(loc.id);
+                                        setIsAssignEmployeeModalOpen(true);
+                                      }}
+                                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition active:scale-95 cursor-pointer"
+                                      title="Daftar Pegawai"
+                                    >
+                                      <Users size={11} />
+                                      <span>{assignedToThisLoc.length} Pegawai</span>
+                                    </button>
+
+                                    {/* Feature: Add Employee directly */}
+                                    <button
+                                      onClick={() => {
+                                        setSelectedLocationForAssignment(loc.id);
+                                        setIsAssignEmployeeModalOpen(true);
+                                      }}
+                                      className="bg-sky-50 hover:bg-sky-100 border border-sky-100 text-sky-700 text-[10px] font-black px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition active:scale-95 cursor-pointer"
+                                      title="Placing / Tambah Pegawai di Lokasi"
+                                    >
+                                      <UserCheck size={11} className="text-sky-600" />
+                                      <span>+ Pegawai</span>
+                                    </button>
+
+                                    {/* Feature: Add Sub location */}
+                                    {loc.level < 6 && (
+                                      <button
+                                        onClick={() => {
+                                          setEditingLocationId(null);
+                                          setLocationNameInput('');
+                                          setLocationLevelInput(loc.level + 1);
+                                          setLocationParentInput(loc.id);
+                                          setLocationBarcodeInput('');
+                                          setLocationJamInput('8 Jam Kerja');
+                                          setLocationPosInput(1);
+                                          setIsAddLocationModalOpen(true);
+                                        }}
+                                        className="bg-[#24b071]/10 hover:bg-[#24b071]/20 text-[#15803d] border border-[#24b071]/25 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                                      >
+                                        <Plus size={11} className="stroke-[3]" />
+                                        <span>+ Sub Lokasi</span>
+                                      </button>
+                                    )}
+
+                                    {/* Edit buttons */}
+                                    <button
+                                      onClick={() => {
+                                        setEditingLocationId(loc.id);
+                                        setLocationNameInput(loc.name);
+                                        setLocationLevelInput(loc.level);
+                                        setLocationParentInput(loc.parentId || '');
+                                        setLocationBarcodeInput(loc.barcode || '');
+                                        setLocationJamInput(loc.jamKerja || '8 Jam Kerja');
+                                        setLocationPosInput(loc.posCount || 1);
+                                        setIsAddLocationModalOpen(true);
+                                      }}
+                                      className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg transition cursor-pointer"
+                                      title="Edit lokasi"
+                                    >
+                                      <FileText size={12} className="text-amber-650" />
+                                    </button>
+
+                                    <button
+                                      onClick={() => setLocationIdToDelete(loc.id)}
+                                      className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg transition cursor-pointer"
+                                      title="Hapus lokasi"
+                                    >
+                                      <Trash2 size={12} className="text-rose-650" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            });
+                          })()
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. SUB-TAB: JABATAN / POSISI */}
+                {masterSubTab === 'jabatan' && (
+                  <div className="bg-white rounded-2xl border border-slate-205 shadow-sm p-5 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                      <div>
+                        <h2 className="text-base font-black text-slate-800 flex items-center gap-1.5">
+                          <Layers size={16} className="text-sky-500" />
+                          <span>Daftar Jabatan Resmi</span>
+                        </h2>
+                        <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mt-0.5">
+                          Menampilkan {jabatans.length} Jabatan formal di unit kerja HPI
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingJabatanId(null);
+                            setJabatanNameInput('');
+                            setJabatanLevelInput(1);
+                            setJabatanParentInput('');
+                            setIsAddJabatanModalOpen(true);
+                          }}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 px-4 rounded-xl flex items-center gap-1 active:scale-95 transition cursor-pointer shadow-sm"
+                        >
+                          <Plus size={13} className="stroke-[3]" />
+                          <span>+ Tambah Jabatan</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            const newLevelOrder = window.confirm("Aktifkan penukaran mode level hierarki jabatan?");
+                            if (newLevelOrder) onShowAlert("Struktur Diperbarui", "Tukar Level hierarki jabatan berhasil diaktifkan.", "success");
+                          }}
+                          className="bg-sky-550 border border-sky-600 text-sky-800 hover:bg-sky-100 font-extrabold text-xs py-2 px-3.5 rounded-xl flex items-center gap-1 active:scale-95 transition cursor-pointer"
+                        >
+                          <Layers size={13} />
+                          <span>Tukar Level</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50 font-black text-[10px] text-slate-500 uppercase select-none">
+                            <th className="p-3 pl-5 text-center w-12">#</th>
+                            <th className="p-3">ID JABATAN</th>
+                            <th className="p-3">Nama Posisi / Jabatan</th>
+                            <th className="p-3 text-center">Level Hierarki</th>
+                            <th className="p-3">Atasan Langsung (Parent)</th>
+                            <th className="p-3 text-center w-24">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {jabatans.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="p-10 text-slate-400 italic text-center">
+                                Belum ada jabatan tersimpan. Klik "+ Tambah Jabatan" untuk memulai membuat hierarki komando organisasi.
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                          ) : (
+                            jabatans.map((jab, index) => {
+                              const parentJab = jabatans.find(j => j.id === jab.parentId);
+                              return (
+                                <tr key={jab.id} className="hover:bg-slate-50/70 transition-colors">
+                                  <td className="p-3 pl-5 text-center font-bold text-slate-405">{index + 1}</td>
+                                  <td className="p-3 font-mono font-bold text-sky-700">{jab.id}</td>
+                                  <td className="p-3">
+                                    <div className="font-extrabold text-slate-900 text-xs tracking-tight">{jab.name}</div>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-bold text-white shadow-sm ${
+                                      jab.level === 1 ? 'bg-red-500' :
+                                      jab.level === 2 ? 'bg-orange-500' :
+                                      jab.level === 3 ? 'bg-sky-500' :
+                                      jab.level === 4 ? 'bg-blue-600' :
+                                      'bg-slate-500'
+                                    }`}>
+                                      Level {jab.level}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-slate-500">
+                                    {parentJab ? (
+                                      <div className="flex items-center gap-1">
+                                        <span className="font-bold text-slate-700">{parentJab.name}</span>
+                                        <span className="text-[9px] bg-slate-100 text-slate-500 px-1 rounded">Lvl {parentJab.level}</span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-slate-350 font-bold">-</span>
+                                    )}
+                                  </td>
+                                  <td className="p-3">
+                                    <div className="flex items-center justify-center gap-1"/>
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <button
+                                        onClick={() => {
+                                          setSelectedJabatanForAssignment(jab.id);
+                                          setIsAssignJabatanModalOpen(true);
+                                        }}
+                                        className="p-1 px-2 text-[9px] font-bold bg-sky-50 text-sky-700 border border-sky-200 rounded-md hover:bg-sky-100 transition"
+                                        title="Assign pegawai ke jabatan"
+                                      >
+                                        Assign ({employees.filter(emp => employeeJabatans[emp.id] === jab.id).length})
+                                      </button>
+                                      
+                                      <button
+                                        onClick={() => {
+                                          setEditingJabatanId(jab.id);
+                                          setJabatanNameInput(jab.name);
+                                          setJabatanLevelInput(jab.level);
+                                          setJabatanParentInput(jab.parentId || '');
+                                          setIsAddJabatanModalOpen(true);
+                                        }}
+                                        className="p-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 rounded-lg transition"
+                                      >
+                                        <FileText size={12} />
+                                      </button>
 
+                                      <button
+                                        onClick={() => setJabatanIdToDelete(jab.id)}
+                                        className="p-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg transition-all cursor-pointer"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. SUB-TAB: HIRARKI & STRUKTUR ORGANISASI */}
+                {masterSubTab === 'struktur' && (
+                  <div className="space-y-4">
+                    <div className="bg-white p-5 rounded-2xl border border-slate-205 shadow-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4 mb-4">
+                        <div>
+                          <h2 className="text-base font-black text-slate-800">Hirarki Pegawai</h2>
+                          <p className="text-xs text-slate-450">Bagan komando dan distribusi jumlah tenaga kerja di unit kerja</p>
+                        </div>
+
+                        <button
+                          onClick={() => setIsOrgModalOpen(true)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm transition active:scale-95 cursor-pointer self-start sm:self-auto"
+                        >
+                          <Layers size={13} />
+                          <span>Lihat Struktur Organisasi</span>
+                        </button>
+                      </div>
+
+                      {/* Stat grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs font-bold mb-6">
+                        <div className="p-3.5 bg-blue-50 border border-blue-100 text-blue-800 rounded-xl">
+                          <p className="text-[9px] uppercase tracking-wider text-blue-500">TOTAL TENAGA KERJA</p>
+                          <p className="text-xl font-black mt-1">{employees.length} <span className="text-[10px] font-normal text-slate-400">Pegawai</span></p>
+                        </div>
+                        <div className="p-3.5 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl">
+                          <p className="text-[9px] uppercase tracking-wider text-emerald-500">SUDAH ADA DI HIRARKI</p>
+                          <p className="text-xl font-black mt-1">
+                            {employees.filter(emp => employeeJabatans[emp.id]).length} <span className="text-[10px] font-normal text-slate-400">Pegawai</span>
+                          </p>
+                        </div>
+                        <div className="p-3.5 bg-amber-50 border border-amber-100 text-amber-800 rounded-xl">
+                          <p className="text-[9px] uppercase tracking-wider text-amber-500">BELUM DI-SET HIRARKI</p>
+                          <p className="text-xl font-black mt-1">
+                            {employees.filter(emp => !employeeJabatans[emp.id]).length} <span className="text-[10px] font-normal text-slate-400">Pegawai</span>
+                          </p>
+                        </div>
+                        <div className="p-3.5 bg-rose-50 border border-rose-100 text-rose-800 rounded-xl">
+                          <p className="text-[9px] uppercase tracking-wider text-rose-500">BELUM PUNYA JABATAN</p>
+                          <p className="text-xl font-black mt-1">
+                            {employees.filter(emp => !emp.role || emp.role === '-').length} <span className="text-[10px] font-normal text-slate-400">Pegawai</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Jumlah TK per Jabatan cards */}
+                      <div>
+                        <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-3">
+                          🔬 Jumlah TK per Jabatan (Klik card untuk lihat daftar pegawai)
+                        </h3>
+
+                        {jabatans.length === 0 ? (
+                          <div className="p-10 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 italic">
+                            Belum ada struktur jabatan yang dikonfigurasi. Silakan buat Jabatan baru di tab sebelah kiri.
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {jabatans.sort((a,b) => a.level - b.level).map(jab => {
+                              const assignedToJab = employees.filter(emp => employeeJabatans[emp.id] === jab.id);
+                              
+                              const sideColor = 
+                                jab.level === 1 ? 'border-l-red-500' :
+                                jab.level === 2 ? 'border-l-orange-500' :
+                                jab.level === 3 ? 'border-l-sky-400' :
+                                jab.level === 4 ? 'border-l-blue-650' :
+                                'border-l-slate-400';
+
+                              return (
+                                <div
+                                  key={jab.id}
+                                  onClick={() => setSelectedJabatanForDetail(jab.id)}
+                                  className={`bg-white hover:bg-slate-50 border border-slate-200 border-l-4 ${sideColor} rounded-xl p-4 shadow-sm transition-all duration-200 cursor-pointer hover:shadow-md select-none`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[9px] font-black text-slate-400 block uppercase">
+                                      LEVEL {jab.level}
+                                    </span>
+                                    <ChevronRight size={14} className="text-slate-300" />
+                                  </div>
+                                  <h4 className="font-extrabold text-sm text-slate-800 my-1 tracking-tight truncate">
+                                    {jab.name}
+                                  </h4>
+                                  <p className="text-xl font-black text-slate-900 mt-2">
+                                    {assignedToJab.length} <span className="text-[10px] font-bold text-slate-400">orang</span>
+                                  </p>
+                                  <p className="text-[9.5px] text-sky-600 mt-3 flex items-center gap-1 font-bold">
+                                    <span>🖱️ Klik untuk lihat detail</span>
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -3079,6 +4091,812 @@ export default function AdminDashboard({
             </motion.div>
           </div>
         )}
+
+        {/* 1. Add/Edit Lokasi Kerja Modal */}
+        {isAddLocationModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full text-slate-800 space-y-4 font-sans border border-slate-200"
+            >
+              <div className="flex justify-between items-center pb-2 border-b border-slate-100 font-sans">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-1.5">
+                  <MapPin size={16} className="text-sky-500" />
+                  <span>{editingLocationId ? 'Edit Lokasi Kerja' : 'Tambah Lokasi Kerja Baru'}</span>
+                </h3>
+                <button 
+                  onClick={() => setIsAddLocationModalOpen(false)}
+                  className="p-1 hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-650"
+                  type="button"
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveLocation} className="space-y-4">
+                {locationParentInput && (
+                  <div className="bg-sky-50 text-sky-800 p-3 rounded-xl border border-sky-100 text-xs font-bold font-sans">
+                    Sub-lokasi untuk: <span className="text-sky-900">{locations.find(l => l.id === locationParentInput)?.name || locationParentInput}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-black text-slate-500 pl-0.5">Nama Lokasi Kerja *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="PT. PLN ( Persero ) UP3 Bangka"
+                    value={locationNameInput}
+                    onChange={(e) => setLocationNameInput(e.target.value)}
+                    className="w-full bg-[#f8fafc] border border-slate-350 p-2.5 rounded-xl outline-none text-xs text-slate-900 font-bold focus:bg-white focus:border-sky-500"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsAddLocationModalOpen(false)}
+                    className="p-2 py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs cursor-pointer transition"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="submit"
+                    className="p-2 py-2 px-5 bg-sky-600 hover:bg-sky-700 text-white font-extrabold rounded-xl text-xs cursor-pointer transition shadow-sm"
+                  >
+                    Simpan Lokasi
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* 2. Add/Edit Jabatan Modal */}
+        {isAddJabatanModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full text-slate-800 space-y-4 font-sans border border-slate-200"
+            >
+              <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-1.5">
+                  <Layers size={16} className="text-sky-500" />
+                  <span>{editingJabatanId ? 'Edit Jabatan' : 'Tambah Jabatan Baru'}</span>
+                </h3>
+                <button 
+                  onClick={() => setIsAddJabatanModalOpen(false)}
+                  className="p-1 hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-655"
+                  type="button"
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveJabatan} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-black text-slate-500 pl-0.5">Nama Posisi / Jabatan *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="KOORDINATOR"
+                    value={jabatanNameInput}
+                    onChange={(e) => setJabatanNameInput(e.target.value)}
+                    className="w-full bg-[#f8fafc] border border-slate-350 p-2.5 rounded-xl outline-none text-xs text-slate-900 font-bold focus:bg-white focus:border-sky-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-black text-slate-500 pl-0.5">Tingkatan Level Hierarki (Kewenangan) *</label>
+                  <select
+                    value={jabatanLevelInput}
+                    onChange={(e) => setJabatanLevelInput(Number(e.target.value))}
+                    className="w-full bg-[#f8fafc] border border-slate-355 p-2.5 rounded-xl outline-none text-xs font-bold text-slate-800"
+                  >
+                    <option value={1}>Level 1</option>
+                    <option value={2}>Level 2</option>
+                    <option value={3}>Level 3</option>
+                  </select>
+                </div>
+
+                {jabatanLevelInput > 1 && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-black text-slate-500 pl-0.5">Atasan Langsung (Parent Jabatan)</label>
+                    <select
+                      value={jabatanParentInput}
+                      onChange={(e) => setJabatanParentInput(e.target.value)}
+                      className="w-full bg-[#f8fafc] border border-slate-355 p-2.5 rounded-xl outline-none text-xs font-bold text-slate-800"
+                    >
+                      <option value="">-- Tanpa Atasan (Tertinggi) --</option>
+                      {jabatans.filter(j => j.level < jabatanLevelInput).map(j => (
+                        <option key={j.id} value={j.id}>{j.name} (Level {j.level})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="pt-2 flex justify-end gap-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsAddJabatanModalOpen(false)}
+                    className="p-2 py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs cursor-pointer transition"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="submit"
+                    className="p-2 py-2 px-5 bg-sky-600 hover:bg-sky-700 text-white font-extrabold rounded-xl text-xs cursor-pointer transition shadow-sm"
+                  >
+                    Simpan Jabatan
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* 3. Assign Employee to Location Modal */}
+        {isAssignEmployeeModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto font-sans">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full text-slate-800 space-y-4 font-sans border border-slate-200"
+            >
+              <div className="flex justify-between items-center pb-2 border-b border-slate-100 font-sans">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 flex items-center gap-1.5">
+                    <UserCheck size={16} className="text-sky-500" />
+                    <span>Penempatan Pegawai di Lokasi</span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">
+                    Lokasi: <span className="text-indigo-600 font-bold">{locations.find(l => l.id === selectedLocationForAssignment)?.name}</span>
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setIsAssignEmployeeModalOpen(false)}
+                  className="p-1 hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-600"
+                  type="button"
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-xs text-slate-500">
+                  Ceklis nama pegawai di bawah ini untuk menempatkan mereka secara resmi di area kerja terpilih. Pegawai yang tidak dicentang akan dilepaskan dari lokasi kerja ini.
+                </p>
+
+                <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 p-2 bg-[#f8fafc]">
+                  {employees.length === 0 ? (
+                    <p className="p-4 text-center text-slate-400 italic text-xs">Belum ada pegawai terdaftar di sistem.</p>
+                  ) : (
+                    employees.map(emp => {
+                      const isAssigned = employeeLocations[emp.id] === selectedLocationForAssignment;
+                      return (
+                        <label key={emp.id} className="flex items-center justify-between p-2.5 hover:bg-white rounded-lg transition cursor-pointer">
+                          <div className="flex items-center gap-2.5 font-sans">
+                            <input
+                              type="checkbox"
+                              checked={isAssigned}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                const updated = { ...employeeLocations };
+                                if (checked) {
+                                  updated[emp.id] = selectedLocationForAssignment!;
+                                } else {
+                                  delete updated[emp.id];
+                                }
+                                setEmployeeLocations(updated);
+                              }}
+                              className="w-4 h-4 text-sky-600 rounded border-slate-350 focus:ring-sky-500"
+                            />
+                            <div>
+                              <p className="text-xs font-extrabold text-slate-800 leading-tight">{emp.name}</p>
+                              <p className="text-[9px] text-slate-400 mt-0.5">
+                                NIP: {emp.nip} • <span className="font-bold">{emp.role}</span>
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {employeeLocations[emp.id] && !isAssigned && (
+                            <span className="text-[8.5px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-bold">
+                              Pindah dr: {locations.find(l => l.id === employeeLocations[emp.id])?.name?.slice(0, 15)}...
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end font-sans">
+                <button 
+                  onClick={() => setIsAssignEmployeeModalOpen(false)}
+                  className="py-2.5 px-6 bg-slate-900 text-white hover:bg-slate-800 font-black rounded-xl text-xs cursor-pointer shadow transition animate-none"
+                >
+                  Selesai & Simpan Penempatan
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* 4. Assign Employee to Jabatan Modal */}
+        {isAssignJabatanModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full text-slate-800 space-y-4 font-sans border border-slate-200"
+            >
+              <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 flex items-center gap-1.5">
+                    <Layers size={16} className="text-sky-500" />
+                    <span>Penugasan Jabatan Struktural</span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">
+                    Jabatan: <span className="text-sky-700 font-bold">{jabatans.find(j => j.id === selectedJabatanForAssignment)?.name}</span>
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setIsAssignJabatanModalOpen(false)}
+                  className="p-1 hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-600"
+                  type="button"
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-3 font-sans">
+                <p className="text-xs text-slate-500 font-medium">
+                  Ceklis nama pegawai untuk memasukkan mereka ke struktur komando jabatan di bawah level ini.
+                </p>
+
+                <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 p-2 bg-[#f8fafc]">
+                  {employees.map(emp => {
+                    const isAssigned = employeeJabatans[emp.id] === selectedJabatanForAssignment;
+                    return (
+                      <label key={emp.id} className="flex items-center justify-between p-2.5 hover:bg-white rounded-lg transition cursor-pointer font-sans">
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={isAssigned}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              const updated = { ...employeeJabatans };
+                              if (checked) {
+                                updated[emp.id] = selectedJabatanForAssignment!;
+                              } else {
+                                delete updated[emp.id];
+                              }
+                              setEmployeeJabatans(updated);
+                            }}
+                            className="w-4 h-4 text-sky-600 rounded border-slate-350 focus:ring-sky-500"
+                          />
+                          <div>
+                            <p className="text-xs font-extrabold text-slate-800 leading-tight">{emp.name}</p>
+                            <p className="text-[9px] text-slate-400 mt-0.5 font-bold">NIP: {emp.nip} • Unit: {emp.department}</p>
+                          </div>
+                        </div>
+
+                        {employeeJabatans[emp.id] && !isAssigned && (
+                          <span className="text-[8px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-black">
+                            Lvl: {jabatans.find(j => j.id === employeeJabatans[emp.id])?.name}
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end font-sans">
+                <button 
+                  onClick={() => setIsAssignJabatanModalOpen(false)}
+                  className="py-2.5 px-6 bg-[#16a34a] text-white hover:bg-[#15803d] font-black rounded-xl text-xs cursor-pointer shadow transition"
+                >
+                  Konfirmasi Jabatan Organisasi
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* 5. Org Chart Visual Modal */}
+        {isOrgModalOpen && (
+          <div className="fixed inset-0 bg-slate-955/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-[#1e293b] rounded-3xl p-6 shadow-2xl max-w-4xl w-full text-white space-y-4 font-sans border border-slate-705"
+            >
+              <div className="flex justify-between items-center pb-2 border-b border-slate-700 font-sans">
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-1.5">
+                    <Layers size={16} className="text-sky-400" />
+                    <span>Sistem Bagan Organisasi (Hirarki Komando)</span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Visualisasi struktur komando level 1 s.d level 5</p>
+                </div>
+                <button 
+                  onClick={() => setIsOrgModalOpen(false)}
+                  className="p-1 hover:bg-slate-800 rounded-full transition text-slate-400 hover:text-white"
+                  type="button"
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl min-h-[400px] overflow-x-auto flex flex-col items-center justify-start space-y-6">
+                {jabatans.length === 0 ? (
+                  <div className="text-slate-500 italic text-center py-24 text-xs font-sans">
+                    Belum ada data struktur komando jabatan untuk divisualisasikan. Silakan tambahkan jabatan baru terlebih dahulu.
+                  </div>
+                ) : (
+                  [1, 2, 3, 4, 5].map(lvl => {
+                    const rowJabs = jabatans.filter(j => j.level === lvl);
+                    if (rowJabs.length === 0) return null;
+                    return (
+                      <div key={lvl} className="flex flex-col items-center space-y-2 w-full font-sans">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full ${
+                            lvl === 1 ? 'bg-red-500' :
+                            lvl === 2 ? 'bg-orange-500' :
+                            lvl === 3 ? 'bg-sky-400' :
+                            lvl === 4 ? 'bg-blue-500' :
+                            'bg-slate-400'
+                          }`}></span>
+                          <span className="text-[9px] uppercase font-black tracking-widest text-slate-400 font-sans">LEVEL {lvl}</span>
+                        </div>
+                        
+                        <div className="flex flex-wrap justify-center gap-4 w-full">
+                          {rowJabs.map(jab => {
+                            const emps = employees.filter(e => employeeJabatans[e.id] === jab.id);
+                            const parentName = jabatans.find(p => p.id === jab.parentId)?.name;
+                            
+                            return (
+                              <div key={jab.id} className="bg-slate-800 border-2 border-slate-700 hover:border-sky-500 hover:bg-slate-750 p-3 rounded-xl shadow text-center w-56 shrink-0 transition-all duration-200">
+                                <h4 className="text-xs font-black text-sky-400 tracking-tight block uppercase truncate">{jab.name}</h4>
+                                <p className="text-[10px] text-slate-300 font-bold mt-1">
+                                  {parentName ? `Atasan: ${parentName.slice(0, 15)}...` : 'Tingkat Tertinggi'}
+                                </p>
+                                
+                                <div className="mt-2.5 pt-1.5 border-t border-slate-700 flex items-center justify-between text-[11px]">
+                                  <span className="text-slate-400 font-bold">Anggota:</span>
+                                  <span className="bg-[#24b071]/20 text-[#24b071] font-black text-[10px] px-2 py-0.5 rounded-md">
+                                    {emps.length} orang
+                                  </span>
+                                </div>
+                                
+                                {emps.length > 0 && (
+                                  <div className="mt-2 flex -space-x-1.5 justify-center overflow-hidden">
+                                    {emps.slice(0, 4).map(e => (
+                                      <img
+                                        key={e.id}
+                                        src={e.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200"}
+                                        alt={e.name}
+                                        className="inline-block h-5.5 w-5.5 rounded-full ring-2 ring-slate-800 object-cover"
+                                        referrerPolicy="no-referrer"
+                                      />
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        
+                        {lvl < 5 && jabatans.some(j => j.level > lvl) && (
+                          <div className="w-0.5 h-6 bg-slate-700 my-1 font-sans"></div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-end font-sans">
+                <button 
+                  onClick={() => setIsOrgModalOpen(false)}
+                  className="py-2.5 px-6 bg-slate-800 text-white hover:bg-slate-700 font-extrabold rounded-xl text-xs cursor-pointer shadow transition"
+                  type="button"
+                >
+                  Tutup Bagan
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* 6. Selected Jabatan Detail list modal */}
+        {selectedJabatanForDetail && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto min-w-[320px]">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full text-slate-800 space-y-4 font-sans border border-slate-200"
+            >
+              <div className="flex justify-between items-center pb-2 border-b border-slate-100 font-sans text-left">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 flex items-center gap-1.5">
+                    <Users size={16} className="text-sky-500" />
+                    <span>Daftarisasi Pegawai</span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">
+                    Jabatan: <span className="text-indigo-600">{jabatans.find(j => j.id === selectedJabatanForDetail)?.name}</span>
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setSelectedJabatanForDetail(null)}
+                  className="p-1 hover:bg-slate-100/70 rounded-full transition text-slate-40s hover:text-slate-655"
+                  type="button"
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {employees.filter(emp => employeeJabatans[emp.id] === selectedJabatanForDetail).length === 0 ? (
+                  <p className="text-center py-10 text-slate-400 italic text-xs">
+                    Belum ada pegawai resmi yang ditempatkan di jabatan struktural ini.
+                  </p>
+                ) : (
+                  employees.filter(emp => employeeJabatans[emp.id] === selectedJabatanForDetail).map(emp => (
+                    <div key={emp.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3 font-sans">
+                      <div className="flex items-center gap-2.5">
+                        <img 
+                          src={emp.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200"}
+                          alt={emp.name}
+                          className="w-8 h-8 rounded-full border border-slate-300 object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div>
+                          <p className="text-xs font-black text-slate-800">{emp.name}</p>
+                          <p className="text-[9px] text-slate-400 mt-0.5">
+                            NIP: {emp.nip} • Sektor: {emp.department} • <span className="text-emerald-700 font-black">{emp.status}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Lepaskan jabatan ${jabatans.find(j => j.id === selectedJabatanForDetail)?.name} dari ${emp.name}?`)) {
+                            const updated = { ...employeeJabatans };
+                            delete updated[emp.id];
+                            setEmployeeJabatans(updated);
+                            onShowAlert('Penugasan Dibuat', 'Berhasil melepaskan penugasan jabatan.', 'success');
+                          }
+                        }}
+                        className="text-[9px] font-black text-rose-550 hover:text-rose-700 uppercase"
+                      >
+                        Lepas
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="pt-1 flex justify-end font-sans">
+                <button 
+                  onClick={() => setSelectedJabatanForDetail(null)}
+                  className="py-2.5 px-6 bg-slate-900 text-white font-extrabold rounded-xl text-xs cursor-pointer shadow transition"
+                  type="button"
+                >
+                  Selesai
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* 7. Confirm Delete Location Modal */}
+        {locationIdToDelete && (() => {
+          const loc = locations.find(l => l.id === locationIdToDelete);
+          if (!loc) return null;
+          
+          // Count sub-levels recursively
+          const recursiveSubCount = (parentId: string): number => {
+            let count = 0;
+            const subs = locations.filter(l => l.parentId === parentId);
+            count += subs.length;
+            subs.forEach(s => {
+              count += recursiveSubCount(s.id);
+            });
+            return count;
+          };
+          const totalSubs = recursiveSubCount(locationIdToDelete);
+          const affectedEmployeesCount = employees.filter(emp => {
+            // Check if employee is at this location or any sub-location
+            const empLocId = employeeLocations[emp.id];
+            if (!empLocId) return false;
+            if (empLocId === locationIdToDelete) return true;
+            
+            // Check recursive parent
+            let currentParentId = locations.find(l => l.id === empLocId)?.parentId;
+            while (currentParentId) {
+              if (currentParentId === locationIdToDelete) return true;
+              currentParentId = locations.find(l => l.id === currentParentId)?.parentId;
+            }
+            return false;
+          }).length;
+
+          return (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full text-slate-800 space-y-4 border border-rose-100 font-sans"
+              >
+                <div className="flex items-center gap-3 pb-2 border-b border-rose-50 text-rose-600">
+                  <AlertTriangle size={20} className="shrink-0" />
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-950 uppercase tracking-tight">Hapus Lokasi Kerja?</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Konfirmasi Tindakan Permanen</p>
+                  </div>
+                </div>
+
+                <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                  <p>
+                    Anda akan menghapus lokasi kerja <span className="font-black text-rose-600">{loc.name}</span>.
+                  </p>
+                  {totalSubs > 0 && (
+                    <p className="bg-amber-50 border border-amber-200 text-amber-800 p-2.5 rounded-xl font-bold">
+                      ⚠️ Perhatian: Tindakan ini juga akan menghapus secara otomatis <span className="font-black text-red-655">{totalSubs} sub-lokasi</span> yang terdaftar di bawah unit ini!
+                    </p>
+                  )}
+                  {affectedEmployeesCount > 0 && (
+                    <p className="bg-rose-50 border border-rose-250 text-rose-800 p-2.5 rounded-xl font-bold">
+                      👥 Pegawai Terdampak: Sebanyak <span className="font-extrabold">{affectedEmployeesCount} pegawai</span> yang bertugas di lokasi ini akan secara otomatis dilepas dari penempatan area kerja.
+                    </p>
+                  )}
+                  <p className="text-[10px] text-slate-400 font-semibold italic">
+                    Tindakan ini permanen dan database lokal akan segera diperbarui.
+                  </p>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setLocationIdToDelete(null)}
+                    className="p-2 py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs cursor-pointer transition active:scale-95"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleDeleteLocation(locationIdToDelete);
+                      setLocationIdToDelete(null);
+                    }}
+                    className="p-2 py-2 px-5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs cursor-pointer transition shadow-md active:scale-95 flex items-center gap-1"
+                  >
+                    <Trash2 size={12} />
+                    <span>Ya, Hapus Lokasi</span>
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
+
+        {/* 8. Confirm Delete Jabatan Modal */}
+        {jabatanIdToDelete && (() => {
+          const jab = jabatans.find(j => j.id === jabatanIdToDelete);
+          if (!jab) return null;
+
+          const affectedCount = employees.filter(emp => employeeJabatans[emp.id] === jabatanIdToDelete).length;
+
+          return (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full text-slate-800 space-y-4 border border-rose-100 font-sans"
+              >
+                <div className="flex items-center gap-3 pb-2 border-b border-rose-50 text-rose-600">
+                  <AlertTriangle size={20} className="shrink-0" />
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-950 uppercase tracking-tight">Hapus Jabatan?</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Konfirmasi Struktur Komando</p>
+                  </div>
+                </div>
+
+                <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                  <p>
+                    Anda akan menghapus jabatan struktural <span className="font-black text-rose-600">{jab.name}</span>.
+                  </p>
+                  {affectedCount > 0 && (
+                    <p className="bg-rose-50 border border-rose-250 text-rose-800 p-2.5 rounded-xl font-bold">
+                      👥 Pegawai Aktif: Jabatan ini saat ini ditugaskan kepada <span className="font-extrabold text-rose-600">{affectedCount} pegawai</span>. Penugasan mereka akan dibatalkan/dilepas secara otomatis.
+                    </p>
+                  )}
+                  <p className="text-[10px] text-slate-400 font-semibold italic">
+                    Tindakan ini permanen dan database lokal akan segera diperbarui.
+                  </p>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setJabatanIdToDelete(null)}
+                    className="p-2 py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs cursor-pointer transition active:scale-95"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleDeleteJabatan(jabatanIdToDelete);
+                      setJabatanIdToDelete(null);
+                    }}
+                    className="p-2 py-2 px-5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs cursor-pointer transition shadow-md active:scale-95 flex items-center gap-1"
+                  >
+                    <Trash2 size={12} />
+                    <span>Ya, Hapus Jabatan</span>
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
+
+        {/* 9. Monthly Performance Detail Modal */}
+        {selectedEmpForRekapDetail && (() => {
+          const emp = employees.find(e => e.id === selectedEmpForRekapDetail);
+          if (!emp) return null;
+
+          const monthsNamesIndo = [
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+          ];
+
+          const daysInMonth = new Date(rekapYear, rekapMonth, 0).getDate();
+          const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+          const belongsToMonthYear = (dateStr: string, targetMonth: number, targetYear: number) => {
+            if (!dateStr) return false;
+            const parts = dateStr.split('-');
+            if (parts.length < 2) return false;
+            const yr = parseInt(parts[0], 10);
+            const mo = parseInt(parts[1], 10);
+            return yr === targetYear && mo === targetMonth;
+          };
+
+          const empReports = reports.filter(r => r.employeeId === emp.id && belongsToMonthYear(r.date, rekapMonth, rekapYear));
+
+          return (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full text-slate-800 flex flex-col h-[85vh] border border-slate-100 font-sans overflow-hidden"
+              >
+                <div className="bg-slate-950 text-white p-5 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-3 text-left">
+                    {emp.avatar ? (
+                      <img src={emp.avatar} alt={emp.name} className="w-10 h-10 rounded-full object-cover border-2 border-sky-400 shrink-0" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-slate-800 text-slate-300 font-extrabold flex items-center justify-center shrink-0 uppercase border border-slate-700">
+                        {emp.name.slice(0, 2)}
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="text-sm font-extrabold tracking-tight text-white leading-tight">{emp.name}</h3>
+                      <p className="text-[10px] text-slate-450 font-mono font-bold mt-0.5">NIP {emp.nip}  |  {emp.role || 'Tenaga Lapangan'} — {emp.department || 'Operasional'}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-sky-500/10 border border-sky-500/30 text-sky-305 font-bold px-3 py-1.5 rounded-xl text-[10px] uppercase tracking-wider">
+                    REKAP DETAIL: {monthsNamesIndo[rekapMonth - 1]} {rekapYear}
+                  </div>
+                </div>
+
+                <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-50 text-left">
+                  <div className="bg-white border border-slate-205 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-wide text-left">Ringkasan Pelaporan Bulan Ini</h4>
+                      <p className="text-xs text-slate-600 leading-normal text-left">
+                        Karyawan merekam <span className="font-extrabold text-[#0284c7]">{Array.from(new Set(empReports.map(r => r.date))).length} hari</span> pelaporan aktif dari total {daysInMonth} hari di bulan {monthsNamesIndo[rekapMonth - 1]}.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                    {daysArray.map(day => {
+                      const dayStr = `${rekapYear}-${String(rekapMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      const reportsOnDay = empReports.filter(r => r.date === dayStr);
+                      const reportOnDay = reportsOnDay[0];
+                      
+                      const hasIndoor = reportsOnDay.some(r => r.photoIndoor && r.photoIndoor.trim() !== '');
+                      const hasOutdoor = reportsOnDay.some(r => r.photoOutdoor && r.photoOutdoor.trim() !== '');
+                      
+                      return (
+                        <div key={day} className="bg-white rounded-2xl p-4 border border-slate-200/80 flex flex-col justify-between gap-3 shadow-xs">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <div className="text-slate-800 font-bold text-xs">
+                              {day} {monthsNamesIndo[rekapMonth - 1]} {rekapYear}
+                            </div>
+                            <div className="flex gap-1 animate-pulse">
+                              {reportsOnDay.length > 0 ? (
+                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
+                                  {reportsOnDay.length} LAPORAN
+                                </span>
+                              ) : (
+                                <span className="bg-slate-100 text-slate-400 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
+                                  BELUM KIRIM
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <div className="space-y-1.5 text-center">
+                              <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">● FOTO INDOOR</span>
+                              {hasIndoor ? (() => {
+                                const repWithIndoor = reportsOnDay.find(r => r.photoIndoor && r.photoIndoor.trim() !== '');
+                                return (
+                                  <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-250 bg-slate-50 group">
+                                    <img src={repWithIndoor?.photoIndoor} alt="Selfie Indoor" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    <span className="absolute bottom-1 right-1 bg-black/85 text-emerald-400 text-[6.5px] px-1 py-0.5 rounded border border-white/5 font-bold font-mono">GPS OK</span>
+                                  </div>
+                                );
+                              })() : (
+                                <div className="aspect-video rounded-xl bg-slate-50 border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 text-[9px] italic p-1.5 min-h-[60px]">
+                                  <XCircle size={14} className="text-rose-400 mb-1" />
+                                  <span>Kosong</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="space-y-1.5 text-center">
+                              <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">● FOTO OUTDOOR</span>
+                              {hasOutdoor ? (() => {
+                                const repWithOutdoor = reportsOnDay.find(r => r.photoOutdoor && r.photoOutdoor.trim() !== '');
+                                return (
+                                  <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-250 bg-slate-50 group">
+                                    <img src={repWithOutdoor?.photoOutdoor} alt="Sektor Outdoor" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    <span className="absolute bottom-1 right-1 bg-black/85 text-emerald-400 text-[6.5px] px-1 py-0.5 rounded border border-white/5 font-bold font-mono">GPS OK</span>
+                                  </div>
+                                );
+                              })() : (
+                                <div className="aspect-video rounded-xl bg-slate-50 border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 text-[9px] italic p-1.5 min-h-[60px]">
+                                  <XCircle size={14} className="text-rose-400 mb-1" />
+                                  <span>Kosong</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {reportOnDay && (
+                            <div className="bg-slate-50 p-2 rounded-xl text-[10px] text-slate-600 mt-1 space-y-0.5 border border-slate-200/50 text-left">
+                              <span className="font-extrabold text-slate-800 block text-[9px] truncate">● {reportOnDay.title}</span>
+                              <p className="text-[9px] text-slate-500 truncate">{reportOnDay.description}</p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-150 p-4 bg-white flex justify-end shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEmpForRekapDetail(null)}
+                    className="p-2.5 py-2 px-5 bg-slate-900 hover:bg-slate-850 text-white font-extrabold rounded-xl text-xs cursor-pointer transition active:scale-95"
+                  >
+                    Tutup Rincian Kinerja
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
 
     </div>
