@@ -6,7 +6,8 @@ import {
   ArrowUpRight, Building2, UserCheck, Eye, Trash2,
   Shield, Settings, Menu, ChevronRight, HardHat,
   AlertTriangle, RefreshCw, Layers, Bell, Package,
-  ArrowRight, Download, Send, Globe, Check, User, LogOut, Upload
+  ArrowRight, Download, Send, Globe, Check, User, LogOut, Upload,
+  FileSpreadsheet, Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, Report, Attendance } from '../types';
@@ -231,6 +232,13 @@ export default function AdminDashboard({
   const [addRepDesc, setAddRepDesc] = useState('');
   const [addRepIndoor, setAddRepIndoor] = useState('https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300');
   const [addRepOutdoor, setAddRepOutdoor] = useState('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300');
+  const [addRepLocName, setAddRepLocName] = useState('Sektor Bangka Belitung');
+  const [addRepCoord, setAddRepCoord] = useState('-2.1299, 106.1138');
+  const [isFetchingGPS, setIsFetchingGPS] = useState(false);
+
+  // Date range filters for reports
+  const [reportStartDateFilter, setReportStartDateFilter] = useState('');
+  const [reportEndDateFilter, setReportEndDateFilter] = useState('');
 
   // Decision feedback modal
   const [selectedReportForAction, setSelectedReportForAction] = useState<Report | null>(null);
@@ -340,6 +348,45 @@ export default function AdminDashboard({
     setAdminFeedbackNotes('');
   };
 
+  const handleFetchGPS = () => {
+    if (!navigator.geolocation) {
+      onShowAlert('GPS Tidak Didukung', 'Perangkat/browser ini tidak mendukung Geolocation API untuk koordinat GPS.', 'alert');
+      return;
+    }
+    setIsFetchingGPS(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude.toFixed(6);
+        const lng = position.coords.longitude.toFixed(6);
+        setAddRepCoord(`${lat}, ${lng}`);
+        setAddRepLocName(`Sektor Bangka (GPS: ${lat}, ${lng})`);
+        setIsFetchingGPS(false);
+        onShowAlert('GPS Sinkron', `Sukses mendapatkan lokasi GPS presisi: ${lat}, ${lng}`, 'success');
+      },
+      (error) => {
+        setIsFetchingGPS(false);
+        let errorMsg = 'Gagal mengakses GPS perangkat.';
+        if (error.code === error.PERMISSION_DENIED) {
+          errorMsg = 'Akses lokasi ditolak oleh browser/pengguna.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          errorMsg = 'Sinyal lokasi atau satelit GPS tidak tersedia.';
+        } else if (error.code === error.TIMEOUT) {
+          errorMsg = 'Waktu permintaan akses GPS habis (timeout).';
+        }
+        onShowAlert('GPS Tertunda', `${errorMsg} Menggunakan koordinat default Sektor Bangka Belitung.`, 'alert');
+        setAddRepCoord('-2.1299, 106.1138');
+        setAddRepLocName('Sektor Bangka (Default)');
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
+  React.useEffect(() => {
+    if (isAddReportModalOpen) {
+      handleFetchGPS();
+    }
+  }, [isAddReportModalOpen]);
+
   const handleSelectEmployeeForReport = (empId: string) => {
     const emp = employees.find(e => e.id === empId);
     if (emp) {
@@ -409,8 +456,8 @@ export default function AdminDashboard({
       photoIndoor: addRepIndoor,
       photoOutdoor: addRepOutdoor,
       location: {
-        name: "Sektor Bangka Belitung (Admin Generated)",
-        coordinates: "-2.1299, 106.1138"
+        name: addRepLocName,
+        coordinates: addRepCoord
       }
     };
 
@@ -435,6 +482,8 @@ export default function AdminDashboard({
     setAddRepDesc('');
     setAddRepIndoor('https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300');
     setAddRepOutdoor('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300');
+    setAddRepLocName('Sektor Bangka Belitung');
+    setAddRepCoord('-2.1299, 106.1138');
     setIsAddReportModalOpen(false);
   };
 
@@ -474,8 +523,8 @@ export default function AdminDashboard({
       photoIndoor: addRepIndoor,
       photoOutdoor: addRepOutdoor,
       location: {
-        name: "Sektor Bangka Belitung (Draft)",
-        coordinates: "-2.1299, 106.1138"
+        name: addRepLocName,
+        coordinates: addRepCoord
       }
     };
 
@@ -490,6 +539,8 @@ export default function AdminDashboard({
     setAddRepDesc('');
     setAddRepIndoor('https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300');
     setAddRepOutdoor('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300');
+    setAddRepLocName('Sektor Bangka Belitung');
+    setAddRepCoord('-2.1299, 106.1138');
     setIsAddReportModalOpen(false);
   };
 
@@ -519,6 +570,268 @@ export default function AdminDashboard({
     onShowAlert('Data Disinkronkan', 'Mengambil data real-time terbaru dari satgas lapangan...', 'success');
   };
 
+  const handleExportExcel = () => {
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8"/>
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Data Pelaporan</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          table { border-collapse: collapse; width: 100%; font-family: sans-serif; }
+          th { background-color: #0284c7; color: white; font-weight: bold; padding: 10px; border: 1px solid #cbd5e1; text-align: center; font-size: 11px; }
+          td { padding: 8px; border: 1px solid #cbd5e1; font-size: 11px; vertical-align: middle; }
+          .title { font-size: 16px; font-weight: bold; margin-bottom: 5px; color: #1e293b; }
+          .meta { font-size: 11px; color: #64748b; margin-bottom: 15px; }
+        </style>
+      </head>
+      <body>
+        <div class="title">REKAPITULASI PELAPORAN HARIAN PEGAWAI DENGAN DOKUMENTASI</div>
+        <div class="meta">PT HALEYORA POWERINDO - Filter: ${reportStartDateFilter || 'Semua'} s.d ${reportEndDateFilter || 'Semua'} | Diekspor pada: ${new Date().toLocaleString('id-ID')} | Total Data: ${filteredReports.length} Laporan</div>
+        <table>
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Sandi Laporan</th>
+              <th>NIP</th>
+              <th>Nama Pegawai</th>
+              <th>Unit Kerja / Dept</th>
+              <th>Jabatan</th>
+              <th>Tanggal</th>
+              <th>Kategori</th>
+              <th>Judul Laporan</th>
+              <th>Deskripsi Aktivitas</th>
+              <th>GPS Koordinat</th>
+              <th>Status</th>
+              <th style="background-color: #0d9488; width: 150px;">Foto Bukti Indoor</th>
+              <th style="background-color: #059669; width: 150px;">Foto Bukti Outdoor</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    filteredReports.forEach((rep, index) => {
+      const indoorImgHtml = rep.photoIndoor 
+        ? `<img src="${rep.photoIndoor}" width="120" height="85" style="border: 1px solid #cbd5e1; border-radius: 4px; display: block;" />`
+        : '<span style="color: #94a3b8; font-size: 9px;">Tidak ada foto</span>';
+        
+      const outdoorImgHtml = rep.photoOutdoor 
+        ? `<img src="${rep.photoOutdoor}" width="120" height="85" style="border: 1px solid #cbd5e1; border-radius: 4px; display: block;" />`
+        : '<span style="color: #94a3b8; font-size: 9px;">Tidak ada foto</span>';
+
+      html += `
+        <tr>
+          <td style="text-align: center;">${index + 1}</td>
+          <td>${rep.id}</td>
+          <td>'${rep.nip}</td>
+          <td>${rep.employeeName}</td>
+          <td>${rep.department}</td>
+          <td>${rep.role}</td>
+          <td style="text-align: center; white-space: nowrap;">${rep.date}</td>
+          <td>${rep.type}</td>
+          <td><strong>${rep.title}</strong></td>
+          <td style="white-space: pre-wrap; max-width: 350px;">${rep.description}</td>
+          <td style="font-family: monospace;">${rep.location?.coordinates || '-'}</td>
+          <td style="text-align: center; font-weight: bold; color: ${rep.status === 'Disetujui' ? '#047857' : rep.status === 'Ditolak' ? '#b91c1c' : '#b45309'}">${rep.status}</td>
+          <td style="text-align: center; width: 130px; height: 95px; mso-number-format:'\\@';">${indoorImgHtml}</td>
+          <td style="text-align: center; width: 130px; height: 95px; mso-number-format:'\\@';">${outdoorImgHtml}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `HPI_Laporan_Kerja_${reportStartDateFilter || 'Awal'}_s.d_${reportEndDateFilter || 'Akhir'}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    onShowAlert('Selesai Ekspor', `Berhasil mengekspor ${filteredReports.length} laporan beserta lampiran foto ke Microsoft Excel!`, 'success');
+  };
+
+  const handleExportWord = () => {
+    if (filteredReports.length === 0) {
+      onShowAlert('Ekspor Kosong', 'Tidak ada data laporan untuk diekspor pada rentang filter ini.', 'alert');
+      return;
+    }
+    
+    onShowAlert('Mempersiapkan Word', 'Sedang memuat engine dokumen Word untuk mengunduh rekapitulasi data...', 'success');
+
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8"/>
+        <title>Rekapitulasi Pelaporan Harian - PT Haleyora Powerindo</title>
+        <!--[if gte mso 9]>
+        <xml>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+          </w:WordDocument>
+        </xml>
+        <![endif]-->
+        <style>
+          @page {
+            size: 297mm 210mm; /* A4 Landscape format */
+            margin: 1.2cm;
+          }
+          body { 
+            font-family: 'Arial', sans-serif; 
+            color: #1e293b; 
+            line-height: 1.4;
+          }
+          table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 15px; 
+          }
+          th { 
+            background-color: #0284c7; 
+            color: #ffffff; 
+            font-weight: bold; 
+            padding: 10px; 
+            border: 1px solid #cbd5e1; 
+            text-align: center; 
+            font-size: 10pt; 
+          }
+          td { 
+            padding: 8px; 
+            border: 1px solid #cbd5e1; 
+            font-size: 9pt; 
+            vertical-align: middle; 
+          }
+          .title { 
+            font-size: 16pt; 
+            font-weight: bold; 
+            color: #0f172a; 
+            margin-bottom: 2px;
+          }
+          .meta { 
+            font-size: 9pt; 
+            color: #64748b; 
+            margin-bottom: 18px; 
+          }
+        </style>
+      </head>
+      <body>
+        <div style="border-bottom: 2px solid #0284c7; padding-bottom: 8px; margin-bottom: 15px;">
+          <table style="width: 100%; border: none; margin: 0;">
+            <tr style="border: none;">
+              <td style="width: 60%; border: none; padding: 0; vertical-align: top;">
+                <div style="font-size: 16pt; font-weight: bold; color: #0284c7; letter-spacing: 0.5px;">⚡ PT HALEYORA POWERINDO</div>
+                <div style="font-size: 8pt; font-weight: bold; color: #64748b; text-transform: uppercase;">MEMBER OF PLN GROUP</div>
+              </td>
+              <td style="width: 40%; border: none; padding: 0; text-align: right; vertical-align: top;">
+                <div style="font-size: 11pt; font-weight: bold; color: #0f172a; text-transform: uppercase;">REKAPITULASI DOKUMEN LAPORAN HARIAN</div>
+                <div style="font-size: 8pt; color: #64748b; margin-top: 2px; line-height: 1.2;">
+                  Filter: ${reportStartDateFilter || 'Semua Tanggal'} s.d ${reportEndDateFilter || 'Semua Tanggal'}<br/>
+                  Ekspor Tanggal: ${new Date().toLocaleDateString('id-ID')} | Unit: ${reportDeptFilter}
+                </div>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 3%; background-color: #0f172a; color: white;">No</th>
+              <th style="width: 14%; background-color: #0284c7; color: white;">Pegawai</th>
+              <th style="width: 13%; background-color: #0284c7; color: white;">Unit Kerja / Jabatan</th>
+              <th style="width: 9%; background-color: #0284c7; color: white;">Tanggal</th>
+              <th style="width: 30%; background-color: #0284c7; color: white;">Aktivitas & Judul Kerja</th>
+              <th style="width: 11%; background-color: #0284c7; color: white;">Sektor / GPS</th>
+              <th style="width: 6%; background-color: #0284c7; color: white;">Status</th>
+              <th style="width: 7%; background-color: #0d9488; color: white;">Foto Indoor</th>
+              <th style="width: 7%; background-color: #059669; color: white;">Foto Outdoor</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    filteredReports.forEach((rep, index) => {
+      const indoorImg = rep.photoIndoor 
+        ? `<img src="${rep.photoIndoor}" width="120" height="85" style="border: 1px solid #cbd5e1; border-radius: 4px; display: block;" />`
+        : '<span style="color: #94a3b8; font-size: 8pt;">Tidak ada foto</span>';
+
+      const outdoorImg = rep.photoOutdoor 
+        ? `<img src="${rep.photoOutdoor}" width="120" height="85" style="border: 1px solid #cbd5e1; border-radius: 4px; display: block;" />`
+        : '<span style="color: #94a3b8; font-size: 8pt;">Tidak ada foto</span>';
+
+      html += `
+        <tr>
+          <td style="text-align: center; font-weight: bold;">${index + 1}</td>
+          <td>
+            <strong>${rep.employeeName}</strong><br/>
+            NIP. ${rep.nip}
+          </td>
+          <td>
+            <strong>${rep.department}</strong><br/>
+            <span style="color: #64748b; font-size: 8pt;">${rep.role}</span>
+          </td>
+          <td style="text-align: center; white-space: nowrap;">${rep.date}</td>
+          <td>
+            <strong>${rep.title}</strong>
+            <p style="margin: 4px 0 0 0; color: #475569; font-size: 8.5pt; white-space: pre-wrap;">${rep.description}</p>
+          </td>
+          <td>
+            <strong>${rep.location?.name || '-'}</strong><br/>
+            <span style="font-family: monospace; font-size: 7.5pt; color: #0284c7;">(${rep.location?.coordinates || '-'})</span>
+          </td>
+          <td style="text-align: center; font-weight: bold; color: ${rep.status === 'Disetujui' ? '#047857' : rep.status === 'Ditolak' ? '#b91c1c' : '#b45309'};">
+            ${rep.status}
+          </td>
+          <td style="text-align: center;">${indoorImg}</td>
+          <td style="text-align: center;">${outdoorImg}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+        
+        <div style="margin-top: 35px; text-align: center; font-size: 8pt; color: #94a3b8; border-top: 1px solid #cbd5e1; padding-top: 10px;">
+          Laporan Rekapitulasi Digital - PT Haleyora Powerindo (HPI CS System)
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `HPI_Laporan_Kerja_${reportStartDateFilter || 'Awal'}_s.d_${reportEndDateFilter || 'Akhir'}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    onShowAlert('Ekspor Word Sukses', `Laporan Word (.doc) berhasil diunduh (${filteredReports.length} data laporan beserta lampiran foto)!`, 'success');
+  };
+
   const uniqueDepartments = Array.from(new Set(employees.map(emp => emp.department).filter(Boolean)));
 
   // Searching and category filtering routines
@@ -537,7 +850,18 @@ export default function AdminDashboard({
                           rep.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           rep.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = reportDeptFilter === 'Semua' || rep.department === reportDeptFilter;
-    return matchesSearch && matchesFilter;
+    
+    let matchesDate = true;
+    if (rep.date) {
+      if (reportStartDateFilter && rep.date < reportStartDateFilter) {
+        matchesDate = false;
+      }
+      if (reportEndDateFilter && rep.date > reportEndDateFilter) {
+        matchesDate = false;
+      }
+    }
+    
+    return matchesSearch && matchesFilter && matchesDate;
   });
 
   const filteredAttendance = attendance.filter(att => {
@@ -1472,32 +1796,104 @@ export default function AdminDashboard({
                 </div>
 
                 {/* Sub-Filters panel */}
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-sm">
-                  <div className="relative w-full sm:w-72">
-                    <Search className="absolute left-3 top-3 text-slate-400" size={14} />
-                    <input 
-                      id="laporan_search_box"
-                      type="text" 
-                      placeholder="Cari Laporan (Nama, Judul, Keterangan)..." 
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-[#f8fafc] border border-slate-300 rounded-xl py-2 pl-9 pr-3 text-slate-700 text-xs outline-none"
-                    />
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
+                    {/* Search bar */}
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-3 text-slate-400" size={14} />
+                      <input 
+                        id="laporan_search_box"
+                        type="text" 
+                        placeholder="Cari Laporan (Nama, Judul, Keterangan)..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-[#f8fafc] border border-slate-300 rounded-xl py-2 pl-9 pr-3 text-slate-700 text-xs outline-none focus:ring-1 focus:ring-sky-500/50 font-medium"
+                      />
+                    </div>
+
+                    {/* Unit filter */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] uppercase font-black text-slate-400">Unit:</span>
+                      <select 
+                        id="laporan_dept_select"
+                        value={reportDeptFilter} 
+                        onChange={(e) => setReportDeptFilter(e.target.value)}
+                        className="bg-[#f8fafc] border border-slate-300 rounded-xl p-2 px-3 text-slate-700 text-xs outline-none font-bold cursor-pointer"
+                      >
+                        <option value="Semua">Semua Unit Kerja</option>
+                        {uniqueReportDepartments.map(dept => (
+                          <option key={dept} value={dept}>{dept}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase font-black text-slate-400">Filter:</span>
-                    <select 
-                      id="laporan_dept_select"
-                      value={reportDeptFilter} 
-                      onChange={(e) => setReportDeptFilter(e.target.value)}
-                      className="bg-[#f8fafc] border border-slate-300 rounded-xl p-2 px-3 text-slate-650 text-xs outline-none font-bold"
-                    >
-                      <option value="Semua">Semua Unit Kerja</option>
-                      {uniqueReportDepartments.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
+                  <div className="flex flex-col md:flex-row gap-4 pt-3 border-t border-slate-100 items-stretch md:items-center justify-between flex-wrap">
+                    {/* Date Filters */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase font-black text-slate-400">Mulai:</span>
+                        <input 
+                          id="laporan_start_date_filter"
+                          type="date"
+                          value={reportStartDateFilter}
+                          onChange={(e) => setReportStartDateFilter(e.target.value)}
+                          className="bg-[#f8fafc] border border-slate-300 text-slate-755 font-bold p-1.5 px-2.5 rounded-xl text-xs outline-none focus:ring-1 focus:ring-sky-500/50 cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase font-black text-slate-400">Selesai:</span>
+                        <input 
+                          id="laporan_end_date_filter"
+                          type="date"
+                          value={reportEndDateFilter}
+                          onChange={(e) => setReportEndDateFilter(e.target.value)}
+                          className="bg-[#f8fafc] border border-slate-300 text-slate-755 font-bold p-1.5 px-2.5 rounded-xl text-xs outline-none focus:ring-1 focus:ring-sky-500/50 cursor-pointer"
+                        />
+                      </div>
+
+                      {(reportStartDateFilter || reportEndDateFilter || searchQuery || reportDeptFilter !== 'Semua') && (
+                        <button
+                          id="btn_reset_laporan_filters"
+                          onClick={() => {
+                            setSearchQuery('');
+                            setReportDeptFilter('Semua');
+                            setReportStartDateFilter('');
+                            setReportEndDateFilter('');
+                            onShowAlert('Filter Direset', 'Semua filter pencarian dan rentang tanggal telah dikosongkan.', 'success');
+                          }}
+                          className="text-rose-600 hover:text-rose-700 active:scale-95 font-bold text-[10px] uppercase border border-rose-200 hover:bg-rose-50 px-2.5 py-1.5 rounded-xl cursor-pointer transition flex items-center gap-1 shrink-0"
+                        >
+                          Reset Filter
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Export Tools */}
+                    <div className="flex items-center gap-2 shrink-0 md:ml-auto">
+                      <span className="text-[10px] uppercase font-black text-slate-400">Ekspor ({filteredReports.length}):</span>
+                      
+                      <button
+                        id="btn_export_excel"
+                        onClick={handleExportExcel}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase px-3.5 py-2 rounded-xl active:scale-95 transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                        title="Ekspor ke Excel"
+                      >
+                        <FileSpreadsheet size={13} />
+                        <span>Excel</span>
+                      </button>
+
+                      <button
+                        id="btn_export_word"
+                        onClick={handleExportWord}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase px-3.5 py-2 rounded-xl active:scale-95 transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                        title="Simpan sebagai dokumen Microsoft Word"
+                      >
+                        <FileText size={13} />
+                        <span>Word</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -2509,8 +2905,8 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
-                {/* Photo Upload Fields (Choose File) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#f8fafc] p-4 rounded-2xl border border-slate-200">
+                {/* Photo Upload Fields (Choose File & Camera) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#f8fafc] p-4 rounded-xl border border-slate-200">
                   <div className="space-y-1.5 text-left">
                     <span className="text-[10px] font-black text-slate-600 block pl-0.5 uppercase tracking-wider">● FOTO INDOOR *</span>
                     <div className="flex flex-col gap-2 p-2 bg-white rounded-xl border border-dashed border-slate-300 items-center justify-center">
@@ -2521,18 +2917,35 @@ export default function AdminDashboard({
                           <span className="text-[9px] text-slate-400">Belum ada foto</span>
                         )}
                       </div>
-                      <label className="w-full mt-1">
-                        <span className="w-full block bg-[#0f172a] hover:bg-[#1e293b] text-white text-[10px] font-bold text-center py-1.5 px-3 rounded-lg cursor-pointer transition shadow-sm active:scale-95">
-                          Choose File (Indoor)
-                        </span>
-                        <input 
-                          id="file_input_indoor"
-                          type="file" 
-                          accept="image/*" 
-                          onChange={handleIndoorFileChange} 
-                          className="hidden" 
-                        />
-                      </label>
+                      <div className="grid grid-cols-2 gap-1.5 w-full mt-1">
+                        {/* Camera Input Button */}
+                        <label className="cursor-pointer">
+                          <span className="w-full block bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] text-center py-2 px-1 rounded-lg transition shadow-sm active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1">
+                            <Upload size={10} /> Camera
+                          </span>
+                          <input 
+                            id="camera_input_indoor"
+                            type="file" 
+                            accept="image/*" 
+                            capture="environment"
+                            onChange={handleIndoorFileChange} 
+                            className="hidden" 
+                          />
+                        </label>
+                        {/* Gallery File Input Button */}
+                        <label className="cursor-pointer">
+                          <span className="w-full block bg-slate-800 hover:bg-slate-900 text-white font-bold text-[9px] text-center py-2 px-1 rounded-lg transition shadow-sm active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1">
+                            <Plus size={10} /> File Galeri
+                          </span>
+                          <input 
+                            id="file_input_indoor"
+                            type="file" 
+                            accept="image/*" 
+                            onChange={handleIndoorFileChange} 
+                            className="hidden" 
+                          />
+                        </label>
+                      </div>
                     </div>
                   </div>
 
@@ -2546,18 +2959,92 @@ export default function AdminDashboard({
                           <span className="text-[9px] text-slate-400">Belum ada foto</span>
                         )}
                       </div>
-                      <label className="w-full mt-1">
-                        <span className="w-full block bg-[#0f172a] hover:bg-[#1e293b] text-white text-[10px] font-bold text-center py-1.5 px-3 rounded-lg cursor-pointer transition shadow-sm active:scale-95">
-                          Choose File (Outdoor)
-                        </span>
-                        <input 
-                          id="file_input_outdoor"
-                          type="file" 
-                          accept="image/*" 
-                          onChange={handleOutdoorFileChange} 
-                          className="hidden" 
-                        />
-                      </label>
+                      <div className="grid grid-cols-2 gap-1.5 w-full mt-1 font-sans">
+                        {/* Camera Input Button */}
+                        <label className="cursor-pointer">
+                          <span className="w-full block bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] text-center py-2 px-0.5 rounded-lg transition shadow-sm active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1">
+                            <Upload size={10} /> Camera
+                          </span>
+                          <input 
+                            id="camera_input_outdoor"
+                            type="file" 
+                            accept="image/*" 
+                            capture="environment"
+                            onChange={handleOutdoorFileChange} 
+                            className="hidden" 
+                          />
+                        </label>
+                        {/* Gallery File Input Button */}
+                        <label className="cursor-pointer">
+                          <span className="w-full block bg-slate-800 hover:bg-slate-900 text-white font-bold text-[9px] text-center py-2 px-0.5 rounded-lg transition shadow-sm active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1">
+                            <Plus size={10} /> File Galeri
+                          </span>
+                          <input 
+                            id="file_input_outdoor"
+                            type="file" 
+                            accept="image/*" 
+                            onChange={handleOutdoorFileChange} 
+                            className="hidden" 
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Geotagging & GPS Tag Input */}
+                <div className="bg-sky-500/5 p-4 rounded-2xl border border-sky-500/15 space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin size={13} className="text-sky-600 animate-bounce" />
+                      <span className="text-[10px] font-black uppercase text-sky-900 tracking-wider">● Lokasi Geotagging GPS</span>
+                    </div>
+                    
+                    <button
+                      id="btn_refetch_gps"
+                      type="button"
+                      disabled={isFetchingGPS}
+                      onClick={handleFetchGPS}
+                      className="bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white text-[10px] uppercase font-black px-3 py-1.5 rounded-xl transition shadow active:scale-95 cursor-pointer flex items-center gap-1.5"
+                    >
+                      {isFetchingGPS ? (
+                        <>
+                          <RefreshCw size={11} className="animate-spin" />
+                          <span>Mencari GPS...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={11} />
+                          <span>Pindai GPS Lapangan</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+                    <div className="space-y-0.5">
+                      <span className="text-[9px] text-slate-500 uppercase font-black font-sans">Koordinat Deteksi GPS *</span>
+                      <input 
+                        id="input_manual_rep_coord"
+                        type="text"
+                        required
+                        placeholder="-2.1299, 106.1138"
+                        value={addRepCoord}
+                        onChange={(e) => setAddRepCoord(e.target.value)}
+                        className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-800 text-xs font-mono font-bold outline-none focus:border-sky-500"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[9px] text-slate-500 uppercase font-black font-sans">Nama Tempat / Deskripsi Lokasi *</span>
+                      <input 
+                        id="input_manual_rep_loc_name"
+                        type="text"
+                        required
+                        placeholder="Sektor Bangka Belitung"
+                        value={addRepLocName}
+                        onChange={(e) => setAddRepLocName(e.target.value)}
+                        className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-800 text-xs font-bold outline-none focus:border-sky-500"
+                      />
                     </div>
                   </div>
                 </div>

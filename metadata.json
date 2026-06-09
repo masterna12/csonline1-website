@@ -1,6 +1,6 @@
 {
   "name": "Portal Dashboard & Aplikasi Pegawai",
   "description": "Sistem informasi eksekutif pegawai yang mengintegrasikan dashboard admin dengan simulator aplikasi Android penyerahan laporan harian dan presensi kehadiran berbasis biometrik dan GPS.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
