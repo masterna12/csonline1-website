@@ -273,9 +273,19 @@ export default function AdminDashboard({
       return;
     }
 
+    let nextNum = 1;
+    if (employees && employees.length > 0) {
+      const ids = employees.map(emp => {
+        const match = emp.id.match(/\d+/);
+        return match ? parseInt(match[0], 10) : 0;
+      });
+      nextNum = Math.max(...ids) + 1;
+    }
+    const brandNewId = `EMP${nextNum.toString().padStart(3, '0')}`;
+
     const brandNewNip = newEmpNip || `199${Math.floor(100000 + Math.random() * 899999)}`;
     const newEmp: Employee = {
-      id: `EMP00${employees.length + 1}`,
+      id: brandNewId,
       name: newEmpName,
       nip: brandNewNip,
       role: newEmpRole,

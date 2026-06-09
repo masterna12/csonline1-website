@@ -628,7 +628,7 @@ export default function App() {
         <div className="flex items-center gap-4 mt-2 md:mt-0 font-mono">
           <span>Server: active (200 OK)</span>
           <span>•</span>
-          <span>Simulated Database: RAM Storage</span>
+          <span>Database: Google Firestore (Real-Time)</span>
         </div>
       </footer>
 
