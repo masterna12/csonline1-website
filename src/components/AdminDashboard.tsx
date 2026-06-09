@@ -73,7 +73,7 @@ export default function AdminDashboard({
   const [sheetsSpreadsheetUrl, setSheetsSpreadsheetUrl] = useState<string>(() => {
     return localStorage.getItem('step_sheets_spreadsheet_url') || '';
   });
-  const [sheetsTitle, setSheetsTitle] = useState('STEP Haleyora Powerindo - Data Pelaporan Sektor');
+  const [sheetsTitle, setSheetsTitle] = useState('HPI Haleyora Powerindo - Data Pelaporan');
   const [isLoaderSheets, setIsLoaderSheets] = useState(false);
   const [isSheetsWidgetCollapsed, setIsSheetsWidgetCollapsed] = useState(false);
 
@@ -131,7 +131,7 @@ export default function AdminDashboard({
     
     setIsLoaderSheets(true);
     try {
-      const res = await createNewReportsSpreadsheet(googleToken, sheetsTitle || 'STEP Data Pelaporan', reports);
+      const res = await createNewReportsSpreadsheet(googleToken, sheetsTitle || 'HPI Data Pelaporan', reports);
       setSheetsSpreadsheetId(res.spreadsheetId);
       setSheetsSpreadsheetUrl(res.spreadsheetUrl);
       localStorage.setItem('step_sheets_spreadsheet_id', res.spreadsheetId);
@@ -378,7 +378,7 @@ export default function AdminDashboard({
       return;
     }
 
-    const finalTitle = addRepTitle.trim() || `Laporan Sektor - ${addRepDept}`;
+    const finalTitle = addRepTitle.trim() || `Laporan - ${addRepDept}`;
     const finalDesc = addRepDesc.trim() || "Menyelesaikan aktivitas patroli harian, inspeksi kelayakan instrumen, dan sinkronisasi laporan koordinat lapangan PT Haleyora Powerindo.";
 
     const newReport: Report = {
@@ -511,7 +511,7 @@ export default function AdminDashboard({
           {/* Section: Pelaporan */}
           <div className="space-y-1">
             <span className={`px-3 text-[10px] uppercase font-extrabold tracking-wider text-slate-500 block mb-2 ${isSidebarOpen ? 'opacity-100' : 'opacity-0'}`}>
-              Pelaporan Sektor
+              Data Pelaporan
             </span>
             <button
               id="sidebar_btn_laporan_primary"
@@ -701,11 +701,11 @@ export default function AdminDashboard({
                     </div>
                   </div>
 
-                  {/* Card 2: Total Pelaporan Sektor */}
+                  {/* Card 2: Total Pelaporan */}
                   <div className="bg-[#10b981] p-5 rounded-2xl flex items-center justify-between text-white shadow-lg transition-transform hover:-translate-y-1 text-left">
                     <div className="space-y-1">
                       <h3 className="text-3xl font-black tracking-tight">{reports.length}</h3>
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-[#ecfdf5]">Total Pelaporan Sektor</p>
+                      <p className="text-[10px] uppercase font-bold tracking-widest text-[#ecfdf5]">Total Pelaporan</p>
                     </div>
                     <div className="p-3 bg-white/10 rounded-xl text-white">
                       <CheckSquare size={24} />
@@ -1140,7 +1140,7 @@ export default function AdminDashboard({
               >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2 border-b border-slate-300">
                   <div>
-                    <h1 className="text-xl md:text-2xl font-black text-slate-900">Data Pelaporan Sektor</h1>
+                    <h1 className="text-xl md:text-2xl font-black text-slate-900">Data Pelaporan</h1>
                     <p className="text-xs text-slate-500 mt-0.5">Pantau, verifikasi, dan kelola pertanggungjawaban laporan tugas personil lapangan</p>
                   </div>
 
@@ -1172,7 +1172,7 @@ export default function AdminDashboard({
                             </span>
                           )}
                         </h3>
-                        <p className="text-[10px] text-slate-300 mt-1 font-sans">Hubungkan database pelaporan sektor PT Haleyora Powerindo dengan Google Spreadsheet secara instan.</p>
+                        <p className="text-[10px] text-slate-300 mt-1 font-sans">Hubungkan database pelaporan PT Haleyora Powerindo dengan Google Spreadsheet secara instan.</p>
                       </div>
                     </div>
                     
@@ -2264,52 +2264,6 @@ export default function AdminDashboard({
                       <option value="HR">HR</option>
                     </select>
                   </div>
-                </div>
-
-                {/* Row 3: Meta Kerja */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="col-span-1 space-y-1">
-                    <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">Kategori *</label>
-                    <select 
-                      id="select_manual_rep_type"
-                      value={addRepType}
-                      onChange={(e) => setAddRepType(e.target.value as any)}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs text-slate-705"
-                    >
-                      <option value="Operasional">Operasional</option>
-                      <option value="Teknis">Teknis</option>
-                      <option value="Penjualan">Penjualan</option>
-                      <option value="Administrasi">Administrasi</option>
-                      <option value="Lainnya">Lainnya</option>
-                    </select>
-                  </div>
-
-                  <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">Judul Laporan Kerja *</label>
-                    <input 
-                      id="input_manual_rep_title"
-                      type="text" 
-                      required 
-                      placeholder="Pemadam pemeliharaan gardu listrik Belitung"
-                      value={addRepTitle}
-                      onChange={(e) => setAddRepTitle(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* Textarea */}
-                <div className="space-y-1">
-                  <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">Detail Detail aktivitas penugasan *</label>
-                  <textarea 
-                    id="textarea_manual_rep_desc"
-                    required
-                    rows={3}
-                    placeholder="Tuliskan jabaran pekerjaan personil lapangan..."
-                    value={addRepDesc}
-                    onChange={(e) => setAddRepDesc(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none resize-none text-xs"
-                  />
                 </div>
 
                 {/* Photo Upload Fields (Choose File) */}

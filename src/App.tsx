@@ -640,11 +640,10 @@ export default function App() {
       <header className="bg-slate-950/80 backdrop-blur-md sticky top-0 z-50 border-b border-indigo-950/50 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="bg-gradient-to-tr from-indigo-500 to-sky-400 p-2 rounded-xl text-slate-950 font-extrabold flex items-center justify-center tracking-tighter">
-            STEP
+            HPI
           </div>
           <div>
-            <h3 className="font-extrabold text-sm tracking-tight text-white leading-none">PresensiKu System</h3>
-            <p className="text-[10px] text-indigo-400 font-sans font-medium mt-1">Portal & Android v2.4</p>
+            <h3 className="font-extrabold text-sm tracking-tight text-white leading-none text-sky-400">HPI CS System</h3>
           </div>
         </div>
 
@@ -811,7 +810,7 @@ service cloud.firestore {
 
       {/* Styled Footer */}
       <footer className="bg-slate-950 p-6 border-t border-slate-900/60 flex flex-col md:flex-row items-center justify-between text-[11px] text-slate-500 select-none">
-        <p>© 2026 PresensiKu STEP. Semua Hak Cipta Dilindungi.</p>
+        <p>© 2026 HPI CS System. Semua Hak Cipta Dilindungi.</p>
         <div className="flex items-center gap-4 mt-2 md:mt-0 font-mono">
           <span>Server: active (200 OK)</span>
           <span>•</span>
