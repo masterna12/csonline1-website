@@ -52,7 +52,7 @@ export default function App() {
     {
       id: 'notif_1',
       title: 'Selamat Datang',
-      message: 'Sistem Terintegrasi Eksekutif Pegawai Admin berhasil dimuat.',
+      message: 'Sistem berhasil dimuat.',
       type: 'system',
       timestamp: 'Baru saja',
       read: false
@@ -200,10 +200,7 @@ export default function App() {
               <ShieldAlert size={28} className="text-indigo-950 fill-none" />
             </div>
             <h1 className="text-2xl font-black text-white tracking-widest uppercase">CS online</h1>
-            <p className="text-[10px] text-slate-400 font-bold tracking-tighter mt-1">PT. HALEYORA POWERINDO</p>
-            <p className="text-xs text-indigo-400 font-medium mt-3 bg-indigo-950/40 py-1.5 px-3 rounded-full inline-block border border-indigo-900/30">
-              Sistem Terintegrasi Eksekutif Pegawai Admin
-            </p>
+            <p className="text-[10px] text-slate-400 font-bold tracking-tighter mt-1">PT. HALEYORA POWERINDO BANGKA BELITUNG</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
@@ -259,16 +256,9 @@ export default function App() {
               type="submit"
               className="w-full bg-gradient-to-r from-indigo-600 to-sky-500 hover:from-indigo-500 hover:to-sky-400 text-white text-xs font-black py-3 px-4 rounded-2xl transition shadow-lg shadow-indigo-600/25 active:scale-[0.98] uppercase tracking-wider cursor-pointer"
             >
-              Sign In ke Konsol
+              LOGIN
             </button>
           </form>
-
-          {/* Hint credential */}
-          <div className="mt-6 pt-4 border-t border-slate-900 text-center">
-            <span className="text-[9px] font-mono text-slate-500 text-center block leading-relaxed">
-              ID User: <strong className="text-indigo-405">admin</strong> &bull; Password: <strong className="text-indigo-405">{adminPassword}</strong>
-            </span>
-          </div>
         </motion.div>
 
         {/* Floating absolute alert toast */}
@@ -318,7 +308,7 @@ export default function App() {
           </div>
           <div>
             <h3 className="font-extrabold text-sm tracking-tight text-white leading-none">PresensiKu System</h3>
-            <p className="text-[10px] text-indigo-400 font-sans font-medium mt-1">Sistem Terintegrasi Eksekutif Pegawai Admin & Android v2.4</p>
+            <p className="text-[10px] text-indigo-400 font-sans font-medium mt-1">Portal & Android v2.4</p>
           </div>
         </div>
 

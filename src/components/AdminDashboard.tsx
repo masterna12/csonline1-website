@@ -452,7 +452,7 @@ export default function AdminDashboard({
           </div>
           <div className={isSidebarOpen ? 'block' : 'hidden md:hidden'}>
             <h2 className="font-sans font-black text-white tracking-widest text-base leading-none">CS online</h2>
-            <p className="text-[8px] font-sans font-bold text-slate-400 tracking-tighter mt-1">PT. HALEYORA POWERINDO</p>
+            <p className="text-[8px] font-sans font-bold text-slate-400 tracking-tighter mt-1">PT. HALEYORA POWERINDO BANGKA BELITUNG</p>
           </div>
         </div>
 
