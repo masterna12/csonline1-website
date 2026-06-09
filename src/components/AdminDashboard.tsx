@@ -36,6 +36,10 @@ interface AdminDashboardProps {
   adminAvatar: string;
   adminPassword: string;
   onUpdateAdminProfile: (name: string, avatar: string, pass: string) => void;
+  draftReports?: Report[];
+  onAddDraftReport?: (draft: Report) => void;
+  onDeleteDraftReport?: (id: string) => void;
+  onSyncDrafts?: () => Promise<void>;
 }
 
 export default function AdminDashboard({
@@ -53,12 +57,17 @@ export default function AdminDashboard({
   adminName,
   adminAvatar,
   adminPassword,
-  onUpdateAdminProfile
+  onUpdateAdminProfile,
+  draftReports = [],
+  onAddDraftReport = () => {},
+  onDeleteDraftReport = () => {},
+  onSyncDrafts = async () => {}
 }: AdminDashboardProps) {
   // Sidebar tab management
   // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun
   const [activeSubTab, setActiveSubTab] = useState<'ringkasan' | 'pegawai' | 'laporan' | 'kehadiran' | 'pengaturan'>('ringkasan');
   const [searchQuery, setSearchQuery] = useState('');
+  const [reportSubTab, setReportSubTab] = useState<'semua' | 'draft'>('semua');
   const [deptFilter, setDeptFilter] = useState<string>('Semua');
   const [reportDeptFilter, setReportDeptFilter] = useState<string>('Semua');
   const [locationFilter, setLocationFilter] = useState('Semua Lokasi');
@@ -405,8 +414,17 @@ export default function AdminDashboard({
       }
     };
 
-    onAddReport(newReport);
-    onShowAlert('Laporan Sukses', `Laporan kerja penugasan untuk ${addRepName} berhasil diunggah dengan sukses.`, 'success');
+    if (!navigator.onLine) {
+      // Offline mode auto-save to draft!
+      const draftId = `DRAFT${Math.floor(100 + Math.random() * 900)}`;
+      newReport.id = draftId;
+      newReport.status = 'Pending';
+      onAddDraftReport(newReport);
+      onShowAlert('Offline Terdeteksi', 'Koneksi terganggu. Laporan Anda berhasil disimpan ke menu Draft secara otomatis!', 'success');
+    } else {
+      onAddReport(newReport);
+      onShowAlert('Laporan Sukses', `Laporan kerja penugasan untuk ${addRepName} berhasil diunggah dengan sukses.`, 'success');
+    }
 
     // Reset fields
     setAddRepName('');
@@ -418,6 +436,83 @@ export default function AdminDashboard({
     setAddRepIndoor('https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300');
     setAddRepOutdoor('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300');
     setIsAddReportModalOpen(false);
+  };
+
+  const handleSaveReportAsDraft = () => {
+    if (!addRepName.trim()) {
+      onShowAlert('Validasi Gagal', 'Harap isi Nama Pegawai sebelum menyimpan draft!', 'alert');
+      return;
+    }
+    if (!addRepNip.trim()) {
+      onShowAlert('Validasi Gagal', 'Harap isi NIP Pegawai sebelum menyimpan draft!', 'alert');
+      return;
+    }
+    if (!addRepRole.trim()) {
+      onShowAlert('Validasi Gagal', 'Harap isi Jabatan sebelum menyimpan draft!', 'alert');
+      return;
+    }
+    if (!addRepDept.trim()) {
+      onShowAlert('Validasi Gagal', 'Harap isi Unit Kerja / Divisi sebelum menyimpan draft!', 'alert');
+      return;
+    }
+
+    const finalTitle = addRepTitle.trim() || `Laporan (Draft) - ${addRepDept}`;
+    const finalDesc = addRepDesc.trim() || "Menyelesaikan aktivitas patroli harian, inspeksi kelayakan instrumen, dan sinkronisasi laporan koordinat lapangan PT Haleyora Powerindo.";
+
+    const draftReport: Report = {
+      id: `DRAFT${Math.floor(100 + Math.random() * 900)}`,
+      employeeId: `EMP_DFT_${Math.floor(100 + Math.random() * 899)}`,
+      nip: addRepNip,
+      employeeName: addRepName,
+      role: addRepRole,
+      department: addRepDept,
+      date: new Date().toISOString().split('T')[0],
+      type: addRepType,
+      title: finalTitle,
+      description: finalDesc,
+      status: 'Pending',
+      photoIndoor: addRepIndoor,
+      photoOutdoor: addRepOutdoor,
+      location: {
+        name: "Sektor Bangka Belitung (Draft)",
+        coordinates: "-2.1299, 106.1138"
+      }
+    };
+
+    onAddDraftReport(draftReport);
+
+    // Reset fields
+    setAddRepName('');
+    setAddRepNip('');
+    setAddRepRole('');
+    setAddRepDept('');
+    setAddRepTitle('');
+    setAddRepDesc('');
+    setAddRepIndoor('https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300');
+    setAddRepOutdoor('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300');
+    setIsAddReportModalOpen(false);
+  };
+
+  const handleQuickUploadDraft = async (draft: Report) => {
+    onAddReport(draft);
+    onDeleteDraftReport(draft.id);
+    onShowAlert('Draft Terkirim', `Laporan draft untuk ${draft.employeeName} berhasil diunggah ke server!`, 'success');
+  };
+
+  const handleEditDraft = (draft: Report) => {
+    setAddRepName(draft.employeeName);
+    setAddRepNip(draft.nip);
+    setAddRepRole(draft.role);
+    setAddRepDept(draft.department);
+    setAddRepType(draft.type);
+    setAddRepTitle(draft.title);
+    setAddRepDesc(draft.description);
+    if (draft.photoIndoor) setAddRepIndoor(draft.photoIndoor);
+    if (draft.photoOutdoor) setAddRepOutdoor(draft.photoOutdoor);
+    
+    onDeleteDraftReport(draft.id);
+    setIsAddReportModalOpen(true);
+    onShowAlert('Draft Dimuat', 'Laporan draft berhasil dimuat kembali ke formulir pengisian.', 'success');
   };
 
   const handleRefresh = () => {
@@ -1159,8 +1254,35 @@ export default function AdminDashboard({
                   </button>
                 </div>
 
-                {/* GOOGLE SHEETS INTEGRATION DASH WIDGET */}
-                <div id="google_sheets_sync_card" className="bg-gradient-to-r from-sky-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-5 border border-sky-500/25 shadow-lg relative overflow-hidden">
+                {/* DRAFTS & SUB-TAB CONTROLS (GMAIL-LIKE) */}
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-1 mt-1 text-xs">
+                  <button
+                    onClick={() => setReportSubTab('semua')}
+                    className={`pb-2 px-4 font-black uppercase tracking-wider relative transition-all ${
+                      reportSubTab === 'semua' ? 'text-[#0284c7] border-b-2 border-[#0284c7]' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    Laporan Terkirim ({reports.length})
+                  </button>
+                  <button
+                    onClick={() => setReportSubTab('draft')}
+                    className={`pb-2 px-4 font-black uppercase tracking-wider relative transition-all flex items-center gap-1.5 ${
+                      reportSubTab === 'draft' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    <span>Draft Laporan ({draftReports.length})</span>
+                    {draftReports.length > 0 && (
+                      <span className="bg-amber-500 text-slate-950 font-bold text-[8px] h-4 min-w-4 px-1 rounded-full flex items-center justify-center animate-pulse leading-none">
+                        {draftReports.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {reportSubTab === 'semua' ? (
+                  <>
+                    {/* GOOGLE SHEETS INTEGRATION DASH WIDGET */}
+                    <div id="google_sheets_sync_card" className="bg-gradient-to-r from-sky-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-5 border border-sky-500/25 shadow-lg relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/5 -mr-16 -mt-16 rounded-full blur-3xl pointer-events-none"></div>
                   
                   <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-3 relative z-10">
@@ -1552,8 +1674,127 @@ export default function AdminDashboard({
                     ))
                   )}
                 </div>
-              </motion.div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                {/* Draft Info Header */}
+                <div className="bg-gradient-to-r from-amber-500/10 via-amber-600/5 to-slate-50 border border-amber-500/30 p-5 rounded-2xl text-xs space-y-3">
+                  <div className="flex items-center gap-2 text-amber-700">
+                    <AlertTriangle size={16} />
+                    <span className="font-extrabold uppercase tracking-wide">Pemberitahuan Sistem Draft Offline (HPI CS System)</span>
+                  </div>
+                  <p className="text-slate-600 leading-relaxed text-xs">
+                    Laporan kerja di bawah ini saat ini tersimpan aman di <strong>Penyimpanan Lokal (Browser Storage)</strong> Anda karena disimpan manual atau saat koneksi internet terganggu. Anda dapat menyunting draft ini kembali atau mengunggahnya secara massal / satu-per-satu ke server utama setelah jaringan terhubung.
+                  </p>
+                  
+                  {draftReports.length > 0 && (
+                    <div className="pt-2 flex flex-wrap gap-2.5">
+                      <button
+                        onClick={onSyncDrafts}
+                        className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow cursor-pointer transition text-[11px] uppercase tracking-wide"
+                      >
+                        <RefreshCw size={13} className="animate-spin" />
+                        <span>SINKRONISASIKAN SEMUA DRAFT SEKARANG ({draftReports.length})</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {draftReports.length === 0 ? (
+                  <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center text-slate-400 italic text-xs space-y-1">
+                    <p>Tidak ada laporan draft yang tersimpan di perangkat ini.</p>
+                    <p className="text-[10px] text-slate-400 not-italic font-sans">
+                      💡 <em>Anda dapat menggunakan tombol "Tambah Data Pelaporan" lalu klik "Simpan sebagai Draft" untuk membuat laporan sementara.</em>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 font-sans">
+                    {draftReports.map((rep) => (
+                      <div key={rep.id} className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-5 space-y-4 shadow-sm relative hover:border-amber-500/40 transition text-slate-800">
+                        {/* Actions bar top-right */}
+                        <div className="absolute top-5 right-5 flex items-center gap-2">
+                          <span className="text-[9px] font-black py-1 px-3 rounded-full border bg-amber-50 text-amber-700 border-amber-300 select-none uppercase">
+                            Draft Lokal
+                          </span>
+                          
+                          <button
+                            onClick={() => onDeleteDraftReport(rep.id)}
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 p-1.5 rounded-xl transition cursor-pointer flex items-center justify-center shrink-0"
+                            title="Hapus Draft"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+
+                        {/* Author details */}
+                        <div className="flex items-center gap-3">
+                          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-800 font-mono font-black text-[9px] px-2.5 py-1 rounded-lg">
+                            {rep.department ? rep.department.toUpperCase() : 'OPERASIONAL'}
+                          </div>
+                          <div>
+                            <h4 className="font-extrabold text-slate-800 text-xs leading-none">{rep.employeeName}</h4>
+                            <p className="text-[10px] text-slate-400 mt-1 font-semibold leading-tight">Tanggal Buat: <span className="font-mono text-slate-600 font-bold">{rep.date}</span></p>
+                          </div>
+                        </div>
+
+                        {/* Body contents */}
+                        <div className="space-y-2 pl-1 font-sans">
+                          <h5 className="font-black text-slate-900 text-sm leading-tight">{rep.title}</h5>
+                          <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap max-w-4xl">{rep.description}</p>
+                          
+                          {/* Metadata list */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-[#f8fafc] p-3 rounded-xl border border-slate-200 text-[10px] my-3 max-w-3xl">
+                            <div>
+                              <span className="text-slate-400 block font-bold uppercase text-[9px]">NIP Personil:</span>
+                              <span className="text-slate-700 font-mono font-bold leading-normal">{rep.nip}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block font-bold uppercase text-[9px]">Jabatan:</span>
+                              <span className="text-[#0284c7] font-bold leading-normal">{rep.role}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block font-bold uppercase text-[9px]">Unit Kerja:</span>
+                              <span className="text-slate-700 font-bold leading-normal">{rep.department}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block font-bold uppercase text-[9px]">Sandi Laporan:</span>
+                              <span className="text-slate-700 font-mono font-bold leading-normal">{rep.id}</span>
+                            </div>
+                          </div>
+
+                          {/* Interactive Action Controls */}
+                          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-dashed border-amber-500/15">
+                            <button
+                              onClick={() => handleQuickUploadDraft(rep)}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[10px] py-1.5 px-3.5 rounded-xl flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer uppercase tracking-wider"
+                            >
+                              <Send size={12} />
+                              <span>Kirim Sekarang</span>
+                            </button>
+                            <button
+                              onClick={() => handleEditDraft(rep)}
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-[10px] py-1.5 px-3.5 rounded-xl flex items-center gap-1.5 transition active:scale-95 cursor-pointer uppercase tracking-wider"
+                            >
+                              <Settings size={12} />
+                              <span>Edit Draft</span>
+                            </button>
+                            <button
+                              onClick={() => onDeleteDraftReport(rep.id)}
+                              className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-extrabold text-[10px] py-1.5 px-3.5 rounded-xl flex items-center gap-1.5 transition active:scale-95 cursor-pointer uppercase tracking-wider"
+                            >
+                              <Trash2 size={12} />
+                              <span>Hapus</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
+          </motion.div>
+        )}
 
             {/* TAB 4: DATA MASTER (PRESENSI LOG REGISTER & ATTENDANCE RECAP) */}
             {activeSubTab === 'kehadiran' && (
@@ -2327,14 +2568,22 @@ export default function AdminDashboard({
                     id="btn_manual_rep_cancel"
                     type="button" 
                     onClick={() => setIsAddReportModalOpen(false)} 
-                    className="p-2.5 px-4 bg-slate-100 hover:bg-slate-250 text-slate-600 font-extrabold rounded-xl cursor-pointer"
+                    className="p-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-extrabold rounded-xl cursor-pointer text-xs"
                   >
                     Batal
                   </button>
                   <button 
+                    id="btn_manual_rep_draft"
+                    type="button" 
+                    onClick={handleSaveReportAsDraft} 
+                    className="p-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-xl cursor-pointer text-xs"
+                  >
+                    Simpan sebagai Draft
+                  </button>
+                  <button 
                     id="btn_manual_rep_submit"
                     type="submit" 
-                    className="p-2.5 px-5 bg-[#0284c7] hover:bg-[#0369a1] text-white font-extrabold rounded-xl cursor-pointer shadow"
+                    className="p-2.5 px-5 bg-[#0284c7] hover:bg-[#0369a1] text-white font-extrabold rounded-xl cursor-pointer shadow text-xs"
                   >
                     Kirim & Masukkan Data
                   </button>

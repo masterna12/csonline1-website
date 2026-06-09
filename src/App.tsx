@@ -179,6 +179,17 @@ export default function App() {
 
   const [dbError, setDbError] = useState<string | null>(null);
 
+  const [draftReports, setDraftReports] = useState<Report[]>(() => {
+    const saved = localStorage.getItem('db_draft_reports');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
+
   // Real-time synchronization and automatic seeding with Firestore
   React.useEffect(() => {
     // 1. Listen to dashboard (reports) collection
@@ -435,6 +446,74 @@ export default function App() {
       await setDoc(doc(db, 'dashboard', newRep.id), newRep);
     } catch (error: any) {
       console.warn("Firestore save report failed, stored locally instead:", error);
+    }
+  };
+
+  const handleAddDraftReport = (draft: Report) => {
+    setDraftReports(prev => {
+      const updated = [...prev.filter(d => d.id !== draft.id), draft];
+      localStorage.setItem('db_draft_reports', JSON.stringify(updated));
+      return updated;
+    });
+    handleShowAlert('Draft Tersimpan', 'Laporan berhasil disimpan sebagai Draft lokal.', 'success');
+  };
+
+  const handleDeleteDraftReport = (id: string) => {
+    setDraftReports(prev => {
+      const updated = prev.filter(d => d.id !== id);
+      localStorage.setItem('db_draft_reports', JSON.stringify(updated));
+      return updated;
+    });
+    handleShowAlert('Draft Dihapus', 'Laporan draft berhasil dihapus.', 'success');
+  };
+
+  const handleSyncDrafts = async () => {
+    if (draftReports.length === 0) {
+      handleShowAlert('Tidak ada Draft', 'Tidak ada laporan draft yang perlu disinkronkan.', 'alert');
+      return;
+    }
+    
+    let successCount = 0;
+    const remainingDrafts: Report[] = [];
+    
+    for (const draft of draftReports) {
+      try {
+        await setDoc(doc(db, 'dashboard', draft.id), draft);
+        
+        setReports(prev => {
+          const updated = [...prev.filter(r => r.id !== draft.id), draft];
+          updated.sort((a, b) => {
+            const dateA = a.date || "";
+            const dateB = b.date || "";
+            if (dateA !== dateB) return dateB.localeCompare(dateA);
+            return b.id.localeCompare(a.id);
+          });
+          localStorage.setItem('db_reports', JSON.stringify(updated));
+          return updated;
+        });
+        
+        successCount++;
+      } catch (error) {
+        console.warn(`Gagal sinkron draft ${draft.id}:`, error);
+        remainingDrafts.push(draft);
+      }
+    }
+    
+    setDraftReports(remainingDrafts);
+    localStorage.setItem('db_draft_reports', JSON.stringify(remainingDrafts));
+    
+    if (successCount > 0) {
+      handleShowAlert(
+        'Sinkronisasi Sukses', 
+        `${successCount} laporan draft berhasil diunggah ke cloud database!`, 
+        'success'
+      );
+    } else {
+      handleShowAlert(
+        'Sinkronisasi Gagal', 
+        'Gagal mengunggah draft. Silakan periksa koneksi internet Anda atau atur hak akses Firestore.', 
+        'alert'
+      );
     }
   };
 
@@ -736,6 +815,10 @@ service cloud.firestore {
             adminAvatar={adminAvatar}
             adminPassword={adminPassword}
             onUpdateAdminProfile={handleUpdateAdminProfile}
+            draftReports={draftReports}
+            onAddDraftReport={handleAddDraftReport}
+            onDeleteDraftReport={handleDeleteDraftReport}
+            onSyncDrafts={handleSyncDrafts}
           />
         </div>
       </main>
