@@ -3,9 +3,7 @@
  * Manages Firebase OAuth and Google Sheets API REST calls.
  */
 
-import { initializeApp } from 'firebase/app';
 import { 
-  getAuth, 
   signInWithPopup, 
   GoogleAuthProvider, 
   onAuthStateChanged, 
@@ -13,11 +11,7 @@ import {
   signOut 
 } from 'firebase/auth';
 import { Report } from '../types';
-import firebaseConfig from '../../firebase-applet-config.json';
-
-// Initialize Firebase client
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+import { auth } from '../firebase';
 
 const provider = new GoogleAuthProvider();
 provider.addScope('https://www.googleapis.com/auth/spreadsheets');
