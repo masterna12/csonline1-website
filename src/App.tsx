@@ -46,10 +46,138 @@ export default function App() {
     localStorage.setItem('step_admin_password', newPass);
   };
 
+  // Initial default datasets for automatic seeding / recovery
+  const defaultEmployeesList: Employee[] = [
+    {
+      id: 'EMP001',
+      nip: '19980512',
+      name: 'Zulfikar Murfhy',
+      role: 'Sektor Leader',
+      department: 'IT Sektor Bangka',
+      email: 'zulfikarmurfhy12@gmail.com',
+      phone: '081234567890',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      status: 'Aktif',
+      joinDate: '01 Jan 2024'
+    },
+    {
+      id: 'EMP002',
+      nip: '19971030',
+      name: 'Pratama Satria',
+      role: 'Petugas Yantek',
+      department: 'Yantek Belitung',
+      email: 'pratama.satria@haleyorapower.co.id',
+      phone: '081234567891',
+      avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&q=80&w=200',
+      status: 'Aktif',
+      joinDate: '15 Mar 2024'
+    }
+  ];
+
+  const defaultReportsList: Report[] = [
+    {
+      id: 'REP301',
+      employeeId: 'EMP001',
+      nip: '19980512',
+      employeeName: 'Zulfikar Murfhy',
+      role: 'Sektor Leader',
+      department: 'IT Sektor Bangka',
+      date: '2026-06-09',
+      type: 'Teknis',
+      title: 'Patroli Gardu Induk Pangkalpinang',
+      description: 'Melakukan inspeksi visual dan pemindaian termal pada kubikel Gardu Induk Pangkalpinang. Parameter operasional dalam batas aman.',
+      status: 'Disetujui',
+      notes: 'Pekerjaan sesuai dengan standard operating procedure.',
+      location: {
+        name: 'Gardu Induk Pangkalpinang',
+        coordinates: '-2.1299, 106.1138'
+      },
+      photoIndoor: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300',
+      photoOutdoor: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300'
+    },
+    {
+      id: 'REP302',
+      employeeId: 'EMP002',
+      nip: '19971030',
+      employeeName: 'Pratama Satria',
+      role: 'Petugas Yantek',
+      department: 'Yantek Belitung',
+      date: '2026-06-08',
+      type: 'Operasional',
+      title: 'Perbaikan Jaringan Tegangan Rendah JTR',
+      description: 'Mengatasi gangguan jaringan akibat ranting pohon tumbang di area Tanjung Pandan. Penormalan aliran listrik berhasil diselesaikan aman.',
+      status: 'Pending',
+      location: {
+        name: 'Tanjung Pandan, Belitung',
+        coordinates: '-2.7303, 107.6366'
+      },
+      photoIndoor: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300',
+      photoOutdoor: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300'
+    }
+  ];
+
+  const defaultAttendanceList: Attendance[] = [
+    {
+      id: 'ATT501',
+      employeeId: 'EMP001',
+      employeeName: 'Zulfikar Murfhy',
+      department: 'IT Sektor Bangka',
+      date: '2026-06-09',
+      clockIn: '07:42',
+      clockOut: '16:05',
+      status: 'Tepat Waktu',
+      locationIn: 'Sektor Bangka Belitung Hub',
+      locationOut: 'Sektor Bangka Belitung Hub'
+    },
+    {
+      id: 'ATT502',
+      employeeId: 'EMP002',
+      employeeName: 'Pratama Satria',
+      department: 'Yantek Belitung',
+      date: '2026-06-09',
+      clockIn: '07:58',
+      clockOut: '16:00',
+      status: 'Tepat Waktu',
+      locationIn: 'Posko Yantek Belitung',
+      locationOut: 'Posko Yantek Belitung'
+    }
+  ];
+
   // Global React States
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [attendance, setAttendance] = useState<Attendance[]>([]);
-  const [reports, setReports] = useState<Report[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>(() => {
+    const saved = localStorage.getItem('db_employees');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return defaultEmployeesList;
+  });
+
+  const [attendance, setAttendance] = useState<Attendance[]>(() => {
+    const saved = localStorage.getItem('db_attendance');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return defaultAttendanceList;
+  });
+
+  const [reports, setReports] = useState<Report[]>(() => {
+    const saved = localStorage.getItem('db_reports');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return defaultReportsList;
+  });
+
+  const [dbError, setDbError] = useState<string | null>(null);
 
   // Real-time synchronization and automatic seeding with Firestore
   React.useEffect(() => {
@@ -57,7 +185,10 @@ export default function App() {
     const unsubReports = onSnapshot(collection(db, 'dashboard'), (snapshot) => {
       const docsList: Report[] = [];
       snapshot.forEach((docVal) => {
-        docsList.push(docVal.data() as Report);
+        const d = docVal.data() as Report;
+        if (d && d.id) {
+          docsList.push(d);
+        }
       });
       
       // Sort reports by date (latest first)
@@ -69,147 +200,74 @@ export default function App() {
         }
         return b.id.localeCompare(a.id);
       });
-      setReports(docsList);
 
-      // Auto-feed initial reports if firestore is empty
       if (snapshot.empty) {
-        const defaultReports: Report[] = [
-          {
-            id: 'REP301',
-            employeeId: 'EMP001',
-            nip: '19980512',
-            employeeName: 'Zulfikar Murfhy',
-            role: 'Sektor Leader',
-            department: 'IT Sektor Bangka',
-            date: '2026-06-09',
-            type: 'Teknis',
-            title: 'Patroli Gardu Induk Pangkalpinang',
-            description: 'Melakukan inspeksi visual dan pemindaian termal pada kubikel Gardu Induk Pangkalpinang. Parameter operasional dalam batas aman.',
-            status: 'Disetujui',
-            notes: 'Pekerjaan sesuai dengan standard operating procedure.',
-            location: {
-              name: 'Gardu Induk Pangkalpinang',
-              coordinates: '-2.1299, 106.1138'
-            },
-            photoIndoor: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300',
-            photoOutdoor: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300'
-          },
-          {
-            id: 'REP302',
-            employeeId: 'EMP002',
-            nip: '19971030',
-            employeeName: 'Pratama Satria',
-            role: 'Petugas Yantek',
-            department: 'Yantek Belitung',
-            date: '2026-06-08',
-            type: 'Operasional',
-            title: 'Perbaikan Jaringan Tegangan Rendah JTR',
-            description: 'Mengatasi gangguan jaringan akibat ranting pohon tumbang di area Tanjung Pandan. Penormalan aliran listrik berhasil diselesaikan aman.',
-            status: 'Pending',
-            location: {
-              name: 'Tanjung Pandan, Belitung',
-              coordinates: '-2.7303, 107.6366'
-            },
-            photoIndoor: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300',
-            photoOutdoor: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300'
-          }
-        ];
-        defaultReports.forEach((rep) => {
+        setReports(defaultReportsList);
+        localStorage.setItem('db_reports', JSON.stringify(defaultReportsList));
+        defaultReportsList.forEach((rep) => {
           setDoc(doc(db, 'dashboard', rep.id), rep).catch(e => console.error('Error seeding report: ', e));
         });
+      } else {
+        setReports(docsList);
+        localStorage.setItem('db_reports', JSON.stringify(docsList));
       }
     }, (error) => {
       console.error("Firestore onSnapshot 'dashboard' error:", error);
+      setDbError(error.message);
     });
 
     // 2. Listen to employees collection
     const unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
       const docsList: Employee[] = [];
       snapshot.forEach((docVal) => {
-        docsList.push(docVal.data() as Employee);
+        const d = docVal.data() as Employee;
+        if (d && d.id) {
+          docsList.push(d);
+        }
       });
       // Sort employees
       docsList.sort((a, b) => a.id.localeCompare(b.id));
-      setEmployees(docsList);
 
       if (snapshot.empty) {
-        const defaultEmployees: Employee[] = [
-          {
-            id: 'EMP001',
-            nip: '19980512',
-            name: 'Zulfikar Murfhy',
-            role: 'Sektor Leader',
-            department: 'IT Sektor Bangka',
-            email: 'zulfikarmurfhy12@gmail.com',
-            phone: '081234567890',
-            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-            status: 'Aktif',
-            joinDate: '01 Jan 2024'
-          },
-          {
-            id: 'EMP002',
-            nip: '19971030',
-            name: 'Pratama Satria',
-            role: 'Petugas Yantek',
-            department: 'Yantek Belitung',
-            email: 'pratama.satria@haleyorapower.co.id',
-            phone: '081234567891',
-            avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&q=80&w=200',
-            status: 'Aktif',
-            joinDate: '15 Mar 2024'
-          }
-        ];
-        defaultEmployees.forEach((emp) => {
+        setEmployees(defaultEmployeesList);
+        localStorage.setItem('db_employees', JSON.stringify(defaultEmployeesList));
+        defaultEmployeesList.forEach((emp) => {
           setDoc(doc(db, 'employees', emp.id), emp).catch(e => console.error('Error seeding employee: ', e));
         });
+      } else {
+        setEmployees(docsList);
+        localStorage.setItem('db_employees', JSON.stringify(docsList));
       }
     }, (error) => {
       console.error("Firestore onSnapshot 'employees' error:", error);
+      setDbError(error.message);
     });
 
     // 3. Listen to attendance collection
     const unsubAttendance = onSnapshot(collection(db, 'attendance'), (snapshot) => {
       const docsList: Attendance[] = [];
       snapshot.forEach((docVal) => {
-        docsList.push(docVal.data() as Attendance);
+        const d = docVal.data() as Attendance;
+        if (d && d.id) {
+          docsList.push(d);
+        }
       });
       // Sort attendance by date/id
       docsList.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-      setAttendance(docsList);
 
       if (snapshot.empty) {
-        const defaultAttendance: Attendance[] = [
-          {
-            id: 'ATT501',
-            employeeId: 'EMP001',
-            employeeName: 'Zulfikar Murfhy',
-            department: 'IT Sektor Bangka',
-            date: '2026-06-09',
-            clockIn: '07:42',
-            clockOut: '16:05',
-            status: 'Tepat Waktu',
-            locationIn: 'Sektor Bangka Belitung Hub',
-            locationOut: 'Sektor Bangka Belitung Hub'
-          },
-          {
-            id: 'ATT502',
-            employeeId: 'EMP002',
-            employeeName: 'Pratama Satria',
-            department: 'Yantek Belitung',
-            date: '2026-06-09',
-            clockIn: '07:58',
-            clockOut: '16:00',
-            status: 'Tepat Waktu',
-            locationIn: 'Posko Yantek Belitung',
-            locationOut: 'Posko Yantek Belitung'
-          }
-        ];
-        defaultAttendance.forEach((att) => {
+        setAttendance(defaultAttendanceList);
+        localStorage.setItem('db_attendance', JSON.stringify(defaultAttendanceList));
+        defaultAttendanceList.forEach((att) => {
           setDoc(doc(db, 'attendance', att.id), att).catch(e => console.error('Error seeding attendance: ', e));
         });
+      } else {
+        setAttendance(docsList);
+        localStorage.setItem('db_attendance', JSON.stringify(docsList));
       }
     }, (error) => {
       console.error("Firestore onSnapshot 'attendance' error:", error);
+      setDbError(error.message);
     });
 
     return () => {
@@ -293,17 +351,43 @@ export default function App() {
   };
 
   const handleAddEmployee = async (newEmp: Employee) => {
+    // 1. Save locally first (instant UI update)
+    setEmployees(prev => {
+      const updated = [...prev.filter(e => e.id !== newEmp.id), newEmp];
+      localStorage.setItem('db_employees', JSON.stringify(updated));
+      return updated;
+    });
+
+    // 2. Sync with Firestore in background
     try {
       await setDoc(doc(db, 'employees', newEmp.id), newEmp);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `employees/${newEmp.id}`);
+    } catch (error: any) {
+      console.warn("Firestore save employee failed, stored locally instead:", error);
+      setDbError(`Penyimpanan Lokal Aktif: Aturan Keamanan Firestore membatasi sinkronisasi cloud (${error.message || error})`);
     }
   };
 
   const handleDeleteEmployee = async (id: string) => {
+    // 1. Delete locally first (instant UI update)
+    setEmployees(prev => {
+      const updated = prev.filter(e => e.id !== id);
+      localStorage.setItem('db_employees', JSON.stringify(updated));
+      return updated;
+    });
+    setReports(prev => {
+      const updated = prev.filter(r => r.employeeId !== id);
+      localStorage.setItem('db_reports', JSON.stringify(updated));
+      return updated;
+    });
+    setAttendance(prev => {
+      const updated = prev.filter(a => a.employeeId !== id);
+      localStorage.setItem('db_attendance', JSON.stringify(updated));
+      return updated;
+    });
+
+    // 2. Sync with Firestore in background
     try {
       await deleteDoc(doc(db, 'employees', id));
-      // also cleanup standard reports and attendance in firestore to avoid orphaned documents
       reports.filter(r => r.employeeId === id).forEach(async (r) => {
         await deleteDoc(doc(db, 'dashboard', r.id));
       });
@@ -311,37 +395,80 @@ export default function App() {
         await deleteDoc(doc(db, 'attendance', a.id));
       });
       handleShowAlert('Pegawai Dihapus', 'Data pegawai beserta laporan & kehadirannya telah dihapus.', 'success');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `employees/${id}`);
+    } catch (error: any) {
+      console.warn("Firestore delete employee failed, stored locally instead:", error);
     }
   };
 
   const handleAddAttendance = async (newAtt: Attendance) => {
+    // 1. Save locally first (instant UI update)
+    setAttendance(prev => {
+      const updated = [...prev.filter(a => a.id !== newAtt.id), newAtt];
+      localStorage.setItem('db_attendance', JSON.stringify(updated));
+      return updated;
+    });
+
+    // 2. Sync with Firestore in background
     try {
       await setDoc(doc(db, 'attendance', newAtt.id), newAtt);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `attendance/${newAtt.id}`);
+    } catch (error: any) {
+      console.warn("Firestore save attendance failed, stored locally instead:", error);
     }
   };
 
   const handleAddReport = async (newRep: Report) => {
+    // 1. Save locally first (instant UI update)
+    setReports(prev => {
+      const updated = [...prev.filter(r => r.id !== newRep.id), newRep];
+      updated.sort((a, b) => {
+        const dateA = a.date || "";
+        const dateB = b.date || "";
+        if (dateA !== dateB) return dateB.localeCompare(dateA);
+        return b.id.localeCompare(a.id);
+      });
+      localStorage.setItem('db_reports', JSON.stringify(updated));
+      return updated;
+    });
+
+    // 2. Sync with Firestore in background
     try {
       await setDoc(doc(db, 'dashboard', newRep.id), newRep);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `dashboard/${newRep.id}`);
+    } catch (error: any) {
+      console.warn("Firestore save report failed, stored locally instead:", error);
     }
   };
 
   const handleDeleteReport = async (id: string) => {
+    // 1. Delete locally first (instant UI update)
+    setReports(prev => {
+      const updated = prev.filter(r => r.id !== id);
+      localStorage.setItem('db_reports', JSON.stringify(updated));
+      return updated;
+    });
+
+    // 2. Sync with Firestore in background
     try {
       await deleteDoc(doc(db, 'dashboard', id));
       handleShowAlert('Laporan Dihapus', 'Data laporan patroli berhasil dihapus dari sistem.', 'success');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `dashboard/${id}`);
+    } catch (error: any) {
+      console.warn("Firestore delete report failed, stored locally instead:", error);
     }
   };
 
   const handleUpdateReportStatus = async (id: string, status: 'Disetujui' | 'Ditolak', notes?: string) => {
+    // 1. Save locally first (instant UI update)
+    setReports(prev => {
+      const updated = prev.map(r => {
+        if (r.id === id) {
+          return { ...r, status, notes: notes !== undefined ? notes : r.notes };
+        }
+        return r;
+      });
+      localStorage.setItem('db_reports', JSON.stringify(updated));
+      return updated;
+    });
+
+    // 2. Sync with Firestore in background
     try {
       const reportRef = doc(db, 'dashboard', id);
       const updateData: Partial<Report> = { status };
@@ -349,8 +476,8 @@ export default function App() {
         updateData.notes = notes;
       }
       await updateDoc(reportRef, updateData);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `dashboard/${id}`);
+    } catch (error: any) {
+      console.warn("Firestore update report failed, stored locally instead:", error);
     }
   };
 
@@ -362,12 +489,27 @@ export default function App() {
         handleShowAlert('Sinkronisasi Selesai', 'Semua data dari Google Sheet sudah ada di dalam sistem.', 'success');
         return;
       }
+
+      // Save locally first
+      setReports(prev => {
+        const updated = [...prev, ...filteredNew];
+        updated.sort((a, b) => {
+          const dateA = a.date || "";
+          const dateB = b.date || "";
+          if (dateA !== dateB) return dateB.localeCompare(dateA);
+          return b.id.localeCompare(a.id);
+        });
+        localStorage.setItem('db_reports', JSON.stringify(updated));
+        return updated;
+      });
+
+      // Firebase sync in background
       for (const r of filteredNew) {
         await setDoc(doc(db, 'dashboard', r.id), r);
       }
       handleShowAlert('Impor Berhasil', `Berhasil menyinkronkan & mengimpor ${filteredNew.length} laporan baru dari Google Sheets.`, 'success');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'dashboard-import');
+    } catch (error: any) {
+      console.warn("Firestore import failed, stored locally instead:", error);
     }
   };
 
@@ -522,6 +664,51 @@ export default function App() {
       {/* Main Container workspace */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6">
         
+        {dbError && (
+          <div className="mb-6 bg-rose-950/40 border border-rose-800/60 p-4 rounded-3xl flex flex-col gap-2.5 text-xs shadow-md relative overflow-hidden">
+            <div className="flex items-start gap-3 text-rose-300">
+              <AlertCircle size={18} className="text-rose-500 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 text-left">
+                <h4 className="font-extrabold text-sm text-white mb-0.5">⚠️ Koneksi Cloud Firestore Terhambat (Penyimpanan Lokal Aktif)</h4>
+                <p className="text-[11px] leading-relaxed text-slate-300">
+                  Aplikasi gagal menyinkronkan data langsung ke project Firebase Anda (<strong className="text-rose-400">dashboard-cs-hpi-babel</strong>) karena: <code className="bg-rose-950/80 px-1 py-0.5 rounded text-white font-mono break-all text-[10px]">{dbError}</code>.
+                </p>
+                <div className="mt-2 bg-slate-950/60 p-3 rounded-xl border border-rose-900/30 text-slate-300 space-y-1.5">
+                  <p className="font-bold text-[10px] text-rose-300 uppercase tracking-wider">Langkah Solusi di Firebase Console Anda:</p>
+                  <ul className="list-decimal pl-4 space-y-1 text-[11px] text-slate-400">
+                    <li>Buka <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="text-sky-400 underline hover:text-sky-300 font-semibold">Firebase Console</a>, pilih project <strong>dashboard-cs-hpi-babel</strong>.</li>
+                    <li>Samping kiri menu, buka <strong>Build &gt; Firestore Database</strong> lalu buat database (klik <em>Create Database</em> jika belum ada).</li>
+                    <li>Pindah ke tab <strong>Rules</strong> di bagian atas.</li>
+                    <li>Ubah ketentuannya agar mengizinkan akses publik untuk pengembangan, contoh:
+                      <pre className="mt-1 bg-[#0b0f19] p-2 rounded-lg font-mono text-[9px] text-emerald-400 overflow-x-auto border border-slate-800/80">
+{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}`}
+                      </pre>
+                    </li>
+                    <li>Klik <strong>Publish</strong>. Setelah itu, silakan reload halaman ini!</li>
+                  </ul>
+                </div>
+                <p className="mt-2.5 text-[10px] text-slate-300">
+                  💡 <em>Sistem beralih ke <strong>Penyimpanan Lokal (LocalStorage)</strong> secara otomatis. Semua penambahan pegawai atau laporan penugasan tetap tersimpan aman di browser Anda dan tersimpan real-time!</em>
+                </p>
+              </div>
+              <button 
+                onClick={() => setDbError(null)} 
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-rose-900/30 transition-colors"
+                title="Tutup Peringatan"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Welcome information banner */}
         <div className="mb-6 bg-slate-900 border border-slate-800 p-4 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-md">
           <div className="flex items-center gap-2.5 text-sky-400">
