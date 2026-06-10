@@ -6,7 +6,7 @@ import {
   ArrowUpRight, Building2, UserCheck, Eye, Trash2,
   Shield, Settings, Menu, ChevronRight, HardHat,
   AlertTriangle, RefreshCw, Layers, Bell, Package,
-  ArrowRight, Download, Send, Globe, Check, User, LogOut, Upload,
+  ArrowRight, Download, Send, Globe, Check, User, LogOut, Upload, Camera,
   FileSpreadsheet, Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -352,6 +352,81 @@ export default function AdminDashboard({
   });
   const [rekapSearchText, setRekapSearchText] = useState<string>('');
   const [selectedEmpForRekapDetail, setSelectedEmpForRekapDetail] = useState<string | null>(null);
+
+  // Live Camera Capture States & Lifecycle Methods
+  const [activeCameraStream, setActiveCameraStream] = useState<MediaStream | null>(null);
+  const [cameraModalTarget, setCameraModalTarget] = useState<'indoor' | 'outdoor' | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  const videoRefCallback = React.useCallback((node: HTMLVideoElement | null) => {
+    if (node && activeCameraStream) {
+      node.srcObject = activeCameraStream;
+      node.play().catch(e => console.error("Error playing video feed:", e));
+    }
+  }, [activeCameraStream]);
+
+  const handleOpenLiveCamera = async (target: 'indoor' | 'outdoor') => {
+    setCameraModalTarget(target);
+    setCameraError(null);
+    try {
+      const constraints = {
+        video: {
+          facingMode: target === 'indoor' ? 'user' : 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setActiveCameraStream(stream);
+    } catch (err: any) {
+      console.error("Camera access with facingMode failed, falling back:", err);
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setActiveCameraStream(stream);
+      } catch (errFallback: any) {
+        setCameraError("Gagal mengakses kamera perangkat Anda. Silakan beri izin kamera pada perangkat browser Laptop / HP.");
+        onShowAlert("Gagal Membuka Kamera", "Izin kamera ditolak atau kamera tidak didukung perangkat.", "alert");
+      }
+    }
+  };
+
+  const handleCloseLiveCamera = () => {
+    if (activeCameraStream) {
+      activeCameraStream.getTracks().forEach(track => track.stop());
+      setActiveCameraStream(null);
+    }
+    setCameraModalTarget(null);
+    setCameraError(null);
+  };
+
+  const handleCapturePhoto = () => {
+    const videoElement = document.getElementById('camera_preview_video') as HTMLVideoElement;
+    if (videoElement) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoElement.videoWidth || 640;
+      canvas.height = videoElement.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        if (cameraModalTarget === 'indoor') {
+          setAddRepIndoor(dataUrl);
+        } else if (cameraModalTarget === 'outdoor') {
+          setAddRepOutdoor(dataUrl);
+        }
+        handleCloseLiveCamera();
+        onShowAlert("Foto Diambil", "Berhasil menyimpan hasil potret kamera.", "success");
+      }
+    }
+  };
+
+  React.useEffect(() => {
+    return () => {
+      if (activeCameraStream) {
+        activeCameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [activeCameraStream]);
 
   React.useEffect(() => {
     localStorage.setItem('hpi_locations', JSON.stringify(locations));
@@ -2779,7 +2854,7 @@ export default function AdminDashboard({
                       {masterSubTab === 'lokasi' 
                         ? 'Manajemen lokasi & penempatan wilayah kerja pegawai terintegrasi' 
                         : masterSubTab === 'jabatan'
-                          ? 'Konfigurasi profil jabatan hierarkis dan tingkat kewenangan satgas'
+                          ? 'Konfigurasi profil jabatan dan tingkat kewenangan'
                           : 'Visualisasi bagan struktur komando formal PT Haleyora Powerindo'}
                     </p>
                   </div>
@@ -3930,20 +4005,15 @@ export default function AdminDashboard({
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-1.5 w-full mt-1">
-                        {/* Camera Input Button */}
-                        <label className="cursor-pointer">
-                          <span className="w-full block bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] text-center py-2 px-1 rounded-lg transition shadow-sm active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1">
-                            <Upload size={10} /> Camera
-                          </span>
-                          <input 
-                            id="camera_input_indoor"
-                            type="file" 
-                            accept="image/*" 
-                            capture="environment"
-                            onChange={handleIndoorFileChange} 
-                            className="hidden" 
-                          />
-                        </label>
+                        {/* Live Camera Button */}
+                        <button
+                          id="btn_live_camera_indoor"
+                          type="button"
+                          onClick={() => handleOpenLiveCamera('indoor')}
+                          className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] text-center py-2 px-1 rounded-lg transition shadow-sm active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Camera size={10} /> Camera
+                        </button>
                         {/* Gallery File Input Button */}
                         <label className="cursor-pointer">
                           <span className="w-full block bg-slate-800 hover:bg-slate-900 text-white font-bold text-[9px] text-center py-2 px-1 rounded-lg transition shadow-sm active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1">
@@ -3972,20 +4042,15 @@ export default function AdminDashboard({
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-1.5 w-full mt-1 font-sans">
-                        {/* Camera Input Button */}
-                        <label className="cursor-pointer">
-                          <span className="w-full block bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] text-center py-2 px-0.5 rounded-lg transition shadow-sm active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1">
-                            <Upload size={10} /> Camera
-                          </span>
-                          <input 
-                            id="camera_input_outdoor"
-                            type="file" 
-                            accept="image/*" 
-                            capture="environment"
-                            onChange={handleOutdoorFileChange} 
-                            className="hidden" 
-                          />
-                        </label>
+                        {/* Live Camera Button */}
+                        <button
+                          id="btn_live_camera_outdoor"
+                          type="button"
+                          onClick={() => handleOpenLiveCamera('outdoor')}
+                          className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] text-center py-2 px-0.5 rounded-lg transition shadow-sm active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Camera size={10} /> Camera
+                        </button>
                         {/* Gallery File Input Button */}
                         <label className="cursor-pointer">
                           <span className="w-full block bg-slate-800 hover:bg-slate-900 text-white font-bold text-[9px] text-center py-2 px-0.5 rounded-lg transition shadow-sm active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1">
@@ -4891,6 +4956,102 @@ export default function AdminDashboard({
                     className="p-2.5 py-2 px-5 bg-slate-900 hover:bg-slate-850 text-white font-extrabold rounded-xl text-xs cursor-pointer transition active:scale-95"
                   >
                     Tutup Rincian Kinerja
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
+
+        {/* 10. Live Camera Viewfinder Modal */}
+        {cameraModalTarget && (() => {
+          return (
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[70]">
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-slate-900 rounded-3xl shadow-2xl max-w-lg w-full text-white flex flex-col overflow-hidden border border-slate-800 font-sans"
+              >
+                <div className="bg-slate-950 p-4 flex items-center justify-between border-b border-slate-850">
+                  <div className="flex items-center gap-2">
+                    <Camera size={18} className="text-sky-400 animate-pulse" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                      Ambil Foto Live {cameraModalTarget === 'indoor' ? 'Indoor (Selfie)' : 'Outdoor Sektor'}
+                    </span>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={handleCloseLiveCamera}
+                    className="p-1 text-slate-400 hover:text-white transition rounded-lg hover:bg-slate-800 cursor-pointer"
+                  >
+                    <XCircle size={18} />
+                  </button>
+                </div>
+
+                <div className="p-5 flex-1 flex flex-col items-center justify-center space-y-4">
+                  {cameraError ? (
+                    <div className="bg-red-500/10 border border-red-500/30 text-rose-300 p-4 rounded-2xl text-center text-xs space-y-3">
+                      <AlertCircle size={24} className="mx-auto" />
+                      <p className="font-semibold leading-relaxed">{cameraError}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenLiveCamera(cameraModalTarget)}
+                        className="bg-red-600 hover:bg-red-700 text-white font-extrabold text-[10px] px-4 py-2 rounded-xl transition uppercase tracking-wider cursor-pointer active:scale-95"
+                      >
+                        Coba Lagi
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-black border border-slate-800 flex items-center justify-center">
+                      {!activeCameraStream && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 space-y-1.5 p-3">
+                          <RefreshCw size={22} className="animate-spin text-sky-400" />
+                          <span className="text-xs font-bold animate-pulse text-slate-300">Menunggu Izin Kamera...</span>
+                          <span className="text-[10px] text-slate-500">Silakan izinkan kamera laptop atau handphone jika muncul permintaan</span>
+                        </div>
+                      )}
+                      
+                      <video
+                        id="camera_preview_video"
+                        ref={videoRefCallback}
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover rounded-2xl scale-x-[-1]"
+                        style={{ transform: cameraModalTarget === 'indoor' ? 'scaleX(-1)' : 'none' }}
+                      />
+                      
+                      {activeCameraStream && (
+                        <div className="absolute bottom-3 left-3 bg-slate-950/80 backdrop-blur-sm px-3 py-1 rounded-full text-[9px] font-mono border border-slate-800/50 flex items-center gap-1.5 text-emerald-400 font-bold">
+                          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
+                          <span>LIVE FEED OK | {cameraModalTarget === 'indoor' ? 'FRONT' : 'REAR'} CAMERA</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-slate-400 italic text-center max-w-xs">
+                    Sentuh atau Klik tombol di bawah ini untuk mengabadikan momen laporan secara real-time.
+                  </p>
+                </div>
+
+                <div className="bg-slate-950 p-4 flex items-center justify-between border-t border-slate-850">
+                  <button
+                    type="button"
+                    onClick={handleCloseLiveCamera}
+                    className="py-2.5 px-5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-extrabold rounded-xl text-xs transition active:scale-95 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={!activeCameraStream}
+                    onClick={handleCapturePhoto}
+                    className="py-2.5 px-6 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 disabled:opacity-40 text-white font-black rounded-xl text-xs transition active:scale-95 flex items-center gap-2 shadow-lg tracking-wider uppercase cursor-pointer"
+                  >
+                    <Camera size={14} />
+                    <span>Jepret Foto</span>
                   </button>
                 </div>
               </motion.div>

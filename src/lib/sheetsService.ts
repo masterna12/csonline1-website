@@ -15,6 +15,7 @@ import { auth } from '../firebase';
 
 const provider = new GoogleAuthProvider();
 provider.addScope('https://www.googleapis.com/auth/spreadsheets');
+provider.addScope('https://www.googleapis.com/auth/drive.file');
 
 // Internal Memory cache for OAuth state
 let cachedAccessToken: string | null = null;

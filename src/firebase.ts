@@ -3,13 +3,13 @@ import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyBbgZ0Lmp2uRMPPHJP9nJT8o9tvmW6mkaU",
-  authDomain: "dashboard-cs-hpi-babel.firebaseapp.com",
-  projectId: "dashboard-cs-hpi-babel",
-  storageBucket: "dashboard-cs-hpi-babel.firebasestorage.app",
-  messagingSenderId: "608691617498",
-  appId: "1:608691617498:web:be6af54d3626e8439e6fe3",
-  measurementId: "G-9M9472EH6M"
+  projectId: "quick-tract-wh7sp",
+  appId: "1:377436092689:web:84333b6452beee8677f4b0",
+  apiKey: "AIzaSyD4jbOCVSNeSc7O9TYqvFRzGpdPI9or61o",
+  authDomain: "quick-tract-wh7sp.firebaseapp.com",
+  storageBucket: "quick-tract-wh7sp.firebasestorage.app",
+  messagingSenderId: "377436092689",
+  measurementId: ""
 };
 
 // Initialize Firebase safely to prevent "[DEFAULT] app already exists" errors

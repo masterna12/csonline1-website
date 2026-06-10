@@ -16,6 +16,8 @@ import {
   collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot 
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
+// @ts-ignore
+import hpiLogo from './assets/images/hpi_cs_logo_1781079989032.png';
 
 export default function App() {
   // Authentication States
@@ -47,101 +49,73 @@ export default function App() {
   };
 
   // Initial default datasets for automatic seeding / recovery
-  const defaultEmployeesList: Employee[] = [
-    {
-      id: 'EMP001',
-      nip: '19980512',
-      name: 'Zulfikar Murfhy',
-      role: 'Sektor Leader',
-      department: 'IT Sektor Bangka',
-      email: 'zulfikarmurfhy12@gmail.com',
-      phone: '081234567890',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-      status: 'Aktif',
-      joinDate: '01 Jan 2024'
-    },
-    {
-      id: 'EMP002',
-      nip: '19971030',
-      name: 'Pratama Satria',
-      role: 'Petugas Yantek',
-      department: 'Yantek Belitung',
-      email: 'pratama.satria@haleyorapower.co.id',
-      phone: '081234567891',
-      avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&q=80&w=200',
-      status: 'Aktif',
-      joinDate: '15 Mar 2024'
-    }
-  ];
+  const defaultEmployeesList: Employee[] = [];
 
-  const defaultReportsList: Report[] = [
-    {
-      id: 'REP301',
-      employeeId: 'EMP001',
-      nip: '19980512',
-      employeeName: 'Zulfikar Murfhy',
-      role: 'Sektor Leader',
-      department: 'IT Sektor Bangka',
-      date: '2026-06-09',
-      type: 'Teknis',
-      title: 'Patroli Gardu Induk Pangkalpinang',
-      description: 'Melakukan inspeksi visual dan pemindaian termal pada kubikel Gardu Induk Pangkalpinang. Parameter operasional dalam batas aman.',
-      status: 'Disetujui',
-      notes: 'Pekerjaan sesuai dengan standard operating procedure.',
-      location: {
-        name: 'Gardu Induk Pangkalpinang',
-        coordinates: '-2.1299, 106.1138'
-      },
-      photoIndoor: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300',
-      photoOutdoor: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300'
-    },
-    {
-      id: 'REP302',
-      employeeId: 'EMP002',
-      nip: '19971030',
-      employeeName: 'Pratama Satria',
-      role: 'Petugas Yantek',
-      department: 'Yantek Belitung',
-      date: '2026-06-08',
-      type: 'Operasional',
-      title: 'Perbaikan Jaringan Tegangan Rendah JTR',
-      description: 'Mengatasi gangguan jaringan akibat ranting pohon tumbang di area Tanjung Pandan. Penormalan aliran listrik berhasil diselesaikan aman.',
-      status: 'Pending',
-      location: {
-        name: 'Tanjung Pandan, Belitung',
-        coordinates: '-2.7303, 107.6366'
-      },
-      photoIndoor: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300',
-      photoOutdoor: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300'
-    }
-  ];
+  const defaultReportsList: Report[] = [];
 
-  const defaultAttendanceList: Attendance[] = [
-    {
-      id: 'ATT501',
-      employeeId: 'EMP001',
-      employeeName: 'Zulfikar Murfhy',
-      department: 'IT Sektor Bangka',
-      date: '2026-06-09',
-      clockIn: '07:42',
-      clockOut: '16:05',
-      status: 'Tepat Waktu',
-      locationIn: 'Sektor Bangka Belitung Hub',
-      locationOut: 'Sektor Bangka Belitung Hub'
-    },
-    {
-      id: 'ATT502',
-      employeeId: 'EMP002',
-      employeeName: 'Pratama Satria',
-      department: 'Yantek Belitung',
-      date: '2026-06-09',
-      clockIn: '07:58',
-      clockOut: '16:00',
-      status: 'Tepat Waktu',
-      locationIn: 'Posko Yantek Belitung',
-      locationOut: 'Posko Yantek Belitung'
-    }
-  ];
+  const defaultAttendanceList: Attendance[] = [];
+
+  // Force legacy cleanup of Zulfikar Murfhy and Pratama Satria on runtime startup
+  React.useEffect(() => {
+    const runCleanup = async () => {
+      try {
+        // Delete Firestore documents for legacy users
+        await deleteDoc(doc(db, 'employees', 'EMP001'));
+        await deleteDoc(doc(db, 'employees', 'EMP002'));
+        await deleteDoc(doc(db, 'employees', 'EMP101'));
+        await deleteDoc(doc(db, 'employees', 'EMP102'));
+        await deleteDoc(doc(db, 'dashboard', 'REP301'));
+        await deleteDoc(doc(db, 'dashboard', 'REP302'));
+        await deleteDoc(doc(db, 'dashboard', 'REP401'));
+        await deleteDoc(doc(db, 'dashboard', 'REP402'));
+        await deleteDoc(doc(db, 'attendance', 'ATT501'));
+        await deleteDoc(doc(db, 'attendance', 'ATT502'));
+        await deleteDoc(doc(db, 'attendance', 'ATT601'));
+        await deleteDoc(doc(db, 'attendance', 'ATT602'));
+        console.log('Firestore clean finish');
+      } catch (e) {
+        console.warn('Firestore clean error:', e);
+      }
+
+      // Filter state & localStorage instantly
+      const savedEmployees = localStorage.getItem('db_employees');
+      if (savedEmployees) {
+        try {
+          const parsed = JSON.parse(savedEmployees);
+          const filtered = parsed.filter((e: any) => e.name !== 'Zulfikar Murfhy' && e.name !== 'Pratama Satria' && e.name !== 'Andi Wijaya' && e.name !== 'Siti Rahma' && e.id !== 'EMP001' && e.id !== 'EMP002' && e.id !== 'EMP101' && e.id !== 'EMP102');
+          localStorage.setItem('db_employees', JSON.stringify(filtered));
+          setEmployees(filtered);
+        } catch (e) {}
+      } else {
+        setEmployees(defaultEmployeesList);
+      }
+
+      const savedReports = localStorage.getItem('db_reports');
+      if (savedReports) {
+        try {
+          const parsed = JSON.parse(savedReports);
+          const filtered = parsed.filter((r: any) => r.employeeName !== 'Zulfikar Murfhy' && r.employeeName !== 'Pratama Satria' && r.employeeName !== 'Andi Wijaya' && r.employeeName !== 'Siti Rahma' && r.employeeId !== 'EMP001' && r.employeeId !== 'EMP002' && r.employeeId !== 'EMP101' && r.employeeId !== 'EMP102');
+          localStorage.setItem('db_reports', JSON.stringify(filtered));
+          setReports(filtered);
+        } catch (e) {}
+      } else {
+        setReports(defaultReportsList);
+      }
+
+      const savedAttendance = localStorage.getItem('db_attendance');
+      if (savedAttendance) {
+        try {
+          const parsed = JSON.parse(savedAttendance);
+          const filtered = parsed.filter((a: any) => a.employeeName !== 'Zulfikar Murfhy' && a.employeeName !== 'Pratama Satria' && a.employeeName !== 'Andi Wijaya' && a.employeeName !== 'Siti Rahma' && a.employeeId !== 'EMP001' && a.employeeId !== 'EMP002' && a.employeeId !== 'EMP101' && a.employeeId !== 'EMP102');
+          localStorage.setItem('db_attendance', JSON.stringify(filtered));
+          setAttendance(filtered);
+        } catch (e) {}
+      } else {
+        setAttendance(defaultAttendanceList);
+      }
+    };
+    runCleanup();
+  }, []);
 
   // Global React States
   const [employees, setEmployees] = useState<Employee[]>(() => {
@@ -611,8 +585,13 @@ export default function App() {
         >
           {/* Logo Brand area */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center bg-gradient-to-tr from-indigo-500 to-sky-400 p-3.5 rounded-2xl text-slate-950 font-black mb-4 shadow-lg shadow-indigo-500/10 active:scale-95 transition-transform">
-              <ShieldAlert size={28} className="text-indigo-950 fill-none" />
+            <div className="inline-flex items-center justify-center mb-4 active:scale-95 transition-transform">
+              <img 
+                src={hpiLogo} 
+                alt="HPI CS Online Logo" 
+                className="w-24 h-24 rounded-full object-cover border-2 border-indigo-500/30 p-1 bg-[#0e1623]/85 shadow-xl" 
+                referrerPolicy="no-referrer"
+              />
             </div>
             <h1 className="text-2xl font-black text-white tracking-widest uppercase">CS online</h1>
             <p className="text-[10px] text-slate-400 font-bold tracking-tighter mt-1">PT. HALEYORA POWERINDO BANGKA BELITUNG</p>
@@ -630,7 +609,7 @@ export default function App() {
                 <input
                   type="text"
                   required
-                  placeholder="Masukkan admin"
+                  placeholder="Masukan ID"
                   value={userId}
                   onChange={(e) => setUserId(e.target.value)}
                   className="w-full bg-[#121b2d] border border-slate-800 text-sm text-slate-100 rounded-2xl pl-10 pr-4 py-3 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
@@ -649,7 +628,7 @@ export default function App() {
                 <input
                   type="password"
                   required
-                  placeholder="Masukkan admin"
+                  placeholder="Masukan Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-[#121b2d] border border-slate-800 text-sm text-slate-100 rounded-2xl pl-10 pr-4 py-3 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
@@ -749,12 +728,12 @@ export default function App() {
               <div className="flex-1 text-left">
                 <h4 className="font-extrabold text-sm text-white mb-0.5">⚠️ Koneksi Cloud Firestore Terhambat (Penyimpanan Lokal Aktif)</h4>
                 <p className="text-[11px] leading-relaxed text-slate-300">
-                  Aplikasi gagal menyinkronkan data langsung ke project Firebase Anda (<strong className="text-rose-400">dashboard-cs-hpi-babel</strong>) karena: <code className="bg-rose-950/80 px-1 py-0.5 rounded text-white font-mono break-all text-[10px]">{dbError}</code>.
+                  Aplikasi gagal menyinkronkan data langsung ke project Firebase Anda (<strong className="text-rose-400">quick-tract-wh7sp</strong>) karena: <code className="bg-rose-950/80 px-1 py-0.5 rounded text-white font-mono break-all text-[10px]">{dbError}</code>.
                 </p>
                 <div className="mt-2 bg-slate-950/60 p-3 rounded-xl border border-rose-900/30 text-slate-300 space-y-1.5">
                   <p className="font-bold text-[10px] text-rose-300 uppercase tracking-wider">Langkah Solusi di Firebase Console Anda:</p>
                   <ul className="list-decimal pl-4 space-y-1 text-[11px] text-slate-400">
-                    <li>Buka <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="text-sky-400 underline hover:text-sky-300 font-semibold">Firebase Console</a>, pilih project <strong>dashboard-cs-hpi-babel</strong>.</li>
+                    <li>Buka <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="text-sky-400 underline hover:text-sky-300 font-semibold">Firebase Console</a>, pilih project <strong>quick-tract-wh7sp</strong>.</li>
                     <li>Samping kiri menu, buka <strong>Build &gt; Firestore Database</strong> lalu buat database (klik <em>Create Database</em> jika belum ada).</li>
                     <li>Pindah ke tab <strong>Rules</strong> di bagian atas.</li>
                     <li>Ubah ketentuannya agar mengizinkan akses publik untuk pengembangan, contoh:
