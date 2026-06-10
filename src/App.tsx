@@ -55,75 +55,13 @@ export default function App() {
 
   const defaultAttendanceList: Attendance[] = [];
 
-  // Force legacy cleanup of Zulfikar Murfhy and Pratama Satria on runtime startup
-  React.useEffect(() => {
-    const runCleanup = async () => {
-      try {
-        // Delete Firestore documents for legacy users
-        await deleteDoc(doc(db, 'employees', 'EMP001'));
-        await deleteDoc(doc(db, 'employees', 'EMP002'));
-        await deleteDoc(doc(db, 'employees', 'EMP101'));
-        await deleteDoc(doc(db, 'employees', 'EMP102'));
-        await deleteDoc(doc(db, 'dashboard', 'REP301'));
-        await deleteDoc(doc(db, 'dashboard', 'REP302'));
-        await deleteDoc(doc(db, 'dashboard', 'REP401'));
-        await deleteDoc(doc(db, 'dashboard', 'REP402'));
-        await deleteDoc(doc(db, 'attendance', 'ATT501'));
-        await deleteDoc(doc(db, 'attendance', 'ATT502'));
-        await deleteDoc(doc(db, 'attendance', 'ATT601'));
-        await deleteDoc(doc(db, 'attendance', 'ATT602'));
-        console.log('Firestore clean finish');
-      } catch (e) {
-        console.warn('Firestore clean error:', e);
-      }
-
-      // Filter state & localStorage instantly
-      const savedEmployees = localStorage.getItem('db_employees');
-      if (savedEmployees) {
-        try {
-          const parsed = JSON.parse(savedEmployees);
-          const filtered = parsed.filter((e: any) => e.name !== 'Zulfikar Murfhy' && e.name !== 'Pratama Satria' && e.name !== 'Andi Wijaya' && e.name !== 'Siti Rahma' && e.id !== 'EMP001' && e.id !== 'EMP002' && e.id !== 'EMP101' && e.id !== 'EMP102');
-          localStorage.setItem('db_employees', JSON.stringify(filtered));
-          setEmployees(filtered);
-        } catch (e) {}
-      } else {
-        setEmployees(defaultEmployeesList);
-      }
-
-      const savedReports = localStorage.getItem('db_reports');
-      if (savedReports) {
-        try {
-          const parsed = JSON.parse(savedReports);
-          const filtered = parsed.filter((r: any) => r.employeeName !== 'Zulfikar Murfhy' && r.employeeName !== 'Pratama Satria' && r.employeeName !== 'Andi Wijaya' && r.employeeName !== 'Siti Rahma' && r.employeeId !== 'EMP001' && r.employeeId !== 'EMP002' && r.employeeId !== 'EMP101' && r.employeeId !== 'EMP102');
-          localStorage.setItem('db_reports', JSON.stringify(filtered));
-          setReports(filtered);
-        } catch (e) {}
-      } else {
-        setReports(defaultReportsList);
-      }
-
-      const savedAttendance = localStorage.getItem('db_attendance');
-      if (savedAttendance) {
-        try {
-          const parsed = JSON.parse(savedAttendance);
-          const filtered = parsed.filter((a: any) => a.employeeName !== 'Zulfikar Murfhy' && a.employeeName !== 'Pratama Satria' && a.employeeName !== 'Andi Wijaya' && a.employeeName !== 'Siti Rahma' && a.employeeId !== 'EMP001' && a.employeeId !== 'EMP002' && a.employeeId !== 'EMP101' && a.employeeId !== 'EMP102');
-          localStorage.setItem('db_attendance', JSON.stringify(filtered));
-          setAttendance(filtered);
-        } catch (e) {}
-      } else {
-        setAttendance(defaultAttendanceList);
-      }
-    };
-    runCleanup();
-  }, []);
-
   // Global React States
   const [employees, setEmployees] = useState<Employee[]>(() => {
     const saved = localStorage.getItem('db_employees');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.length > 0) return parsed;
+        if (parsed && typeof parsed === 'object') return parsed;
       } catch (e) {}
     }
     return defaultEmployeesList;
