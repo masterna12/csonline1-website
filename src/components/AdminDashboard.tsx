@@ -7,7 +7,7 @@ import {
   Shield, Settings, Menu, ChevronRight, HardHat,
   AlertTriangle, RefreshCw, Layers, Bell, Package,
   ArrowRight, Download, Send, Globe, Check, User, LogOut, Upload, Camera,
-  FileSpreadsheet, Printer
+  FileSpreadsheet, Printer, Pencil
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, Report, Attendance } from '../types';
@@ -220,6 +220,7 @@ export default function AdminDashboard({
   const [newEmpEmail, setNewEmpEmail] = useState('-');
   const [newEmpPhone, setNewEmpPhone] = useState('-');
   const [newEmpAvatar, setNewEmpAvatar] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200');
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
   // Modal state for manual report inputs
   const [isAddReportModalOpen, setIsAddReportModalOpen] = useState(false);
@@ -1819,6 +1820,14 @@ export default function AdminDashboard({
                               <td className="p-4 text-slate-705 font-bold">{emp.department}</td>
                               <td className="p-4 text-slate-700 font-extrabold">{emp.role}</td>
                               <td className="p-4 text-center pr-6">
+                                <button
+                                  id={`edit_emp_view_btn_${emp.id}`}
+                                  onClick={() => setEditingEmployee(emp)}
+                                  className="p-1.5 text-blue-600 hover:text-white hover:bg-blue-600 rounded-lg transition-colors inline-block cursor-pointer shadow-sm border border-slate-100 mr-1.5"
+                                  title="Edit Pegawai"
+                                >
+                                  <Pencil size={13} />
+                                </button>
                                 <button
                                   id={`delete_emp_view_btn_${emp.id}`}
                                   onClick={() => {
@@ -4539,16 +4548,47 @@ export default function AdminDashboard({
                                 </div>
                                 
                                 {emps.length > 0 && (
-                                  <div className="mt-2 flex -space-x-1.5 justify-center overflow-hidden">
-                                    {emps.slice(0, 4).map(e => (
-                                      <img
-                                        key={e.id}
-                                        src={e.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200"}
-                                        alt={e.name}
-                                        className="inline-block h-5.5 w-5.5 rounded-full ring-2 ring-slate-800 object-cover"
-                                        referrerPolicy="no-referrer"
-                                      />
-                                    ))}
+                                  <div className="mt-2.5 pt-2 border-t border-slate-700/50 text-left font-sans">
+                                    <div className="flex -space-x-1.5 justify-center overflow-hidden mb-2">
+                                      {emps.slice(0, 4).map(e => (
+                                        <img
+                                          key={e.id}
+                                          src={e.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200"}
+                                          alt={e.name}
+                                          className="inline-block h-5.5 w-5.5 rounded-full ring-2 ring-slate-800 object-cover"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                      ))}
+                                    </div>
+                                    <span className="text-[9px] text-slate-500 font-black tracking-wider uppercase block mb-1">Daftar Pegawai:</span>
+                                    <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto pr-0.5">
+                                      {emps.map(e => {
+                                        const empLocId = employeeLocations[e.id];
+                                        const locObj = locations.find(l => l.id === empLocId);
+                                        const locName = locObj ? locObj.name : 'Belum ditentukan';
+                                        return (
+                                          <div key={e.id} className="flex items-start gap-1.5 bg-slate-900/60 p-2 rounded-xl border border-slate-700/30 text-left font-sans">
+                                            <img
+                                              src={e.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200"}
+                                              alt={e.name}
+                                              className="h-7 w-7 rounded-full object-cover shrink-0 mt-0.5 ring-1 ring-slate-700"
+                                              referrerPolicy="no-referrer"
+                                            />
+                                            <div className="min-w-0 flex-1 font-sans">
+                                              <p className="text-[9.5px] text-slate-100 font-black leading-tight truncate" title={e.name}>
+                                                {e.name}
+                                              </p>
+                                              <p className="text-[8px] text-slate-400 font-bold leading-none mt-0.5">
+                                                NIP: {e.nip || '-'}
+                                              </p>
+                                              <p className="text-[8px] text-sky-400 font-bold leading-none mt-1 truncate flex items-center gap-0.5" title={locName}>
+                                                <span className="shrink-0">📍</span> {locName}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -4653,6 +4693,156 @@ export default function AdminDashboard({
                   type="button"
                 >
                   Selesai
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal: Edit Employee Data */}
+        {editingEmployee && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto min-w-[320px]">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full text-slate-800 space-y-4 font-sans border border-slate-200 text-left"
+            >
+              <div className="flex justify-between items-center pb-2 border-b border-slate-100 font-sans">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-1.5">
+                  <User size={16} className="text-blue-600" />
+                  <span>Edit Data Pegawai - {editingEmployee.name}</span>
+                </h3>
+                <button 
+                  onClick={() => setEditingEmployee(null)}
+                  className="p-1 hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-600"
+                  type="button"
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-4 text-xs font-sans">
+                {/* Nama & NIP */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-550 uppercase font-black pl-0.5">Nama Lengkap Pegawai *</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Masukkan nama lengkap (contoh: Zulfikar Murfhy)"
+                      value={editingEmployee.name}
+                      onChange={(e) => setEditingEmployee({ ...editingEmployee, name: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-305 p-3 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-550 uppercase font-black pl-0.5">NIP (Nomor Induk Pegawai) *</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Contoh: 19930801201509"
+                      value={editingEmployee.nip}
+                      onChange={(e) => setEditingEmployee({ ...editingEmployee, nip: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-305 p-3 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
+                    />
+                  </div>
+                </div>
+
+                {/* Jabatan & Divisi */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-550 uppercase font-black pl-0.5">Jabatan Kerja *</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Contoh: Pelaksana"
+                      value={editingEmployee.role}
+                      onChange={(e) => setEditingEmployee({ ...editingEmployee, role: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-305 p-3 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-555 uppercase font-black pl-0.5">Unit Kerja / Divisi *</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Contoh: PT. PLN ( Persero ) UP3 Bangka"
+                      value={editingEmployee.department}
+                      onChange={(e) => setEditingEmployee({ ...editingEmployee, department: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-305 p-3 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* Avatar Picker Choice (File Upload / URL Input) */}
+                <div className="space-y-2 animate-fade-in bg-slate-50/55 p-3 rounded-2xl border border-slate-200">
+                  <label className="text-[10px] text-slate-550 uppercase font-black pl-0.5 block">Avatar Profil (File lokal / URL) *</label>
+                  <div className="flex gap-2">
+                    <input 
+                      id="edit_emp_avatar_url"
+                      type="text" 
+                      required
+                      placeholder="Masukkan URL foto atau unggah berkas lokal"
+                      value={editingEmployee.avatar}
+                      onChange={(e) => setEditingEmployee({ ...editingEmployee, avatar: e.target.value })}
+                      className="flex-1 bg-white border border-slate-300 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-400 font-mono text-slate-700 truncate"
+                    />
+                    <label className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5 shrink-0 select-none">
+                      <Upload size={14} />
+                      <span>Pilih Berkas</span>
+                      <input 
+                        id="edit_emp_avatar_file"
+                        type="file" 
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 2 * 1024 * 1024) {
+                              onShowAlert('Kapasitas Penuh', 'Batas maksimal ukuran file gambar adalah 2MB.', 'alert');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              if (typeof reader.result === 'string') {
+                                setEditingEmployee({ ...editingEmployee, avatar: reader.result });
+                                onShowAlert('File Terunggah', 'Berhasil memproses & mengganti file foto lokal Anda.', 'success');
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[9px] text-slate-400 leading-normal pl-0.5">Mendukung unggah berkas langsung dari komputer Anda atau sematkan alamat url gambar eksternal.</p>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-2 border-t border-slate-100 font-sans">
+                <button 
+                  onClick={() => setEditingEmployee(null)}
+                  className="py-2.5 px-5 bg-slate-100 text-slate-605 hover:bg-slate-200 font-bold rounded-xl text-xs cursor-pointer shadow transition"
+                  type="button"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={() => {
+                    if (!editingEmployee.name.trim() || !editingEmployee.role.trim()) {
+                      onShowAlert('Validasi Gagal', 'Nama Lengkap dan Jabatan tidak boleh kosong!', 'alert');
+                      return;
+                    }
+                    onAddEmployee(editingEmployee);
+                    setEditingEmployee(null);
+                    onShowAlert('Pegawai Diperbarui', `Informasi ${editingEmployee.name} berhasil diperbarui secara permanen.`, 'success');
+                  }}
+                  className="py-2.5 px-5 bg-[#0284c7] hover:bg-[#0369a1] text-white font-extrabold rounded-xl text-xs cursor-pointer shadow transition active:scale-95"
+                  type="button"
+                >
+                  Simpan Perubahan
                 </button>
               </div>
             </motion.div>
