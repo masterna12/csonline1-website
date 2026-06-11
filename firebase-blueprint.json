@@ -58,6 +58,33 @@
         "locationOut": { "type": "string" }
       },
       "required": ["id", "employeeId", "employeeName", "date", "status"]
+    },
+    "hpi_locations": {
+      "title": "Locations",
+      "description": "Data master lokasi kerja PT. Haleyora Powerindo Bangka Belitung",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "level": { "type": "number" },
+        "parentId": { "type": "string" },
+        "barcode": { "type": "string" },
+        "jamKerja": { "type": "string" },
+        "posCount": { "type": "number" }
+      },
+      "required": ["id", "name", "level"]
+    },
+    "hpi_jabatans": {
+      "title": "Jabatans",
+      "description": "Data master jabatan PT. Haleyora Powerindo Bangka Belitung",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "level": { "type": "number" },
+        "parentId": { "type": "string" }
+      },
+      "required": ["id", "name", "level"]
     }
   },
   "firestore": {
@@ -72,6 +99,14 @@
     "attendance": {
       "schema": "attendance",
       "description": "Koleksi data kehadiran/presensi pegawai"
+    },
+    "hpi_locations": {
+      "schema": "hpi_locations",
+      "description": "Koleksi master lokasi kerja"
+    },
+    "hpi_jabatans": {
+      "schema": "hpi_jabatans",
+      "description": "Koleksi master jabatan"
     }
   }
 }

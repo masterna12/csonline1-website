@@ -490,6 +490,23 @@ export default function App() {
     }
   };
 
+  const handleUpdateReport = async (updatedReport: Report) => {
+    // 1. Save locally first (instant UI update)
+    setReports(prev => {
+      const updated = prev.map(r => r.id === updatedReport.id ? updatedReport : r);
+      localStorage.setItem('db_reports', JSON.stringify(updated));
+      return updated;
+    });
+
+    // 2. Sync with Firestore in background
+    try {
+      const reportRef = doc(db, 'dashboard', updatedReport.id);
+      await updateDoc(reportRef, updatedReport as any);
+    } catch (error: any) {
+      console.warn("Firestore update report failed, stored locally instead:", error);
+    }
+  };
+
   const handleImportReports = async (imported: Report[]) => {
     try {
       const existingIds = new Set(reports.map(r => r.id));
@@ -758,6 +775,7 @@ service cloud.firestore {
             reports={reports}
             onAddEmployee={handleAddEmployee}
             onUpdateReportStatus={handleUpdateReportStatus}
+            onUpdateReport={handleUpdateReport}
             onDeleteEmployee={handleDeleteEmployee}
             onDeleteReport={handleDeleteReport}
             onShowAlert={handleShowAlert}

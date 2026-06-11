@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Database,
+  UserX,
   Briefcase,
   Mail,
   Phone,
@@ -58,6 +60,75 @@ import {
   writeReportsToSpreadsheet,
   parseSpreadsheetToReports,
 } from "../lib/sheetsService";
+import { collection, doc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase";
+
+const LeafletMap = ({ coordinates, name }: { coordinates: string; name: string }) => {
+  const mapRef = React.useRef<HTMLDivElement>(null);
+  const mapInstance = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    // Dynamically inject stylesheet
+    if (!document.getElementById("leaflet-css")) {
+      const link = document.createElement("link");
+      link.id = "leaflet-css";
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+
+    const run = () => {
+      const L = (window as any).L;
+      if (!L || !mapRef.current) return;
+
+      const parts = coordinates.split(",").map((c) => Number(c.trim()));
+      const lat = isNaN(parts[0]) ? -2.865351 : parts[0];
+      const lng = isNaN(parts[1]) ? 108.2793028 : parts[1];
+
+      try {
+        if (mapInstance.current) {
+          mapInstance.current.remove();
+        }
+
+        mapInstance.current = L.map(mapRef.current).setView([lat, lng], 16);
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        }).addTo(mapInstance.current);
+
+        const marker = L.marker([lat, lng]).addTo(mapInstance.current);
+        marker.bindPopup(`<b>${name}</b><br/>${lat}, ${lng}`).openPopup();
+      } catch (err) {
+        console.error("Leaflet initialization error:", err);
+      }
+    };
+
+    if ((window as any).L) {
+      run();
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.onload = run;
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      if (mapInstance.current) {
+        try {
+          mapInstance.current.remove();
+        } catch (e) {}
+        mapInstance.current = null;
+      }
+    };
+  }, [coordinates, name]);
+
+  return (
+    <div
+      ref={mapRef}
+      className="w-full h-80 sm:h-[400px] rounded-xl border border-slate-200 z-10"
+    />
+  );
+};
 
 interface AdminDashboardProps {
   employees: Employee[];
@@ -69,6 +140,7 @@ interface AdminDashboardProps {
     status: "Disetujui" | "Ditolak",
     notes?: string,
   ) => void;
+  onUpdateReport?: (rep: Report) => void;
   onDeleteEmployee: (id: string) => void;
   onDeleteReport: (id: string) => void;
   onShowAlert: (
@@ -96,6 +168,7 @@ export default function AdminDashboard({
   reports,
   onAddEmployee,
   onUpdateReportStatus,
+  onUpdateReport = () => {},
   onDeleteEmployee,
   onDeleteReport,
   onShowAlert,
@@ -377,6 +450,9 @@ export default function AdminDashboard({
   // Date range filters for reports
   const [reportStartDateFilter, setReportStartDateFilter] = useState("");
   const [reportEndDateFilter, setReportEndDateFilter] = useState("");
+  const [reportLocationFilter, setReportLocationFilter] = useState("Semua");
+  const [activePhotoModalRow, setActivePhotoModalRow] = useState<Report | null>(null);
+  const [activeMapModalRow, setActiveMapModalRow] = useState<Report | null>(null);
 
   // Decision feedback modal
   const [selectedReportForAction, setSelectedReportForAction] =
@@ -526,6 +602,9 @@ export default function AdminDashboard({
   const [selectedEmpForRekapDetail, setSelectedEmpForRekapDetail] = useState<
     string | null
   >(null);
+  const [editingReport, setEditingReport] = useState<Report | null>(null);
+  const [clickedStatType, setClickedStatType] = useState<'total' | 'sudah' | 'belum' | 'lokasi_ada_pegawai' | 'lokasi_tanpa_pegawai' | 'pegawai_punya_lokasi' | 'pegawai_tanpa_lokasi' | null>(null);
+  const [statModalSearch, setStatModalSearch] = useState("");
 
   // Live Camera Capture States & Lifecycle Methods
   const [activeCameraStream, setActiveCameraStream] =
@@ -622,27 +701,135 @@ export default function AdminDashboard({
     };
   }, [activeCameraStream]);
 
+  // Real-time synchronization for locations to/from Firestore
   React.useEffect(() => {
-    localStorage.setItem("hpi_locations", JSON.stringify(locations));
-  }, [locations]);
+    const unsub = onSnapshot(collection(db, "hpi_locations"), (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((docVal) => {
+        list.push(docVal.data());
+      });
+      if (!snapshot.empty) {
+        setLocations(list);
+        localStorage.setItem("hpi_locations", JSON.stringify(list));
+      } else {
+        // Seed from existing local storage if available
+        const local = localStorage.getItem("hpi_locations");
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              parsed.forEach((loc) => {
+                setDoc(doc(db, "hpi_locations", loc.id), loc).catch(e => console.error("Error seeding location: ", e));
+              });
+            }
+          } catch(e){}
+        }
+      }
+    }, (error) => {
+      console.error("Firestore 'hpi_locations' error: ", error);
+    });
+    return () => unsub();
+  }, []);
 
+  // Real-time synchronization for employeeLocations to/from Firestore
   React.useEffect(() => {
-    localStorage.setItem(
-      "hpi_employee_locations",
-      JSON.stringify(employeeLocations),
-    );
-  }, [employeeLocations]);
+    const unsub = onSnapshot(collection(db, "hpi_employee_locations"), (snapshot) => {
+      const mapping: { [key: string]: string } = {};
+      snapshot.forEach((docVal) => {
+        const data = docVal.data();
+        if (data && data.id && data.locationId) {
+          mapping[data.id] = data.locationId;
+        }
+      });
+      if (!snapshot.empty) {
+        setEmployeeLocations(mapping);
+        localStorage.setItem("hpi_employee_locations", JSON.stringify(mapping));
+      } else {
+        // Seed from existing local storage
+        const local = localStorage.getItem("hpi_employee_locations");
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (parsed && typeof parsed === "object") {
+              Object.entries(parsed).forEach(([empId, locId]) => {
+                if (empId && locId) {
+                  setDoc(doc(db, "hpi_employee_locations", empId), { id: empId, locationId: locId }).catch(e => console.error("Error seeding employee location: ", e));
+                }
+              });
+            }
+          } catch(e){}
+        }
+      }
+    }, (error) => {
+      console.error("Firestore 'hpi_employee_locations' error: ", error);
+    });
+    return () => unsub();
+  }, []);
 
+  // Real-time synchronization for jabatans to/from Firestore
   React.useEffect(() => {
-    localStorage.setItem("hpi_jabatans", JSON.stringify(jabatans));
-  }, [jabatans]);
+    const unsub = onSnapshot(collection(db, "hpi_jabatans"), (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((docVal) => {
+        list.push(docVal.data());
+      });
+      if (!snapshot.empty) {
+        setJabatans(list);
+        localStorage.setItem("hpi_jabatans", JSON.stringify(list));
+      } else {
+        // Seed from existing local storage
+        const local = localStorage.getItem("hpi_jabatans");
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              parsed.forEach((jab) => {
+                setDoc(doc(db, "hpi_jabatans", jab.id), jab).catch(e => console.error("Error seeding jabatan: ", e));
+              });
+            }
+          } catch(e){}
+        }
+      }
+    }, (error) => {
+      console.error("Firestore 'hpi_jabatans' error: ", error);
+    });
+    return () => unsub();
+  }, []);
 
+  // Real-time synchronization for employeeJabatans to/from Firestore
   React.useEffect(() => {
-    localStorage.setItem(
-      "hpi_employee_jabatans",
-      JSON.stringify(employeeJabatans),
-    );
-  }, [employeeJabatans]);
+    const unsub = onSnapshot(collection(db, "hpi_employee_jabatans"), (snapshot) => {
+      const mapping: { [key: string]: string } = {};
+      snapshot.forEach((docVal) => {
+        const data = docVal.data();
+        if (data && data.id && data.jabatanId) {
+          mapping[data.id] = data.jabatanId;
+        }
+      });
+      if (!snapshot.empty) {
+        setEmployeeJabatans(mapping);
+        localStorage.setItem("hpi_employee_jabatans", JSON.stringify(mapping));
+      } else {
+        // Seed from existing local storage
+        const local = localStorage.getItem("hpi_employee_jabatans");
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (parsed && typeof parsed === "object") {
+              Object.entries(parsed).forEach(([empId, jabId]) => {
+                if (empId && jabId) {
+                  setDoc(doc(db, "hpi_employee_jabatans", empId), { id: empId, jabatanId: jabId }).catch(e => console.error("Error seeding employee jabatan: ", e));
+                }
+              });
+            }
+          } catch(e){}
+        }
+      }
+    }, (error) => {
+      console.error("Firestore 'hpi_employee_jabatans' error: ", error);
+    });
+    return () => unsub();
+  }, []);
 
   // Sidebar responsive collapse
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -1061,16 +1248,21 @@ export default function AdminDashboard({
       return;
     }
     if (editingLocationId) {
-      setLocations(
-        locations.map((loc) =>
-          loc.id === editingLocationId
-            ? {
-                ...loc,
-                name: locationNameInput.trim(),
-              }
-            : loc,
-        ),
+      const updatedList = locations.map((loc) =>
+        loc.id === editingLocationId
+          ? {
+              ...loc,
+              name: locationNameInput.trim(),
+            }
+          : loc,
       );
+      setLocations(updatedList);
+      const updatedLoc = updatedList.find((l) => l.id === editingLocationId);
+      if (updatedLoc) {
+        setDoc(doc(db, "hpi_locations", editingLocationId), updatedLoc).catch((err) =>
+          console.error("Error updating location in Firestore:", err),
+        );
+      }
       onShowAlert("Sukses", "Lokasi kerja berhasil diperbarui.", "success");
     } else {
       const parentId = locationParentInput || undefined;
@@ -1087,6 +1279,9 @@ export default function AdminDashboard({
         posCount: 1,
       };
       setLocations([...locations, newLoc]);
+      setDoc(doc(db, "hpi_locations", newLoc.id), newLoc).catch((err) =>
+        console.error("Error adding location to Firestore:", err),
+      );
       onShowAlert(
         "Sukses",
         "Lokasi kerja baru berhasil ditambahkan.",
@@ -1122,11 +1317,21 @@ export default function AdminDashboard({
       locations.filter((loc) => !locationsToDelete.includes(loc.id)),
     );
 
+    // Delete from Firestore
+    locationsToDelete.forEach((locId) => {
+      deleteDoc(doc(db, "hpi_locations", locId)).catch((err) =>
+        console.error("Error deleting location from Firestore:", err),
+      );
+    });
+
     // Clean up employee locations assignments mapping
     const updatedAssignments = { ...employeeLocations };
     Object.keys(updatedAssignments).forEach((empId) => {
       if (locationsToDelete.includes(updatedAssignments[empId])) {
         delete updatedAssignments[empId];
+        deleteDoc(doc(db, "hpi_employee_locations", empId)).catch((err) =>
+          console.error("Error deleting employee location from Firestore:", err),
+        );
       }
     });
     setEmployeeLocations(updatedAssignments);
@@ -1144,18 +1349,23 @@ export default function AdminDashboard({
       return;
     }
     if (editingJabatanId) {
-      setJabatans(
-        jabatans.map((j) =>
-          j.id === editingJabatanId
-            ? {
-                ...j,
-                name: jabatanNameInput.trim(),
-                level: jabatanLevelInput,
-                parentId: jabatanParentInput || undefined,
-              }
-            : j,
-        ),
+      const updatedList = jabatans.map((j) =>
+        j.id === editingJabatanId
+          ? {
+              ...j,
+              name: jabatanNameInput.trim(),
+              level: jabatanLevelInput,
+              parentId: jabatanParentInput || undefined,
+            }
+          : j,
       );
+      setJabatans(updatedList);
+      const updatedJab = updatedList.find((j) => j.id === editingJabatanId);
+      if (updatedJab) {
+        setDoc(doc(db, "hpi_jabatans", editingJabatanId), updatedJab).catch((err) =>
+          console.error("Error updating jabatan in Firestore:", err),
+        );
+      }
       onShowAlert("Sukses", "Jabatan berhasil diperbarui.", "success");
     } else {
       const newJab = {
@@ -1165,6 +1375,9 @@ export default function AdminDashboard({
         parentId: jabatanParentInput || undefined,
       };
       setJabatans([...jabatans, newJab]);
+      setDoc(doc(db, "hpi_jabatans", newJab.id), newJab).catch((err) =>
+        console.error("Error adding jabatan to Firestore:", err),
+      );
       onShowAlert("Sukses", "Jabatan baru berhasil ditambahkan.", "success");
     }
     setIsAddJabatanModalOpen(false);
@@ -1176,11 +1389,18 @@ export default function AdminDashboard({
 
   const handleDeleteJabatan = (id: string) => {
     setJabatans(jabatans.filter((j) => j.id !== id));
+    deleteDoc(doc(db, "hpi_jabatans", id)).catch((err) =>
+      console.error("Error deleting jabatan from Firestore:", err),
+    );
+
     // Clean up employee assignments mapping
     const updatedAssignments = { ...employeeJabatans };
     Object.keys(updatedAssignments).forEach((empId) => {
       if (updatedAssignments[empId] === id) {
         delete updatedAssignments[empId];
+        deleteDoc(doc(db, "hpi_employee_jabatans", empId)).catch((err) =>
+          console.error("Error deleting employee jabatan from Firestore:", err),
+        );
       }
     });
     setEmployeeJabatans(updatedAssignments);
@@ -1608,10 +1828,14 @@ export default function AdminDashboard({
   const filteredReports = reports.filter((rep) => {
     const matchesSearch =
       rep.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (rep.nip && rep.nip.toLowerCase().includes(searchQuery.toLowerCase())) ||
       rep.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       rep.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter =
       reportDeptFilter === "Semua" || rep.department === reportDeptFilter;
+    const matchesLocation =
+      reportLocationFilter === "Semua" ||
+      (rep.location && rep.location.name === reportLocationFilter);
 
     let matchesDate = true;
     if (rep.date) {
@@ -1623,7 +1847,7 @@ export default function AdminDashboard({
       }
     }
 
-    return matchesSearch && matchesFilter && matchesDate;
+    return matchesSearch && matchesFilter && matchesLocation && matchesDate;
   });
 
   const filteredAttendance = attendance.filter((att) => {
@@ -2115,7 +2339,7 @@ export default function AdminDashboard({
                       <div>
                         <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
                           <CheckSquare size={16} className="text-[#10b981]" />
-                          LAPORAN SEKTOR TERBARU
+                          LAPORAN TERBARU
                         </h4>
                         <p className="text-[10px] text-slate-400">
                           Aktivitas dan pertanggungjawaban lapangan terkini
@@ -2185,7 +2409,7 @@ export default function AdminDashboard({
                     <Building2 className="text-[#0284c7]" size={18} />
                     <div>
                       <p className="font-extrabold leading-none">
-                        Database Sektor Bangka Belitung Terverifikasi
+                        Database Bangka Belitung Terverifikasi
                       </p>
                       <span className="text-[10px] text-slate-500 mt-1 block">
                         Data mutakhir: {employees.length} Pegawai,{" "}
@@ -2895,366 +3119,493 @@ export default function AdminDashboard({
                       )}
                     </div>
 
-                    {/* Sub-Filters panel */}
-                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                      <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
-                        {/* Search bar */}
-                        <div className="relative flex-1">
-                          <Search
-                            className="absolute left-3 top-3 text-slate-400"
-                            size={14}
-                          />
-                          <input
-                            id="laporan_search_box"
-                            type="text"
-                            placeholder="Cari Laporan (Nama, Judul, Keterangan)..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-[#f8fafc] border border-slate-300 rounded-xl py-2 pl-9 pr-3 text-slate-700 text-xs outline-none focus:ring-1 focus:ring-sky-500/50 font-medium"
-                          />
-                        </div>
+                    {/* Redesigned Patrol Data Controls & Table View */}
+                    {(() => {
+                      const totalPatroli = filteredReports.length;
+                      const lokasiAktif = Array.from(new Set(reports.map(r => r.location?.name).filter(Boolean))).length;
+                      const sudahPatroli = Array.from(new Set(reports.map(r => r.employeeId))).length;
+                      const belumPatroli = Math.max(0, employees.length - sudahPatroli);
 
-                        {/* Unit filter */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[10px] uppercase font-black text-slate-400">
-                            Unit:
-                          </span>
-                          <select
-                            id="laporan_dept_select"
-                            value={reportDeptFilter}
-                            onChange={(e) =>
-                              setReportDeptFilter(e.target.value)
-                            }
-                            className="bg-[#f8fafc] border border-slate-300 rounded-xl p-2 px-3 text-slate-700 text-xs outline-none font-bold cursor-pointer"
-                          >
-                            <option value="Semua">Semua Unit Kerja</option>
-                            {uniqueReportDepartments.map((dept) => (
-                              <option key={dept} value={dept}>
-                                {dept}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
+                      const handleExportTableCurrent = () => {
+                        const headers = ["NO INDUK", "NAMA & JABATAN", "LOKASI", "WAKTU", "DESKRIPSI"];
+                        const rows = filteredReports.map((r) => [
+                          r.nip || "-",
+                          `"${r.employeeName} (${r.role || 'SATPAM'})"`,
+                          `"${r.location?.name || "-"}"`,
+                          `"${r.date || "-"}"`,
+                          `"${(r.description || "").replace(/"/g, '""')}"`
+                        ]);
+                        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
+                          + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+                        const encodedUri = encodeURI(csvContent);
+                        const link = document.createElement("a");
+                        link.setAttribute("href", encodedUri);
+                        link.setAttribute("download", `HPI_Data_Patroli_Filtered_${new Date().toISOString().split('T')[0]}.csv`);
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        onShowAlert("Ekspor Berhasil", "Tabel data kegiatan yang terfilter berhasil diekspor.", "success");
+                      };
 
-                      <div className="flex flex-col md:flex-row gap-4 pt-3 border-t border-slate-100 items-stretch md:items-center justify-between flex-wrap">
-                        {/* Date Filters */}
-                        <div className="flex flex-wrap items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] uppercase font-black text-slate-400">
-                              Mulai:
-                            </span>
-                            <input
-                              id="laporan_start_date_filter"
-                              type="date"
-                              value={reportStartDateFilter}
-                              onChange={(e) =>
-                                setReportStartDateFilter(e.target.value)
-                              }
-                              className="bg-[#f8fafc] border border-slate-300 text-slate-755 font-bold p-1.5 px-2.5 rounded-xl text-xs outline-none focus:ring-1 focus:ring-sky-500/50 cursor-pointer"
-                            />
-                          </div>
+                      const handleDownloadImage = (url: string, filename: string) => {
+                        fetch(url)
+                          .then(resp => resp.blob())
+                          .then(blob => {
+                            const blobUrl = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = blobUrl;
+                            link.download = filename;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(blobUrl);
+                          })
+                          .catch(() => {
+                            // fallback if CORS block
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.target = "_blank";
+                            link.click();
+                          });
+                      };
 
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] uppercase font-black text-slate-400">
-                              Selesai:
-                            </span>
-                            <input
-                              id="laporan_end_date_filter"
-                              type="date"
-                              value={reportEndDateFilter}
-                              onChange={(e) =>
-                                setReportEndDateFilter(e.target.value)
-                              }
-                              className="bg-[#f8fafc] border border-slate-300 text-slate-755 font-bold p-1.5 px-2.5 rounded-xl text-xs outline-none focus:ring-1 focus:ring-sky-500/50 cursor-pointer"
-                            />
-                          </div>
-
-                          {(reportStartDateFilter ||
-                            reportEndDateFilter ||
-                            searchQuery ||
-                            reportDeptFilter !== "Semua") && (
-                            <button
-                              id="btn_reset_laporan_filters"
-                              onClick={() => {
-                                setSearchQuery("");
-                                setReportDeptFilter("Semua");
-                                setReportStartDateFilter("");
-                                setReportEndDateFilter("");
-                                onShowAlert(
-                                  "Filter Direset",
-                                  "Semua filter pencarian dan rentang tanggal telah dikosongkan.",
-                                  "success",
-                                );
-                              }}
-                              className="text-rose-600 hover:text-rose-700 active:scale-95 font-bold text-[10px] uppercase border border-rose-200 hover:bg-rose-50 px-2.5 py-1.5 rounded-xl cursor-pointer transition flex items-center gap-1 shrink-0"
+                      return (
+                        <div className="space-y-6">
+                          {/* 1. TOP STATS PANEL */}
+                          <div id="patroli_stats_bento" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-3">
+                            {/* TOTAL PATROLI */}
+                            <div 
+                              onClick={() => { setClickedStatType('total'); setStatModalSearch(''); }}
+                              className="bg-[#2980b9] hover:bg-[#206390] rounded-xl shadow-sm text-white overflow-hidden flex items-stretch cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
+                              title="Klik untuk melihat daftar semua pegawai dikoordinasikan"
                             >
-                              Reset Filter
+                              <div className="bg-black/15 p-4 px-6 flex items-center justify-center">
+                                <Shield size={34} className="text-white" />
+                              </div>
+                              <div className="p-4 flex flex-col justify-center">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-blue-100 flex items-center gap-1 font-sans">
+                                  TOTAL LAPORAN
+                                  <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-bold">Detail</span>
+                                </span>
+                                <h3 className="text-2xl font-black mt-0.5 font-mono">{totalPatroli}</h3>
+                              </div>
+                            </div>
+
+                            {/* LOKASI AKTIF */}
+                            <div className="bg-[#27ae60] rounded-xl shadow-sm text-white overflow-hidden flex items-stretch select-none">
+                              <div className="bg-black/15 p-4 px-6 flex items-center justify-center">
+                                <MapPin size={34} className="text-white" />
+                              </div>
+                              <div className="p-4 flex flex-col justify-center">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-100 font-sans">
+                                  LOKASI AKTIF
+                                </span>
+                                <h3 className="text-2xl font-black mt-0.5 font-mono">{lokasiAktif}</h3>
+                              </div>
+                            </div>
+
+                            {/* SUDAH PATROLI */}
+                            <div 
+                              onClick={() => { setClickedStatType('sudah'); setStatModalSearch(''); }}
+                              className="bg-[#0097a7] hover:bg-[#007b88] rounded-xl shadow-sm text-white overflow-hidden flex items-stretch cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
+                              title="Klik untuk melihat daftar pegawai yang SUDAH mengirim laporan"
+                            >
+                              <div className="bg-black/15 p-4 px-6 flex items-center justify-center">
+                                <UserCheck size={34} className="text-white" />
+                              </div>
+                              <div className="p-4 flex flex-col justify-center">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-cyan-100 flex items-center gap-1 font-sans">
+                                  SUDAH LAPORAN
+                                  <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-bold">Detail</span>
+                                </span>
+                                <h3 className="text-2xl font-black mt-0.5 font-mono">{sudahPatroli}</h3>
+                              </div>
+                            </div>
+
+                            {/* BELUM PATROLI */}
+                            <div 
+                              onClick={() => { setClickedStatType('belum'); setStatModalSearch(''); }}
+                              className="bg-[#c0392b] hover:bg-[#a62c1f] rounded-xl shadow-sm text-white overflow-hidden flex items-stretch cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
+                              title="Klik untuk melihat daftar pegawai yang BELUM mengirim laporan"
+                            >
+                              <div className="bg-black/15 p-4 px-6 flex items-center justify-center">
+                                <UserX size={34} className="text-white" />
+                              </div>
+                              <div className="p-4 flex flex-col justify-center">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-rose-100 flex items-center gap-1 font-sans">
+                                  BELUM LAPORAN
+                                  <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-bold">Detail</span>
+                                </span>
+                                <h3 className="text-2xl font-black mt-0.5 font-mono">{belumPatroli}</h3>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 2. EXPORT BULK CONTROL ROW */}
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <button
+                              onClick={handleExportExcel}
+                              className="bg-[#27ae60] hover:bg-[#219150] text-white p-2.5 px-4 rounded-lg flex items-center justify-center gap-1.5 text-xs font-extrabold transition cursor-pointer active:scale-95 shadow font-sans uppercase tracking-wider border-none"
+                            >
+                              <Download size={13} />
+                              <span>Export Harian</span>
                             </button>
-                          )}
-                        </div>
+                            <button
+                              onClick={handleExportExcel}
+                              className="bg-[#2980b9] hover:bg-[#1f5f8a] text-white p-2.5 px-4 rounded-lg flex items-center justify-center gap-1.5 text-xs font-extrabold transition cursor-pointer active:scale-95 shadow font-sans uppercase tracking-wider border-none"
+                            >
+                              <Calendar size={13} />
+                              <span>Export Bulanan</span>
+                            </button>
+                            <button
+                              onClick={handleExportWord}
+                              className="bg-[#2c3e50] hover:bg-[#1a252f] text-white p-2.5 px-4 rounded-lg flex items-center justify-center gap-1.5 text-xs font-extrabold transition cursor-pointer active:scale-95 shadow font-sans uppercase tracking-wider border-none"
+                              title="Export gabungan harian ke format Word"
+                            >
+                              <FileText size={13} />
+                              <span>Export Word</span>
+                            </button>
+                            <button
+                              onClick={handleExportTableCurrent}
+                              className="bg-[#e67e22] hover:bg-[#d35400] text-white p-2.5 px-4 rounded-lg flex items-center justify-center gap-1.5 text-xs font-extrabold transition cursor-pointer active:scale-95 shadow font-sans uppercase tracking-wider border-none"
+                            >
+                              <Download size={13} />
+                              <span>Export Tabel Ini</span>
+                            </button>
+                          </div>
 
-                        {/* Export Tools */}
-                        <div className="flex items-center gap-2 shrink-0 md:ml-auto">
-                          <span className="text-[10px] uppercase font-black text-slate-400">
-                            Ekspor ({filteredReports.length}):
-                          </span>
+                          {/* 3. DATE & LOCATION FILTERS CARD */}
+                          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                              {/* DARI */}
+                              <div className="space-y-1 text-left">
+                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                                  DARI
+                                </label>
+                                <input
+                                  type="date"
+                                  value={reportStartDateFilter}
+                                  onChange={(e) => setReportStartDateFilter(e.target.value)}
+                                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-700 outline-none focus:ring-1 focus:ring-sky-500/50 font-bold"
+                                />
+                              </div>
 
-                          <button
-                            id="btn_export_excel"
-                            onClick={handleExportExcel}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase px-3.5 py-2 rounded-xl active:scale-95 transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
-                            title="Ekspor ke Excel"
-                          >
-                            <FileSpreadsheet size={13} />
-                            <span>Excel</span>
-                          </button>
+                              {/* SAMPAI */}
+                              <div className="space-y-1 text-left">
+                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                                  SAMPAI
+                                </label>
+                                <input
+                                  type="date"
+                                  value={reportEndDateFilter}
+                                  onChange={(e) => setReportEndDateFilter(e.target.value)}
+                                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-700 outline-none focus:ring-1 focus:ring-sky-500/50 font-bold"
+                                />
+                              </div>
 
-                          <button
-                            id="btn_export_word"
-                            onClick={handleExportWord}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase px-3.5 py-2 rounded-xl active:scale-95 transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
-                            title="Simpan sebagai dokumen Microsoft Word"
-                          >
-                            <FileText size={13} />
-                            <span>Word</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                              {/* LOKASI */}
+                              <div className="space-y-1 text-left">
+                                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                                  LOKASI
+                                </label>
+                                <select
+                                  value={reportLocationFilter}
+                                  onChange={(e) => setReportLocationFilter(e.target.value)}
+                                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-700 outline-none focus:ring-1 focus:ring-sky-500/50 font-bold"
+                                >
+                                  <option value="Semua">Semua Lokasi</option>
+                                  {Array.from(new Set([
+                                    ...locations.map(l => l.name),
+                                    ...reports.map(r => r.location?.name).filter(Boolean)
+                                  ])).map((loc) => (
+                                    <option key={loc} value={loc}>
+                                      {loc}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
 
-                    {/* Feed of reports */}
-                    <div className="space-y-4">
-                      {filteredReports.length === 0 ? (
-                        <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center text-slate-400 italic text-xs">
-                          Tidak ada data laporan harian yang ditemukan.
-                        </div>
-                      ) : (
-                        filteredReports.map((rep) => (
-                          <div
-                            key={rep.id}
-                            className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm relative"
-                          >
-                            {/* Status Label & Delete Action */}
-                            <div className="absolute top-5 right-5 flex items-center gap-2">
-                              <span
-                                className={`text-[9px] font-black py-1 px-3 rounded-full border select-none ${
-                                  rep.status === "Disetujui"
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                                    : rep.status === "Ditolak"
-                                      ? "bg-rose-50 text-rose-700 border-rose-300"
-                                      : "bg-amber-50 text-amber-700 border-amber-300"
-                                }`}
-                              >
-                                {rep.status}
-                              </span>
+                              {/* ACTIONS */}
+                              <div className="flex gap-2 w-full">
+                                <button
+                                  onClick={() => {
+                                    onShowAlert("Tampilkan Data", `Menampilkan ${totalPatroli} laporan patroli.`, "success");
+                                  }}
+                                  className="flex-1 bg-[#1e88e5] hover:bg-[#1565c0] text-white font-extrabold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow"
+                                >
+                                  <Search size={14} />
+                                  <span>Tampilkan</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setReportStartDateFilter("");
+                                    setReportEndDateFilter("");
+                                    setReportLocationFilter("Semua");
+                                    setSearchQuery("");
+                                  }}
+                                  className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs p-2.5 px-3.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow"
+                                  title="Reset filter"
+                                >
+                                  <RefreshCw size={13} />
+                                  <span>Reset</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
 
-                              <button
-                                id={`report_btn_delete_${rep.id}`}
-                                onClick={() => setDeletingReportId(rep.id)}
-                                className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 p-1.5 rounded-xl transition duration-200 focus:outline-none focus:ring-2 focus:ring-rose-500/20 active:scale-95 cursor-pointer flex items-center justify-center shrink-0"
-                                title="Hapus Data Pelaporan"
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                          {/* 4. DATA KEGIATAN TABLE CONTAINER */}
+                          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden min-h-[400px]">
+                            {/* Blue Header Row */}
+                            <div className="bg-[#1e2d40] text-white p-4 px-5 flex flex-col md:flex-row items-center justify-between gap-3 font-sans">
+                              <div className="flex items-center gap-2">
+                                <Database size={15} className="text-sky-300" />
+                                <span className="font-extrabold text-xs uppercase tracking-wider text-slate-100">Data Kegiatan</span>
+                              </div>
+
+                              <div className="relative w-full md:w-80">
+                                <Search className="absolute left-3 top-2.5 text-slate-400" size={13} />
+                                <input
+                                  type="text"
+                                  id="report_table_inner_search"
+                                  placeholder="Cari Nama, No Induk, Lokasi..."
+                                  value={searchQuery}
+                                  onChange={(e) => setSearchQuery(e.target.value)}
+                                  className="w-full bg-[#27384d] border border-[#324861] rounded-lg py-1.5 pl-8.5 pr-3 text-white text-xs outline-none focus:ring-1 focus:ring-sky-500/50"
+                                />
+                              </div>
+
+                              <div className="text-[10px] text-slate-300 tracking-wider font-semibold">
+                                Menampilkan <strong className="text-white">{totalPatroli}</strong> dari <strong className="text-white">{reports.length}</strong> data
+                              </div>
                             </div>
 
-                            {/* Top author details */}
-                            <div className="flex items-center gap-3">
-                              <div className="bg-[#e0f1fe] border border-sky-200 text-[#0284c7] font-black font-mono text-[9px] px-2.5 py-1 rounded-lg">
-                                {rep.department === "Operations"
-                                  ? "OPERASIONAL"
-                                  : rep.department.toUpperCase()}
-                              </div>
-                              <div>
-                                <h4 className="font-black text-slate-800 text-xs leading-none">
-                                  {rep.employeeName}
-                                </h4>
-                                <p className="text-[10px] text-slate-400 mt-1 font-semibold leading-tight">
-                                  Tanggal Pengiriman:{" "}
-                                  <span className="font-mono text-slate-600 font-bold">
-                                    {rep.date}
-                                  </span>
-                                </p>
-                              </div>
-                            </div>
+                            {/* Table */}
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse text-xs">
+                                <thead>
+                                  <tr className="bg-[#1f364d] text-slate-300 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-700/50">
+                                    <th className="p-4 text-center w-12 font-black text-slate-200">#</th>
+                                    <th className="p-4 font-black text-slate-200">NO INDUK</th>
+                                    <th className="p-4 font-black text-slate-200">NAMA & JABATAN</th>
+                                    <th className="p-4 font-black text-slate-200">LOKASI</th>
+                                    <th className="p-4 font-black text-slate-200">WAKTU</th>
+                                    <th className="p-4 font-black text-slate-200">DESKRIPSI</th>
+                                    <th className="p-4 text-center w-24 font-black text-slate-200">FOTO</th>
+                                    <th className="p-4 text-center w-24 font-black text-slate-200">LOKASI</th>
+                                    <th className="p-4 text-center w-20 font-black text-slate-200 text-sky-400">AKSI</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 font-sans text-slate-700 text-xs font-semibold">
+                                  {filteredReports.length === 0 ? (
+                                    <tr>
+                                      <td colSpan={9} className="p-12 text-center text-slate-400 italic">
+                                        Tidak ada data laporan harian yang ditemukan.
+                                      </td>
+                                    </tr>
+                                  ) : (
+                                    filteredReports.map((rep, idx) => {
+                                      // Clean and split date and time values
+                                      const dateParts = rep.date ? rep.date.split(' ') : ['2026-06-11'];
+                                      const dateStr = dateParts[0];
+                                      const timeStr = dateParts[1] || '00:04';
+                                      const displayNip = rep.nip || "00265074BBL";
 
-                            {/* Description Block */}
-                            <div className="space-y-2 pl-1 font-sans">
-                              <h5 className="font-black text-slate-900 text-sm leading-tight">
-                                {rep.title}
-                              </h5>
-                              <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap max-w-4xl">
-                                {rep.description}
-                              </p>
-
-                              {/* Metadata row */}
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-[#f8fafc] p-3 rounded-xl border border-slate-200 text-[10px] my-3 max-w-3xl">
-                                <div>
-                                  <span className="text-slate-450 block font-bold uppercase text-[9px]">
-                                    NIP Personil:
-                                  </span>
-                                  <span className="text-slate-700 font-mono font-bold leading-normal">
-                                    {rep.nip || "199001150021"}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-slate-450 block font-bold uppercase text-[9px]">
-                                    Jabatan:
-                                  </span>
-                                  <span className="text-[#0284c7] font-bold leading-normal">
-                                    {rep.role || "Staf Teknik"}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-slate-450 block font-bold uppercase text-[9px]">
-                                    Kategori Tugas:
-                                  </span>
-                                  <span className="text-rose-500 font-black leading-normal">
-                                    {rep.type || "Laporan"}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-slate-450 block font-bold uppercase text-[9px]">
-                                    Sandi Laporan:
-                                  </span>
-                                  <span className="text-slate-700 font-mono font-bold leading-normal">
-                                    {rep.id}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Photos Display (Indoor and Outdoor side-by-side) */}
-                              <div className="max-w-md my-3">
-                                <div className="space-y-1">
-                                  <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">
-                                    ● Foto Sebelum & Sesudah:
-                                  </span>
-                                  {(() => {
-                                    const rPhotos: string[] = [];
-                                    if (rep.photoIndoor && rep.photoIndoor.trim() !== '') rPhotos.push(rep.photoIndoor);
-                                    if (rep.photoOutdoor && rep.photoOutdoor.trim() !== '' && rep.photoOutdoor !== rep.photoIndoor) rPhotos.push(rep.photoOutdoor);
-                                    
-                                    if (rPhotos.length > 0) {
                                       return (
-                                        <div className={`grid ${rPhotos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2`}>
-                                          {rPhotos.map((pUrl, pIdx) => (
-                                            <div key={pIdx} className="relative aspect-video rounded-xl overflow-hidden border border-slate-350 bg-slate-100 group">
-                                              <img
-                                                src={pUrl}
-                                                alt={`Foto Kerja ${pIdx + 1}`}
-                                                className="w-full h-full object-cover"
-                                                referrerPolicy="no-referrer"
-                                              />
-                                              <span className="absolute bottom-1 right-1 bg-black/80 text-emerald-400 text-[8px] px-1 py-0.5 rounded border border-white/5 font-bold font-mono">
-                                                FOTO {pIdx + 1}
-                                              </span>
-                                            </div>
-                                          ))}
-                                        </div>
+                                        <tr key={rep.id} className="hover:bg-slate-50/70 transition-colors">
+                                          <td className="p-4 text-center text-slate-400 font-bold font-mono">{idx + 1}</td>
+                                          <td className="p-4 font-mono font-bold text-slate-600">{displayNip}</td>
+                                          <td className="p-4">
+                                            <div className="font-extrabold text-slate-900 uppercase text-xs">{rep.employeeName}</div>
+                                            <div className="text-[10px] font-bold text-sky-600 uppercase tracking-wide mt-0.5">{rep.role || "SATPAM"}</div>
+                                          </td>
+                                          <td className="p-4 text-slate-600">{rep.location?.name || "PT. PLN (PERSERO) ULP MANGGAR"}</td>
+                                          <td className="p-4 font-mono text-slate-500">
+                                            <div className="font-bold">{dateStr}</div>
+                                            <div className="text-[10px] text-slate-400 mt-0.5 font-bold">{timeStr}</div>
+                                          </td>
+                                          <td className="p-4 text-slate-500 max-w-xs truncate" title={rep.description}>
+                                            {rep.description || `Laporan patroli dari ${rep.location?.name}`}
+                                          </td>
+                                          <td className="p-4 text-center">
+                                            <button
+                                              onClick={() => setActivePhotoModalRow(rep)}
+                                              className="mx-auto w-8 h-8 rounded-lg bg-[#4fc3f7] hover:bg-[#29b6f6] text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
+                                              title="Lihat Foto Kerja"
+                                            >
+                                              <Camera size={14} />
+                                            </button>
+                                          </td>
+                                          <td className="p-4 text-center">
+                                            <button
+                                              onClick={() => setActiveMapModalRow(rep)}
+                                              className="mx-auto w-8 h-8 rounded-lg bg-[#4caf50] hover:bg-[#43a047] text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
+                                              title="Lihat Peta Lokasi"
+                                            >
+                                              <MapPin size={14} />
+                                            </button>
+                                          </td>
+                                          <td className="p-4 text-center">
+                                            <button
+                                              onClick={() => setEditingReport(rep)}
+                                              className="mx-auto w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700/90 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
+                                              title="Edit Data Laporan"
+                                            >
+                                              <Pencil size={12} />
+                                            </button>
+                                          </td>
+                                        </tr>
                                       );
-                                    } else {
+                                    })
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* 5. DYNAMIC VIEWER MODALS FOR FOTO & MAP */}
+                          {/* Photo Viewer Modal */}
+                          {activePhotoModalRow && (
+                            <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                              <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200 text-left">
+                                {/* Header */}
+                                <div className="flex items-center justify-between p-4 border-b border-slate-100">
+                                  <h3 className="font-extrabold text-slate-900 text-sm">
+                                    Foto — {activePhotoModalRow.employeeName}
+                                  </h3>
+                                  <button
+                                    onClick={() => setActivePhotoModalRow(null)}
+                                    className="text-slate-400 hover:text-slate-600 border border-slate-200 p-1.5 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                                  >
+                                    <XCircle size={14} />
+                                  </button>
+                                </div>
+
+                                {/* Body */}
+                                <div className="p-5 flex flex-col items-center justify-center bg-slate-50 min-h-[300px]">
+                                  {(() => {
+                                    const photos = [];
+                                    if (activePhotoModalRow.photoIndoor) photos.push(activePhotoModalRow.photoIndoor);
+                                    if (activePhotoModalRow.photoOutdoor && activePhotoModalRow.photoOutdoor !== activePhotoModalRow.photoIndoor) {
+                                      photos.push(activePhotoModalRow.photoOutdoor);
+                                    }
+                                    if (photos.length === 0 && activePhotoModalRow.imagePath) {
+                                      photos.push(activePhotoModalRow.imagePath);
+                                    }
+
+                                    if (photos.length === 0) {
                                       return (
-                                        <div className="aspect-video rounded-xl bg-slate-50 border border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-[10px] italic">
-                                          Belum diunggah
-                                        </div>
+                                        <span className="text-slate-450 italic text-xs">
+                                          Tidak ada dokumentasi foto kerja yang tersedia.
+                                        </span>
                                       );
                                     }
+
+                                    return (
+                                      <div className={`grid ${photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} gap-3 w-full`}>
+                                        {photos.map((url, idx) => (
+                                          <div key={idx} className="flex flex-col items-center space-y-1.5">
+                                            <span className="text-[10px] font-black tracking-wider uppercase text-slate-400">
+                                              {photos.length > 1 ? (idx === 0 ? "Foto Sebelum" : "Foto Sesudah") : "Foto Kerja"}
+                                            </span>
+                                            <div className="border border-slate-250 bg-white p-1 rounded-xl shadow-sm w-full">
+                                              <img
+                                                src={url}
+                                                alt={`Dokumentasi ${idx + 1}`}
+                                                className="rounded-lg w-full max-h-[320px] object-cover"
+                                                referrerPolicy="no-referrer"
+                                              />
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
                                   })()}
                                 </div>
-                              </div>
 
-                              {/* GPS Placement Metadata */}
-                              {rep.location && (
-                                <div className="flex items-center gap-1.5 text-[10px] text-cyan-650 font-bold bg-[#ecfeff] border border-cyan-200 p-2 rounded-xl max-w-2xl">
-                                  <MapPin size={11} className="text-cyan-500" />
-                                  <span>
-                                    Lokasi Geo-Tagging Verified:{" "}
-                                    {rep.location.name} (
-                                    {rep.location.coordinates})
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Interactive verification / delete confirmation block */}
-                            {deletingReportId === rep.id ? (
-                              <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs animate-fade-in pl-3.5 pr-3.5 pt-3.5 pb-3.5">
-                                <div className="flex items-center gap-2">
-                                  <AlertTriangle
-                                    className="text-rose-600 shrink-0"
-                                    size={16}
-                                  />
-                                  <div>
-                                    <span className="font-extrabold text-rose-950 block">
-                                      Hapus Data Pelaporan Permanen?
-                                    </span>
-                                    <span className="text-[10px] text-rose-600 block mt-0.5 font-semibold">
-                                      Tindakan ini tidak dapat dibatalkan dan
-                                      data laporan akan dihapus seketika.
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
+                                {/* Footer */}
+                                <div className="flex items-center justify-end gap-2 p-4 border-t border-slate-100 bg-slate-50/50">
                                   <button
-                                    id={`confirm_delete_cancel_${rep.id}`}
-                                    onClick={() => setDeletingReportId(null)}
-                                    className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer"
-                                  >
-                                    Batal
-                                  </button>
-                                  <button
-                                    id={`confirm_delete_yes_${rep.id}`}
                                     onClick={() => {
-                                      onDeleteReport(rep.id);
-                                      setDeletingReportId(null);
+                                      const url = activePhotoModalRow.photoIndoor || activePhotoModalRow.photoOutdoor || activePhotoModalRow.imagePath;
+                                      if (url) {
+                                        handleDownloadImage(url, `HPI_Foto_${activePhotoModalRow.employeeName.replace(/\s+/g, '_')}_${activePhotoModalRow.date.replace(/[\s:]+/g, '_')}.jpg`);
+                                      } else {
+                                        onShowAlert("Error", "Gagal mengunduh foto.", "alert");
+                                      }
                                     }}
-                                    className="bg-rose-600 hover:bg-rose-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                                    className="bg-[#2980b9] hover:bg-[#1a5f8a] text-white text-xs font-bold py-2 px-4 rounded-xl shadow flex items-center gap-1.5 transition active:scale-95 cursor-pointer border-none"
                                   >
-                                    <Trash2 size={12} />
-                                    <span>Ya, Hapus</span>
+                                    <Download size={13} />
+                                    <span>Download</span>
+                                  </button>
+                                  <button
+                                    onClick={() => setActivePhotoModalRow(null)}
+                                    className="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold py-2 px-4 rounded-xl transition active:scale-95 cursor-pointer border border-slate-350"
+                                  >
+                                    Tutup
                                   </button>
                                 </div>
                               </div>
-                            ) : rep.status === "Pending" ? (
-                              <div className="flex items-center gap-3 pl-1 pt-3 border-t border-slate-105">
-                                <button
-                                  id={`report_approve_btn_${rep.id}`}
-                                  onClick={() => {
-                                    setSelectedReportForAction(rep);
-                                    setActionType("Approve");
-                                  }}
-                                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[10px] py-2 px-4 rounded-xl flex items-center gap-1 transition-all shadow-sm active:scale-95 cursor-pointer"
-                                >
-                                  <CheckCircle2 size={13} />
-                                  <span>Setujui Laporan Satgas</span>
-                                </button>
-                                <button
-                                  id={`report_reject_btn_${rep.id}`}
-                                  onClick={() => {
-                                    setSelectedReportForAction(rep);
-                                    setActionType("Reject");
-                                  }}
-                                  className="bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-[10px] py-2 px-4 rounded-xl flex items-center gap-1 transition-all shadow-sm active:scale-95 cursor-pointer"
-                                >
-                                  <XCircle size={13} />
-                                  <span>Tolak Laporan (Revisi)</span>
-                                </button>
-                              </div>
-                            ) : (
-                              rep.notes && (
-                                <div className="ml-1 bg-indigo-50 border-l-4 border-indigo-400 p-3 rounded-r-xl text-[10px] text-indigo-900 leading-normal font-medium max-w-2xl">
-                                  <span className="font-extrabold text-slate-500 block mb-0.5 text-[9px] uppercase">
-                                    Instruksi Tim Evaluator:
-                                  </span>
-                                  {rep.notes}
+                            </div>
+                          )}
+
+                          {/* Map Viewer Modal */}
+                          {activeMapModalRow && (
+                            <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                              <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200 text-left">
+                                {/* Header */}
+                                <div className="flex items-center justify-between p-4 border-b border-slate-100">
+                                  <h3 className="font-extrabold text-slate-900 text-sm">
+                                    Lokasi — {activeMapModalRow.employeeName}
+                                  </h3>
+                                  <button
+                                    onClick={() => setActiveMapModalRow(null)}
+                                    className="text-slate-400 hover:text-slate-600 border border-slate-200 p-1.5 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                                  >
+                                    <XCircle size={14} />
+                                  </button>
                                 </div>
-                              )
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
+
+                                {/* Body */}
+                                <div className="p-4 bg-slate-50">
+                                  {activeMapModalRow.location?.coordinates ? (
+                                    <LeafletMap
+                                      coordinates={activeMapModalRow.location.coordinates}
+                                      name={activeMapModalRow.location.name}
+                                    />
+                                  ) : (
+                                    <div className="w-full h-80 rounded-xl bg-slate-100 border border-dashed border-slate-300 flex items-center justify-center text-slate-450 italic text-xs">
+                                      GPS Koordinat tidak tersedia untuk laporan ini.
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Footer */}
+                                <div className="flex items-center justify-end gap-2 p-4 border-t border-slate-100 bg-slate-50/50">
+                                  {activeMapModalRow.location?.coordinates && (
+                                    <a
+                                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeMapModalRow.location.coordinates)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="bg-[#2980b9] hover:bg-[#1a5f8a] text-white text-xs font-bold py-2 px-4 rounded-xl shadow flex items-center gap-1.5 transition active:scale-95 text-center leading-loose font-sans uppercase tracking-wider text-white"
+                                    >
+                                      <Globe size={13} />
+                                      <span>Buka Google Maps</span>
+                                    </a>
+                                  )}
+                                  <button
+                                    onClick={() => setActiveMapModalRow(null)}
+                                    className="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold py-2 px-4 rounded-xl transition active:scale-95 cursor-pointer border border-slate-350"
+                                  >
+                                    Tutup
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
 
@@ -3492,23 +3843,21 @@ export default function AdminDashboard({
                       );
                       const workingDaysCount = uniqueDates.length;
 
-                      // Photo target is 4 photos per day
-                      const targetPhotosCount = workingDaysCount * 4;
+                      // Photo target is 4 Before photos and 4 After photos per day (Total 8 Photos/Day)
+                      const targetPhotosCount = workingDaysCount * 8;
                       const totalPhotosOnWorkingDays = uniqueDates.reduce(
                         (sum, date) => {
                           const repsOnDate = empReports.filter(
                             (r) => r.date === date,
                           );
-                          const photosOnDate = repsOnDate.reduce((count, r) => {
-                            let c = 0;
-                            if (r.photoIndoor && r.photoIndoor.trim() !== "")
-                              c++;
-                            if (r.photoOutdoor && r.photoOutdoor.trim() !== "")
-                              c++;
-                            return count + c;
-                          }, 0);
-                          // Limit inside a day to max 4 contributed
-                          return sum + Math.min(4, photosOnDate);
+                          const countIndoor = repsOnDate.filter(
+                            (r) => r.photoIndoor && r.photoIndoor.trim() !== ""
+                          ).length;
+                          const countOutdoor = repsOnDate.filter(
+                            (r) => r.photoOutdoor && r.photoOutdoor.trim() !== ""
+                          ).length;
+                          // Max 4 of each type per day
+                          return sum + Math.min(4, countIndoor) + Math.min(4, countOutdoor);
                         },
                         0,
                       );
@@ -3964,15 +4313,20 @@ export default function AdminDashboard({
                         </div>
                       </div>
 
-                      <div className="flex bg-[#10b981] text-white rounded-xl overflow-hidden shadow-sm">
+                      <div 
+                        onClick={() => { setClickedStatType('lokasi_ada_pegawai'); setStatModalSearch(''); }}
+                        className="flex bg-[#10b981] hover:bg-[#0d9a6c] text-white rounded-xl overflow-hidden shadow-sm cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
+                        title="Klik untuk melihat daftar lokasi yang sudah ditempatkan pegawai"
+                      >
                         <div className="p-4 bg-[#059669] flex items-center justify-center w-14">
                           <Check size={24} />
                         </div>
-                        <div className="p-3 flex-1">
-                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase">
+                        <div className="p-3 flex-1 flex flex-col justify-center">
+                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase flex items-center gap-1 font-sans">
                             LOKASI SUDAH ADA PEGAWAI
+                            <span className="text-[8px] bg-white/20 px-1 rounded font-bold">Detail</span>
                           </p>
-                          <p className="text-xl font-black mt-0.5">
+                          <p className="text-xl font-black mt-0.5 font-mono">
                             {
                               locations.filter((loc) =>
                                 Object.values(employeeLocations).includes(
@@ -3984,15 +4338,20 @@ export default function AdminDashboard({
                         </div>
                       </div>
 
-                      <div className="flex bg-[#f97316] text-white rounded-xl overflow-hidden shadow-sm">
+                      <div 
+                        onClick={() => { setClickedStatType('lokasi_tanpa_pegawai'); setStatModalSearch(''); }}
+                        className="flex bg-[#f97316] hover:bg-[#e0630d] text-white rounded-xl overflow-hidden shadow-sm cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
+                        title="Klik untuk melihat daftar lokasi yang belum diisi pegawai"
+                      >
                         <div className="p-4 bg-[#ea580c] flex items-center justify-center w-14">
                           <AlertTriangle size={24} />
                         </div>
-                        <div className="p-3 flex-1">
-                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase">
+                        <div className="p-3 flex-1 flex flex-col justify-center">
+                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase flex items-center gap-1 font-sans">
                             LOKASI BELUM ADA PEGAWAI
+                            <span className="text-[8px] bg-white/20 px-1 rounded font-bold">Detail</span>
                           </p>
-                          <p className="text-xl font-black mt-0.5">
+                          <p className="text-xl font-black mt-0.5 font-mono">
                             {
                               locations.filter(
                                 (loc) =>
@@ -4019,15 +4378,20 @@ export default function AdminDashboard({
                         </div>
                       </div>
 
-                      <div className="flex bg-[#12a176] text-white rounded-xl overflow-hidden shadow-sm">
+                      <div 
+                        onClick={() => { setClickedStatType('pegawai_punya_lokasi'); setStatModalSearch(''); }}
+                        className="flex bg-[#12a176] hover:bg-[#0e805d] text-white rounded-xl overflow-hidden shadow-sm cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
+                        title="Klik untuk melihat daftar pegawai yang sudah memiliki lokasi tugas"
+                      >
                         <div className="p-4 bg-[#0d845f] flex items-center justify-center w-14">
                           <UserCheck size={24} />
                         </div>
-                        <div className="p-3 flex-1">
-                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase">
+                        <div className="p-3 flex-1 flex flex-col justify-center">
+                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase flex items-center gap-1 font-sans">
                             PEGAWAI SUDAH PUNYA LOKASI
+                            <span className="text-[8px] bg-white/20 px-1 rounded font-bold">Detail</span>
                           </p>
-                          <p className="text-xl font-black mt-0.5">
+                          <p className="text-xl font-black mt-0.5 font-mono">
                             {
                               employees.filter(
                                 (emp) => employeeLocations[emp.id],
@@ -4037,15 +4401,20 @@ export default function AdminDashboard({
                         </div>
                       </div>
 
-                      <div className="flex bg-[#ef4444] text-white rounded-xl overflow-hidden shadow-sm">
+                      <div 
+                        onClick={() => { setClickedStatType('pegawai_tanpa_lokasi'); setStatModalSearch(''); }}
+                        className="flex bg-[#ef4444] hover:bg-[#d63434] text-white rounded-xl overflow-hidden shadow-sm cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
+                        title="Klik untuk melihat daftar pegawai yang belum memiliki lokasi tugas"
+                      >
                         <div className="p-4 bg-[#dc2626] flex items-center justify-center w-14">
                           <XCircle size={24} />
                         </div>
-                        <div className="p-3 flex-1">
-                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase">
+                        <div className="p-3 flex-1 flex flex-col justify-center">
+                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase flex items-center gap-1 font-sans">
                             PEGAWAI BELUM PUNYA LOKASI
+                            <span className="text-[8px] bg-white/20 px-1 rounded font-bold">Detail</span>
                           </p>
-                          <p className="text-xl font-black mt-0.5">
+                          <p className="text-xl font-black mt-0.5 font-mono">
                             {
                               employees.filter(
                                 (emp) => !employeeLocations[emp.id],
@@ -5416,6 +5785,24 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
+                {/* Row 3: Deskripsi Pekerjaan */}
+                <div className="space-y-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-500 uppercase font-black pl-0.5 text-sky-600">
+                      Deskripsi Pekerjaan / Aktivitas Detail *
+                    </label>
+                    <textarea
+                      id="input_manual_rep_description"
+                      rows={3.5}
+                      required
+                      placeholder="Tulis rincian aktivitas pekerjaan lapangan secara detail..."
+                      value={addRepDesc}
+                      onChange={(e) => setAddRepDesc(e.target.value)}
+                      className="w-full bg-white border border-slate-300 p-2.5 rounded-xl outline-none text-xs"
+                    />
+                  </div>
+                </div>
+
                 {/* Photo Upload Fields (Choose File & Camera) */}
                 <div className="bg-[#f8fafc] p-4 rounded-xl border border-slate-200">
                   <div className="space-y-1.5 text-left">
@@ -5797,8 +6184,14 @@ export default function AdminDashboard({
                                 if (checked) {
                                   updated[emp.id] =
                                     selectedLocationForAssignment!;
+                                  setDoc(doc(db, "hpi_employee_locations", emp.id), { id: emp.id, locationId: selectedLocationForAssignment! }).catch((err) =>
+                                    console.error("Error setting employee location assignment in Firestore:", err),
+                                  );
                                 } else {
                                   delete updated[emp.id];
+                                  deleteDoc(doc(db, "hpi_employee_locations", emp.id)).catch((err) =>
+                                    console.error("Error deleting employee location assignment in Firestore:", err),
+                                  );
                                 }
                                 setEmployeeLocations(updated);
                               }}
@@ -5901,8 +6294,14 @@ export default function AdminDashboard({
                               const updated = { ...employeeJabatans };
                               if (checked) {
                                 updated[emp.id] = selectedJabatanForAssignment!;
+                                setDoc(doc(db, "hpi_employee_jabatans", emp.id), { id: emp.id, jabatanId: selectedJabatanForAssignment! }).catch((err) =>
+                                  console.error("Error setting employee jabatan assignment in Firestore:", err),
+                                );
                               } else {
                                 delete updated[emp.id];
+                                deleteDoc(doc(db, "hpi_employee_jabatans", emp.id)).catch((err) =>
+                                  console.error("Error deleting employee jabatan assignment from Firestore:", err),
+                                );
                               }
                               setEmployeeJabatans(updated);
                             }}
@@ -6221,6 +6620,9 @@ export default function AdminDashboard({
                             ) {
                               const updated = { ...employeeJabatans };
                               delete updated[emp.id];
+                              deleteDoc(doc(db, "hpi_employee_jabatans", emp.id)).catch((err) =>
+                                console.error("Error releasing employee jabatan in Firestore:", err),
+                              );
                               setEmployeeJabatans(updated);
                               onShowAlert(
                                 "Penugasan Dibuat",
@@ -6455,6 +6857,593 @@ export default function AdminDashboard({
                   type="button"
                 >
                   Simpan Perubahan
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal: Edit Report Data */}
+        {editingReport && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto min-w-[320px]">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full text-slate-800 space-y-4 font-sans border border-slate-200 text-left cursor-default"
+            >
+              <div className="flex justify-between items-center pb-2 border-b border-slate-100 font-sans">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-1.5 animate-pulse">
+                  <Pencil size={16} className="text-blue-600" />
+                  <span>Edit Data Laporan Kerja</span>
+                </h3>
+                <button
+                  onClick={() => setEditingReport(null)}
+                  className="p-1 hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-600 cursor-pointer"
+                  type="button"
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-3.5 max-h-[60vh] overflow-y-auto pr-1">
+                {/* Row 1: Identitas */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-500 uppercase font-black pl-0.5">
+                      Nama Pegawai *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editingReport.employeeName ?? ""}
+                      onChange={(e) =>
+                        setEditingReport({
+                          ...editingReport,
+                          employeeName: e.target.value,
+                        })
+                      }
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-500 uppercase font-black pl-0.5">
+                      NIP Pegawai *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editingReport.nip ?? ""}
+                      onChange={(e) =>
+                        setEditingReport({
+                          ...editingReport,
+                          nip: e.target.value,
+                        })
+                      }
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 2: Jabatan & Unit Kerja */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-500 uppercase font-black pl-0.5">
+                      Jabatan (Role) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editingReport.role ?? ""}
+                      onChange={(e) =>
+                        setEditingReport({
+                          ...editingReport,
+                          role: e.target.value,
+                        })
+                      }
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-500 uppercase font-black pl-0.5">
+                      Unit Kerja / Divisi *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editingReport.department ?? ""}
+                      onChange={(e) =>
+                        setEditingReport({
+                          ...editingReport,
+                          department: e.target.value,
+                        })
+                      }
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 3: Tanggal Laporan */}
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-500 uppercase font-black pl-0.5">
+                      Tanggal Laporan *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editingReport.date ?? ""}
+                      onChange={(e) =>
+                        setEditingReport({
+                          ...editingReport,
+                          date: e.target.value,
+                        })
+                      }
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
+                    />
+                  </div>
+                </div>
+
+                {/* Deskripsi Pekerjaan */}
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-500 uppercase font-black pl-0.5">
+                    Deskripsi Pekerjaan *
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={editingReport.description ?? ""}
+                    onChange={(e) =>
+                      setEditingReport({
+                        ...editingReport,
+                        description: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
+                  />
+                </div>
+
+                {/* Sektor & GPS Coordinates */}
+                <div className="bg-sky-50 p-3 rounded-2xl border border-sky-100 space-y-2">
+                  <div className="text-[9.5px] text-sky-900 font-extrabold flex items-center gap-1 uppercase tracking-wide">
+                    <MapPin size={11} className="text-sky-600" />
+                    <span>Informasi Geotagging GPS</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-0.5">
+                      <span className="text-[8px] text-slate-500 uppercase font-bold">Nama Lokasi</span>
+                      <input
+                        type="text"
+                        required
+                        value={editingReport.location?.name ?? ""}
+                        onChange={(e) =>
+                          setEditingReport({
+                            ...editingReport,
+                            location: {
+                              name: e.target.value,
+                              coordinates: editingReport.location?.coordinates ?? "",
+                            },
+                          })
+                        }
+                        className="w-full bg-white border border-slate-200 p-2 rounded-lg text-slate-800 text-xs shadow-sm focus:border-sky-400 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[8px] text-slate-500 uppercase font-bold">Koordinat</span>
+                      <input
+                        type="text"
+                        required
+                        value={editingReport.location?.coordinates ?? ""}
+                        onChange={(e) =>
+                          setEditingReport({
+                            ...editingReport,
+                            location: {
+                              name: editingReport.location?.name ?? "",
+                              coordinates: e.target.value,
+                            },
+                          })
+                        }
+                        className="w-full bg-white border border-slate-200 p-2 rounded-lg text-slate-800 text-xs font-mono shadow-sm focus:border-sky-400 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Input Edit Foto Sebelum & Sesudah */}
+                <div className="bg-[#f8fafc] p-4 rounded-2xl border border-slate-200/80 space-y-3 text-left">
+                  <div className="text-[10px] text-slate-600 font-black block uppercase tracking-wider flex items-center gap-1.5 font-sans">
+                    <Camera size={12} className="text-[#0284c7]" />
+                    <span>FOTO DOKUMENTASI KERJA (SEBELUM & SESUDAH)</span>
+                  </div>
+
+                  <div className="font-sans">
+                    {/* FOTO SEBELUM & SESUDAH */}
+                    <div className="space-y-1.5 flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">FOTO SEBELUM &amp; SESUDAH</span>
+                        {editingReport.photoIndoor && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingReport({ ...editingReport, photoIndoor: "", photoOutdoor: "" })}
+                            className="text-[8px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-black hover:bg-rose-200 transition cursor-pointer border-none uppercase"
+                          >
+                            Hapus
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
+                        {editingReport.photoIndoor ? (
+                          <img
+                            src={editingReport.photoIndoor}
+                            alt="Foto Sebelum &amp; Sesudah Preview"
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <span className="text-[9px] text-slate-400 italic text-center p-1 font-semibold">Belum ada Foto Sebelum &amp; Sesudah</span>
+                        )}
+                      </div>
+                      <label className="cursor-pointer">
+                        <span className="w-full block bg-slate-800 hover:bg-slate-900 text-white font-black text-[9px] text-center py-2 px-1 rounded-lg transition shadow-xs active:scale-95 uppercase tracking-wider">
+                          Ubah Foto Sebelum &amp; Sesudah
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setEditingReport({
+                                  ...editingReport,
+                                  photoIndoor: reader.result as string,
+                                  photoOutdoor: reader.result as string,
+                                });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-2 border-t border-slate-100 font-sans">
+                <button
+                  onClick={() => setEditingReport(null)}
+                  className="py-2.5 px-5 bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold rounded-xl text-xs cursor-pointer shadow transition animate-fade-in"
+                  type="button"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => {
+                    if (!editingReport.employeeName.trim()) {
+                      onShowAlert("Validasi Gagal", "Nama Pegawai tidak boleh kosong!", "alert");
+                      return;
+                    }
+                    const updatedReport = {
+                      ...editingReport,
+                      title: editingReport.title?.trim() || "Laporan Kerja"
+                    };
+                    onUpdateReport(updatedReport);
+                    setEditingReport(null);
+                    onShowAlert(
+                      "Laporan Diperbarui",
+                      `Laporan harian ${editingReport.employeeName} berhasil diperbarui secara permanen.`,
+                      "success"
+                    );
+                  }}
+                  className="py-2.5 px-5 bg-[#0284c7] hover:bg-[#0369a1] text-white font-extrabold rounded-xl text-xs cursor-pointer shadow transition active:scale-95"
+                  type="button"
+                >
+                  Simpan Laporan
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal: Interactive Statistics Detail */}
+        {clickedStatType && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto min-w-[320px]">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-2xl w-full text-slate-800 space-y-4 font-sans border border-slate-200 text-left cursor-default"
+            >
+              {/* Header */}
+              {(() => {
+                let modalTitle = 'Data Detail Statistics';
+                let modalSubtitle = 'Daftar data laporan kerja & karyawan';
+                let headerBg = 'bg-slate-700';
+                let headerIcon = <Shield size={18} />;
+
+                if (clickedStatType === 'total') {
+                  modalTitle = 'Data Pegawai (Semua Pegawai)';
+                  modalSubtitle = 'Daftar semua pegawai dikoordinasikan';
+                  headerBg = 'bg-[#2980b9]';
+                  headerIcon = <Shield size={18} />;
+                } else if (clickedStatType === 'sudah') {
+                  modalTitle = 'Pegawai Sudah Laporan';
+                  modalSubtitle = 'Daftar pegawai yang telah mengirimkan laporan harian hari ini';
+                  headerBg = 'bg-[#0097a7]';
+                  headerIcon = <UserCheck size={18} />;
+                } else if (clickedStatType === 'belum') {
+                  modalTitle = 'Pegawai Belum Laporan';
+                  modalSubtitle = 'Daftar pegawai yang belum mengirimkan laporan harian hari ini';
+                  headerBg = 'bg-[#c0392b]';
+                  headerIcon = <UserX size={18} />;
+                } else if (clickedStatType === 'lokasi_ada_pegawai') {
+                  modalTitle = 'Lokasi Sudah Ada Pegawai';
+                  modalSubtitle = 'Daftar lokasi kerja yang sudah memiliki penugasan pegawai';
+                  headerBg = 'bg-[#10b981]';
+                  headerIcon = <Check size={18} />;
+                } else if (clickedStatType === 'lokasi_tanpa_pegawai') {
+                  modalTitle = 'Lokasi Belum Ada Pegawai';
+                  modalSubtitle = 'Daftar lokasi kerja kosong tanpa penugasan pegawai';
+                  headerBg = 'bg-[#f97316]';
+                  headerIcon = <AlertTriangle size={18} />;
+                } else if (clickedStatType === 'pegawai_punya_lokasi') {
+                  modalTitle = 'Pegawai Sudah Punya Lokasi';
+                  modalSubtitle = 'Daftar seluruh pegawai yang telah ditempatkan di lokasi kerja';
+                  headerBg = 'bg-[#12a176]';
+                  headerIcon = <UserCheck size={18} />;
+                } else if (clickedStatType === 'pegawai_tanpa_lokasi') {
+                  modalTitle = 'Pegawai Belum Punya Lokasi';
+                  modalSubtitle = 'Daftar karyawan yang belum memiliki penugasan lokasi kerja';
+                  headerBg = 'bg-[#ef4444]';
+                  headerIcon = <XCircle size={18} />;
+                }
+
+                return (
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100 font-sans">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-2 rounded-xl text-white ${headerBg}`}>
+                        {headerIcon}
+                      </div>
+                      <div>
+                        <h3 className="text-base font-black text-slate-900 leading-tight">
+                          {modalTitle}
+                        </h3>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5 tracking-wider">
+                          {modalSubtitle}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setClickedStatType(null)}
+                      className="p-1 hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-600 cursor-pointer border-none"
+                      type="button"
+                    >
+                      <XCircle size={18} />
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Search Bar inside Modal */}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Search size={14} />
+                </div>
+                <input
+                  type="text"
+                  placeholder={
+                    clickedStatType.startsWith('lokasi_') 
+                      ? "Cari lokasi berdasarkan nama, kode, atau alamat..." 
+                      : "Cari pegawai berdasarkan nama, NIP, atau divisi..."
+                  }
+                  value={statModalSearch}
+                  onChange={(e) => setStatModalSearch(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 pl-9 rounded-xl outline-none text-xs text-slate-800 placeholder-slate-400 focus:border-indigo-400 transition font-sans"
+                />
+              </div>
+
+              {/* List Container */}
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                {(() => {
+                  // --- RENDER FOR LOCATIONS (lokasi_ada_pegawai | lokasi_tanpa_pegawai) ---
+                  if (clickedStatType.startsWith('lokasi_')) {
+                    const matchingLocations = locations.filter(loc => {
+                      const assignedEmployees = employees.filter(emp => employeeLocations[emp.id] === loc.id);
+                      const hasEmployees = assignedEmployees.length > 0;
+                      const isMatch = clickedStatType === 'lokasi_ada_pegawai' ? hasEmployees : !hasEmployees;
+                      
+                      if (!isMatch) return false;
+
+                      if (!statModalSearch.trim()) return true;
+                      const searchLower = statModalSearch.toLowerCase();
+                      return (
+                        loc.name.toLowerCase().includes(searchLower) ||
+                        (loc.address && loc.address.toLowerCase().includes(searchLower)) ||
+                        (loc.code && loc.code.toLowerCase().includes(searchLower))
+                      );
+                    });
+
+                    if (matchingLocations.length === 0) {
+                      return (
+                        <div className="p-8 text-center text-slate-400 italic text-xs">
+                          Tidak ada lokasi yang cocok dengan kriteria pencarian.
+                        </div>
+                      );
+                    }
+
+                    return matchingLocations.map((loc) => {
+                      const assignedEmployees = employees.filter(emp => employeeLocations[emp.id] === loc.id);
+                      return (
+                        <div key={loc.id} className="p-4 bg-slate-50/50 hover:bg-slate-50 rounded-2xl border border-slate-100 transition text-left space-y-2">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-1.5 uppercase">
+                                <MapPin size={12} className="text-sky-600 shrink-0" />
+                                <span>{loc.name}</span>
+                              </h4>
+                              {loc.address && (
+                                <p className="text-[10px] text-slate-500 mt-0.5">{loc.address}</p>
+                              )}
+                            </div>
+                            <span className="text-[9px] font-mono font-bold bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">
+                              {loc.code || "SEC-00"}
+                            </span>
+                          </div>
+
+                          {/* List assigned employees for this location */}
+                          {assignedEmployees.length > 0 ? (
+                            <div className="pt-2 border-t border-slate-100/70 space-y-1.5">
+                              <p className="text-[9px] text-[#059669] font-black uppercase tracking-wider flex items-center gap-1">
+                                <Users size={10} />
+                                <span>Petugas Ditugaskan ({assignedEmployees.length}):</span>
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                {assignedEmployees.map((emp) => (
+                                  <div key={emp.id} className="flex items-center gap-1.5 p-1.5 bg-white rounded-lg border border-slate-150/80 text-[11px]">
+                                    <div className="w-5 h-5 rounded-full bg-slate-150 text-slate-700 flex items-center justify-center font-bold text-[9px] uppercase">
+                                      {emp.name.substring(0, 2)}
+                                    </div>
+                                    <div className="truncate">
+                                      <span className="font-extrabold text-slate-800 uppercase block leading-tight">{emp.name}</span>
+                                      <span className="text-[8.5px] text-slate-400 font-semibold">{emp.nip} • {emp.role || 'PETUGAS'}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="pt-1.5 border-t border-slate-100/70 text-left">
+                              <p className="text-[9px] text-rose-500 font-extrabold uppercase italic">
+                                Belum ada pegawai ditugaskan ke lokasi ini.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  }
+
+                  // --- RENDER FOR EMPLOYEES (total | sudah | belum | pegawai_punya_lokasi | pegawai_tanpa_lokasi) ---
+                  const matchingEmployees = employees.filter(emp => {
+                    let isMatch = false;
+                    const reportsSubmitted = reports.filter(r => r.employeeId === emp.id || r.nip === emp.nip);
+                    const hasLoc = !!employeeLocations[emp.id];
+
+                    if (clickedStatType === 'total') {
+                      isMatch = true;
+                    } else if (clickedStatType === 'sudah') {
+                      isMatch = reportsSubmitted.length > 0;
+                    } else if (clickedStatType === 'belum') {
+                      isMatch = reportsSubmitted.length === 0;
+                    } else if (clickedStatType === 'pegawai_punya_lokasi') {
+                      isMatch = hasLoc;
+                    } else if (clickedStatType === 'pegawai_tanpa_lokasi') {
+                      isMatch = !hasLoc;
+                    }
+
+                    if (!isMatch) return false;
+
+                    if (!statModalSearch.trim()) return true;
+                    const searchLower = statModalSearch.toLowerCase();
+                    return (
+                      emp.name.toLowerCase().includes(searchLower) ||
+                      emp.nip.toLowerCase().includes(searchLower) ||
+                      (emp.role && emp.role.toLowerCase().includes(searchLower)) ||
+                      (emp.department && emp.department.toLowerCase().includes(searchLower))
+                    );
+                  });
+
+                  if (matchingEmployees.length === 0) {
+                    return (
+                      <div className="p-8 text-center text-slate-400 italic text-xs">
+                        Tidak ada pegawai yang cocok dengan kriteria pencarian.
+                      </div>
+                    );
+                  }
+
+                  return matchingEmployees.map((emp) => {
+                    const submissionCount = reports.filter(r => r.employeeId === emp.id || r.nip === emp.nip).length;
+                    const locId = employeeLocations[emp.id];
+                    const assignedLoc = locations.find(l => l.id === locId);
+
+                    return (
+                      <div 
+                        key={emp.id} 
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-50/50 hover:bg-slate-50 rounded-2xl border border-slate-100 transition gap-2 text-left"
+                      >
+                        <div className="flex items-center gap-3">
+                          {emp.avatar ? (
+                            <img 
+                              src={emp.avatar} 
+                              className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0" 
+                              alt={emp.name} 
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                              {emp.name ? emp.name.substring(0, 2) : "E"}
+                            </div>
+                          )}
+                          <div className="space-y-0.5">
+                            <div className="font-extrabold text-slate-800 text-xs flex items-center gap-1.5 flex-wrap">
+                              <span>{emp.name}</span>
+                              <span className="text-[9px] font-mono font-bold bg-slate-200 text-slate-600 px-1.5 py-0.2 rounded">
+                                {emp.nip}
+                              </span>
+                            </div>
+                            <div className="text-[10px] font-medium text-slate-500">
+                              {emp.role || "Petugas Lapangan"} • <strong className="text-slate-600 font-bold">{emp.department || "PT. HPI"}</strong>
+                            </div>
+
+                            {/* Show details of assigned location if applicable */}
+                            {assignedLoc ? (
+                              <div className="text-[9px] text-[#059669] font-bold flex items-center gap-0.5 mt-0.5">
+                                <MapPin size={9} />
+                                <span>Lokasi Tugas: <strong>{assignedLoc.name}</strong></span>
+                              </div>
+                            ) : (
+                              <div className="text-[9px] text-rose-500 font-bold italic mt-0.5">
+                                Belum ditempatkan di lokasi kerja
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                          {clickedStatType === 'belum' ? (
+                            <span className="text-[9px] font-bold bg-rose-100 text-rose-700 px-2 py-1 rounded-lg uppercase tracking-wider">
+                              Belum Laporan
+                            </span>
+                          ) : clickedStatType === 'sudah' ? (
+                            <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-2 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1">
+                              <span>{submissionCount} Laporan</span>
+                            </span>
+                          ) : null}
+
+                          <span className={`text-[9px] font-bold px-2 py-1 rounded-lg uppercase ${
+                            emp.status === 'Aktif' ? 'bg-sky-100 text-sky-700' :
+                            emp.status === 'Cuti' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {emp.status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Close Footer Button */}
+              <div className="pt-3 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={() => setClickedStatType(null)}
+                  className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs cursor-pointer shadow transition border-none"
+                  type="button"
+                >
+                  Tutup
                 </button>
               </div>
             </motion.div>

@@ -20,5 +20,22 @@ service cloud.firestore {
     match /attendance/{attendanceId} {
       allow read, write: if true;
     }
+
+    // Rules for master data collections
+    match /hpi_locations/{id} {
+      allow read, write: if true;
+    }
+
+    match /hpi_jabatans/{id} {
+      allow read, write: if true;
+    }
+
+    match /hpi_employee_locations/{id} {
+      allow read, write: if true;
+    }
+
+    match /hpi_employee_jabatans/{id} {
+      allow read, write: if true;
+    }
   }
 }
