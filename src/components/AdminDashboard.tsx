@@ -3127,11 +3127,11 @@ export default function AdminDashboard({
                       const belumPatroli = Math.max(0, employees.length - sudahPatroli);
 
                       const handleExportTableCurrent = () => {
-                        const headers = ["NO INDUK", "NAMA & JABATAN", "LOKASI", "WAKTU", "DESKRIPSI"];
+                        const headers = ["NO INDUK", "NAMA & JABATAN", "UNIT KERJA", "WAKTU", "DESKRIPSI"];
                         const rows = filteredReports.map((r) => [
                           r.nip || "-",
                           `"${r.employeeName} (${r.role || 'SATPAM'})"`,
-                          `"${r.location?.name || "-"}"`,
+                          `"${r.department || r.location?.name || "-"}"`,
                           `"${r.date || "-"}"`,
                           `"${(r.description || "").replace(/"/g, '""')}"`
                         ]);
@@ -3140,7 +3140,7 @@ export default function AdminDashboard({
                         const encodedUri = encodeURI(csvContent);
                         const link = document.createElement("a");
                         link.setAttribute("href", encodedUri);
-                        link.setAttribute("download", `HPI_Data_Patroli_Filtered_${new Date().toISOString().split('T')[0]}.csv`);
+                        link.setAttribute("download", `HPI_Data_Kegiatan_Filtered_${new Date().toISOString().split('T')[0]}.csv`);
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
@@ -3387,7 +3387,7 @@ export default function AdminDashboard({
                                     <th className="p-4 text-center w-12 font-black text-slate-200">#</th>
                                     <th className="p-4 font-black text-slate-200">NO INDUK</th>
                                     <th className="p-4 font-black text-slate-200">NAMA & JABATAN</th>
-                                    <th className="p-4 font-black text-slate-200">LOKASI</th>
+                                    <th className="p-4 font-black text-slate-200">UNIT KERJA</th>
                                     <th className="p-4 font-black text-slate-200">WAKTU</th>
                                     <th className="p-4 font-black text-slate-200">DESKRIPSI</th>
                                     <th className="p-4 text-center w-24 font-black text-slate-200">FOTO</th>
@@ -3418,7 +3418,7 @@ export default function AdminDashboard({
                                             <div className="font-extrabold text-slate-900 uppercase text-xs">{rep.employeeName}</div>
                                             <div className="text-[10px] font-bold text-sky-600 uppercase tracking-wide mt-0.5">{rep.role || "SATPAM"}</div>
                                           </td>
-                                          <td className="p-4 text-slate-600">{rep.location?.name || "PT. PLN (PERSERO) ULP MANGGAR"}</td>
+                                          <td className="p-4 text-slate-600">{rep.department || rep.location?.name || "PT. PLN (PERSERO) ULP MANGGAR"}</td>
                                           <td className="p-4 font-mono text-slate-500">
                                             <div className="font-bold">{dateStr}</div>
                                             <div className="text-[10px] text-slate-400 mt-0.5 font-bold">{timeStr}</div>
@@ -5886,7 +5886,7 @@ export default function AdminDashboard({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+                  <div className="text-[11px]">
                     <div className="space-y-0.5">
                       <span className="text-[9px] text-slate-500 uppercase font-black font-sans">
                         Koordinat Deteksi GPS *
@@ -5899,20 +5899,6 @@ export default function AdminDashboard({
                         value={addRepCoord}
                         onChange={(e) => setAddRepCoord(e.target.value)}
                         className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-800 text-xs font-mono font-bold outline-none focus:border-sky-500"
-                      />
-                    </div>
-                    <div className="space-y-0.5">
-                      <span className="text-[9px] text-slate-500 uppercase font-black font-sans">
-                        Nama Tempat / Deskripsi Lokasi *
-                      </span>
-                      <input
-                        id="input_manual_rep_loc_name"
-                        type="text"
-                        required
-                        placeholder="Sektor Bangka Belitung"
-                        value={addRepLocName}
-                        onChange={(e) => setAddRepLocName(e.target.value)}
-                        className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-800 text-xs font-bold outline-none focus:border-sky-500"
                       />
                     </div>
                   </div>
