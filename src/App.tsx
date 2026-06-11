@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, CheckCircle2, Bell, X, Compass, Info,
   LogOut, Lock, User, ShieldAlert
@@ -212,6 +212,14 @@ export default function App() {
     }
   ]);
 
+  // Handle auto-dismissal of initial notification on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== 'notif_1'));
+    }, 4500);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Universal custom feedback alert
   const [alertInfo, setAlertInfo] = useState<{
     visible: boolean;
@@ -245,6 +253,11 @@ export default function App() {
     };
     
     setNotifications(prev => [newNotif, ...prev]);
+
+    // Auto-dismiss the system notification
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== newNotif.id));
+    }, 4500);
 
     // Fast decay alert
     setTimeout(() => {

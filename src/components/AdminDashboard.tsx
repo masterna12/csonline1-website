@@ -5156,7 +5156,7 @@ export default function AdminDashboard({
         {/* 10. Live Camera Viewfinder Modal */}
         {cameraModalTarget && (() => {
           return (
-            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[70]">
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[150]">
               <motion.div 
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
