@@ -1,1 +1,108 @@
 @import "tailwindcss";
+
+/* Theme Dark Overrides */
+.theme-dark {
+  --bg-primary: #0a0f1d;
+  --bg-secondary: #0f172a;
+  --bg-card: #131c31;
+  --border-color: #1e293b;
+  --text-active: #f8fafc;
+  --text-muted: #94a3b8;
+}
+
+.theme-dark .bg-white {
+  background-color: #121a2e !important;
+  color: #f1f5f9 !important;
+}
+
+.theme-dark .bg-slate-50 {
+  background-color: #0c1527 !important;
+}
+
+.theme-dark .bg-\[\#f8fafc\] {
+  background-color: #0b1120 !important;
+  color: #f1f5f9 !important;
+}
+
+.theme-dark .bg-\[\#f1f5f9\] {
+  background-color: #070b14 !important;
+}
+
+/* Override borders of tables, lists, and popups */
+.theme-dark .border-slate-200,
+.theme-dark .border-slate-205,
+.theme-dark .border-slate-300,
+.theme-dark .border-slate-350 {
+  border-color: #1e293b !important;
+}
+
+/* Headers background in calendar / list views */
+.theme-dark .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+.theme-dark .text-slate-800,
+.theme-dark .text-slate-850 {
+  color: #cbd5e1 !important;
+}
+
+.theme-dark .text-slate-705 {
+  color: #cbd5e1 !important;
+}
+
+.theme-dark .text-slate-700 {
+  color: #94a3b8 !important;
+}
+
+.theme-dark .text-slate-605 {
+  color: #cbd5e1 !important;
+}
+
+.theme-dark .text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+.theme-dark .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Inputs and controls */
+.theme-dark input,
+.theme-dark select,
+.theme-dark textarea {
+  background-color: #0c1527 !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+.theme-dark input::placeholder {
+  color: #475569 !important;
+}
+
+.theme-dark .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.5) !important;
+}
+
+/* High contrast background elements */
+.theme-dark .bg-sky-50,
+.theme-dark .bg-indigo-50 {
+  background-color: rgba(30, 41, 59, 0.4) !important;
+  color: #38bdf8 !important;
+}
+
+.theme-dark .text-indigo-700 {
+  color: #818cf8 !important;
+}
+
+.theme-dark .text-sky-700 {
+  color: #38bdf8 !important;
+}
+
+/* Ensure background of table contents and modal details stay dark and elegant */
+.theme-dark div.fixed.inset-0.bg-slate-950\/80 {
+  background-color: rgba(2, 6, 23, 0.9) !important;
+}
+
+.theme-dark div.fixed.inset-0.bg-slate-900\/60 {
+  background-color: rgba(2, 6, 23, 0.85) !important;
+}

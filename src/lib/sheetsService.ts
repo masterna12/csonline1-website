@@ -151,8 +151,8 @@ export const writeReportsToSpreadsheet = async (
     'Judul Laporan',
     'Keterangan / Deskripsi',
     'Status Pertanggungjawaban',
-    'Foto Indoor URL',
-    'Foto Outdoor URL'
+    'Foto Sebelum URL',
+    'Foto Sesudah URL'
   ];
 
   const valueRows = reports.map((rep, idx) => [

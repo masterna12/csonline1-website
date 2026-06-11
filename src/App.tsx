@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, CheckCircle2, Bell, X, Compass, Info,
-  LogOut, Lock, User, ShieldAlert
+  LogOut, Lock, User, ShieldAlert, Sun, Moon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, Report, Attendance, SystemNotification } from './types';
@@ -27,6 +27,11 @@ export default function App() {
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+
+  // Theme State
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    return localStorage.getItem('theme_dark') !== 'false';
+  });
 
   // Administrator Profile states
   const [adminName, setAdminName] = useState<string>(() => {
@@ -643,21 +648,39 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col justify-between selection:bg-indigo-600 selection:text-white">
+    <div className={`min-h-screen ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#f8fafc] text-slate-800'} font-sans flex flex-col justify-between selection:bg-indigo-600 selection:text-white transition-colors duration-200`}>
       
       {/* Upper Navigation Rail */}
-      <header className="bg-slate-950/80 backdrop-blur-md sticky top-0 z-50 border-b border-indigo-950/50 px-6 py-4 flex items-center justify-between">
+      <header className={`backdrop-blur-md sticky top-0 z-50 border-b px-6 py-4 flex items-center justify-between transition-colors duration-200 ${isDarkMode ? 'bg-slate-950/80 border-indigo-950/50 text-white' : 'bg-white/90 border-slate-200 text-slate-900'}`}>
         <div className="flex items-center gap-3">
           <div className="bg-gradient-to-tr from-indigo-500 to-sky-400 p-2 rounded-xl text-slate-950 font-extrabold flex items-center justify-center tracking-tighter">
             HPI
           </div>
           <div>
-            <h3 className="font-extrabold text-sm tracking-tight text-white leading-none text-sky-400">HPI CS System</h3>
+            <h3 className={`font-extrabold text-sm tracking-tight leading-none ${isDarkMode ? 'text-sky-400' : 'text-[#0284c7]'}`}>HPI CS System</h3>
           </div>
         </div>
 
-        {/* Logout Button */}
-        <div className="flex items-center gap-3">
+        {/* Theme Toggle & Logout Button */}
+        <div className="flex items-center gap-2.5">
+          <button
+            id="btn_theme_toggle"
+            type="button"
+            onClick={() => {
+              const newVal = !isDarkMode;
+              setIsDarkMode(newVal);
+              localStorage.setItem('theme_dark', String(newVal));
+            }}
+            className={`flex items-center justify-center p-2 rounded-xl transition-all cursor-pointer active:scale-95 border ${
+              isDarkMode 
+                ? 'bg-slate-900 text-amber-400 hover:text-amber-300 border-slate-800' 
+                : 'bg-slate-100 text-[#0284c7] hover:text-[#0369a1] border-slate-250'
+            }`}
+            title={isDarkMode ? "Ganti ke Tema Terang" : "Ganti ke Tema Gelap"}
+          >
+            {isDarkMode ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
+
           <button
             id="btn_auth_logout"
             onClick={handleLogout}
@@ -718,10 +741,10 @@ service cloud.firestore {
         )}
 
         {/* Welcome information banner */}
-        <div className="mb-6 bg-slate-900 border border-slate-800 p-4 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-md">
+        <div className={`mb-6 p-4 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-md border ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-205 text-slate-800'}`}>
           <div className="flex items-center gap-2.5 text-sky-400">
-            <Info size={16} className="text-sky-500" />
-            <span className="text-[11px] leading-relaxed text-slate-300 text-left">
+            <Info size={16} className={isDarkMode ? 'text-sky-500' : 'text-[#0284c7]'} />
+            <span className={`text-[11px] leading-relaxed text-left ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
               <strong>Konsol Administrasi Web:</strong> Selamat datang di portal utama PT Haleyora Powerindo. Di sini Anda dapat memantau data pegawai, laporan patroli sektor, status persetujuan, serta sinkronisasi Google Sheets dua arah secara real-time.
             </span>
           </div>
@@ -749,6 +772,7 @@ service cloud.firestore {
             onAddDraftReport={handleAddDraftReport}
             onDeleteDraftReport={handleDeleteDraftReport}
             onSyncDrafts={handleSyncDrafts}
+            isDarkMode={isDarkMode}
           />
         </div>
       </main>
