@@ -160,6 +160,7 @@ interface AdminDashboardProps {
   onDeleteDraftReport?: (id: string) => void;
   onSyncDrafts?: () => Promise<void>;
   isDarkMode?: boolean;
+  loggedInUserId?: string;
 }
 
 export default function AdminDashboard({
@@ -184,7 +185,9 @@ export default function AdminDashboard({
   onDeleteDraftReport = () => {},
   onSyncDrafts = async () => {},
   isDarkMode = true,
+  loggedInUserId = "admin",
 }: AdminDashboardProps) {
+  const isAdmin = loggedInUserId === "admin" || !loggedInUserId;
   // Sidebar tab management
   // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun
   const [activeSubTab, setActiveSubTab] = useState<
@@ -428,6 +431,21 @@ export default function AdminDashboard({
 
   // Modal state for manual report inputs
   const [isAddReportModalOpen, setIsAddReportModalOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (isAddReportModalOpen && !isAdmin && loggedInUserId) {
+      const selfEmp = employees.find(e => e.nip === loggedInUserId);
+      if (selfEmp) {
+        setAddRepName(selfEmp.name);
+        setAddRepNip(selfEmp.nip);
+        setAddRepRole(selfEmp.role);
+        setAddRepDept(selfEmp.department);
+      } else {
+        setAddRepNip(loggedInUserId);
+      }
+    }
+  }, [isAddReportModalOpen, isAdmin, loggedInUserId, employees]);
+
   const [addRepName, setAddRepName] = useState("");
   const [addRepNip, setAddRepNip] = useState("");
   const [addRepRole, setAddRepRole] = useState("");
@@ -2450,20 +2468,22 @@ export default function AdminDashboard({
                   </div>
 
                   {/* Master triggers: tambah pegawai button */}
-                  <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-                    <button
-                      id="btn_tambah_pegawai_view"
-                      onClick={() => setIsAddingInline(!isAddingInline)}
-                      className="bg-[#0284c7] hover:bg-[#0369a1] text-white p-2.5 px-4 rounded-xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all shadow active:scale-95 cursor-pointer w-full sm:w-auto"
-                    >
-                      <Plus size={14} />
-                      <span>
-                        {isAddingInline
-                          ? "Batal Tambah"
-                          : "Tambah Pegawai Baru"}
-                      </span>
-                    </button>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                      <button
+                        id="btn_tambah_pegawai_view"
+                        onClick={() => setIsAddingInline(!isAddingInline)}
+                        className="bg-[#0284c7] hover:bg-[#0369a1] text-white p-2.5 px-4 rounded-xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all shadow active:scale-95 cursor-pointer w-full sm:w-auto"
+                      >
+                        <Plus size={14} />
+                        <span>
+                          {isAddingInline
+                            ? "Batal Tambah"
+                            : "Tambah Pegawai Baru"}
+                        </span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Inline form card panel for "+ Tambah Pegawai Baru" */}
@@ -2727,35 +2747,39 @@ export default function AdminDashboard({
                                 {emp.role}
                               </td>
                               <td className="p-4 text-center pr-6">
-                                <button
-                                  id={`edit_emp_view_btn_${emp.id}`}
-                                  onClick={() => setEditingEmployee(emp)}
-                                  className="p-1.5 text-blue-600 hover:text-white hover:bg-blue-600 rounded-lg transition-colors inline-block cursor-pointer shadow-sm border border-slate-100 mr-1.5"
-                                  title="Edit Pegawai"
-                                >
-                                  <Pencil size={13} />
-                                </button>
-                                <button
-                                  id={`delete_emp_view_btn_${emp.id}`}
-                                  onClick={() => {
-                                    if (
-                                      confirm(
-                                        `Apakah Anda yakin ingin menghapus data personil ${emp.name} (NIP: ${emp.nip}) dari database?`,
-                                      )
-                                    ) {
-                                      onDeleteEmployee(emp.id);
-                                      onShowAlert(
-                                        "Pegawai Dihapus",
-                                        `${emp.name} berhasil dihapus dari direktori database lokal.`,
-                                        "success",
-                                      );
-                                    }
-                                  }}
-                                  className="p-1.5 text-rose-600 hover:text-white hover:bg-rose-600 rounded-lg transition-colors inline-block cursor-pointer shadow-sm border border-slate-100"
-                                  title="Hapus Pegawai"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
+                                {(isAdmin || emp.nip === loggedInUserId) && (
+                                  <button
+                                    id={`edit_emp_view_btn_${emp.id}`}
+                                    onClick={() => setEditingEmployee(emp)}
+                                    className="p-1.5 text-blue-600 hover:text-white hover:bg-blue-600 rounded-lg transition-colors inline-block cursor-pointer shadow-sm border border-slate-100 mr-1.5"
+                                    title="Edit Pegawai"
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                )}
+                                {isAdmin && (
+                                  <button
+                                    id={`delete_emp_view_btn_${emp.id}`}
+                                    onClick={() => {
+                                      if (
+                                        confirm(
+                                          `Apakah Anda yakin ingin menghapus data personil ${emp.name} (NIP: ${emp.nip}) dari database?`,
+                                        )
+                                      ) {
+                                        onDeleteEmployee(emp.id);
+                                        onShowAlert(
+                                          "Pegawai Dihapus",
+                                          `${emp.name} berhasil dihapus dari direktori database lokal.`,
+                                          "success",
+                                        );
+                                      }
+                                    }}
+                                    className="p-1.5 text-rose-600 hover:text-white hover:bg-rose-600 rounded-lg transition-colors inline-block cursor-pointer shadow-sm border border-slate-100"
+                                    title="Hapus Pegawai"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           ))
@@ -3445,13 +3469,15 @@ export default function AdminDashboard({
                                             </button>
                                           </td>
                                           <td className="p-4 text-center">
-                                            <button
-                                              onClick={() => setEditingReport(rep)}
-                                              className="mx-auto w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700/90 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
-                                              title="Edit Data Laporan"
-                                            >
-                                              <Pencil size={12} />
-                                            </button>
+                                            {(isAdmin || rep.nip === loggedInUserId) && (
+                                              <button
+                                                onClick={() => setEditingReport(rep)}
+                                                className="mx-auto w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700/90 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
+                                                title="Edit Data Laporan"
+                                              >
+                                                <Pencil size={12} />
+                                              </button>
+                                            )}
                                           </td>
                                         </tr>
                                       );
@@ -3505,7 +3531,7 @@ export default function AdminDashboard({
                                         {photos.map((url, idx) => (
                                           <div key={idx} className="flex flex-col items-center space-y-1.5">
                                             <span className="text-[10px] font-black tracking-wider uppercase text-slate-400">
-                                              {photos.length > 1 ? (idx === 0 ? "Foto Sebelum" : "Foto Sesudah") : "Foto Kerja"}
+                                              {photos.length > 1 ? (idx === 0 ? "Foto Sebelum & Sesudah" : "Foto Tambahan") : "Foto Kerja"}
                                             </span>
                                             <div className="border border-slate-250 bg-white p-1 rounded-xl shadow-sm w-full">
                                               <img
@@ -5695,22 +5721,25 @@ export default function AdminDashboard({
                 </label>
                 <select
                   id="select_quick_fill_employee"
+                  disabled={!isAdmin}
                   onChange={(e) => {
                     if (e.target.value) {
                       handleSelectEmployeeForReport(e.target.value);
                     }
                   }}
-                  className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-700 outline-none focus:border-indigo-400 text-xs shadow-sm font-bold cursor-pointer"
+                  className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-700 outline-none focus:border-indigo-400 text-xs shadow-sm font-bold cursor-pointer disabled:bg-slate-100 disabled:cursor-not-allowed"
                   defaultValue=""
                 >
                   <option value="" disabled>
                     -- Pilih Pegawai Lapangan --
                   </option>
-                  {employees.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name} ({e.role} - {e.department})
-                    </option>
-                  ))}
+                  {employees
+                    .filter((e) => isAdmin || e.nip === loggedInUserId)
+                    .map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} ({e.role} - {e.department})
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -5732,7 +5761,8 @@ export default function AdminDashboard({
                       placeholder="Masukkan nama pegawai"
                       value={addRepName}
                       onChange={(e) => setAddRepName(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs"
+                      disabled={!isAdmin}
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700"
                     />
                   </div>
 
@@ -5747,7 +5777,8 @@ export default function AdminDashboard({
                       placeholder="Contoh: 199307040102"
                       value={addRepNip}
                       onChange={(e) => setAddRepNip(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs"
+                      disabled={!isAdmin}
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700"
                     />
                   </div>
                 </div>
@@ -5765,7 +5796,8 @@ export default function AdminDashboard({
                       placeholder="Senior Engineer"
                       value={addRepRole}
                       onChange={(e) => setAddRepRole(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs"
+                      disabled={!isAdmin}
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700"
                     />
                   </div>
 
@@ -5780,7 +5812,8 @@ export default function AdminDashboard({
                       placeholder="PT PLN ( Persero ) UP3 Bangka"
                       value={addRepDept}
                       onChange={(e) => setAddRepDept(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs text-slate-800 placeholder-slate-400"
+                      disabled={!isAdmin}
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs text-slate-800 placeholder-slate-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>

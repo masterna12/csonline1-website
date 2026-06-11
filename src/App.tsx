@@ -24,6 +24,9 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('step_is_logged_in') === 'true';
   });
+  const [loggedInUserId, setLoggedInUserId] = useState<string>(() => {
+    return localStorage.getItem('step_logged_in_user_id') || '';
+  });
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -272,11 +275,21 @@ export default function App() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (userId.trim().toLowerCase() === 'admin' && password === adminPassword) {
+    const cleanUserId = userId.trim();
+    if (cleanUserId.toLowerCase() === 'admin' && password === adminPassword) {
       setIsLoggedIn(true);
+      setLoggedInUserId('admin');
       localStorage.setItem('step_is_logged_in', 'true');
+      localStorage.setItem('step_logged_in_user_id', 'admin');
       setLoginError('');
       handleShowAlert('Login Berhasil', `Selamat datang kembali, ${adminName}.`, 'success');
+    } else if (cleanUserId === '9826003HPI' && password === '27111998') {
+      setIsLoggedIn(true);
+      setLoggedInUserId('9826003HPI');
+      localStorage.setItem('step_is_logged_in', 'true');
+      localStorage.setItem('step_logged_in_user_id', '9826003HPI');
+      setLoginError('');
+      handleShowAlert('Login Berhasil', 'Selamat datang. Anda masuk sebagai petugas lapangan.', 'success');
     } else {
       setLoginError('ID User atau Password salah!');
       handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
@@ -285,7 +298,9 @@ export default function App() {
 
   const handleLogout = () => {
     setIsLoggedIn(false);
+    setLoggedInUserId('');
     localStorage.removeItem('step_is_logged_in');
+    localStorage.removeItem('step_logged_in_user_id');
     setUserId('');
     setPassword('');
     handleShowAlert('Logout Berhasil', 'Sesi administrasi telah diakhiri dengan aman.', 'success');
@@ -791,6 +806,7 @@ service cloud.firestore {
             onDeleteDraftReport={handleDeleteDraftReport}
             onSyncDrafts={handleSyncDrafts}
             isDarkMode={isDarkMode}
+            loggedInUserId={loggedInUserId}
           />
         </div>
       </main>
