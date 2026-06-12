@@ -783,7 +783,7 @@ service cloud.firestore {
           <div className="flex items-center gap-2.5 text-sky-400">
             <Info size={16} className={isDarkMode ? 'text-sky-500' : 'text-[#0284c7]'} />
             <span className={`text-[11px] leading-relaxed text-left ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-              <strong>Konsol Administrasi Web:</strong> Selamat datang di portal utama PT Haleyora Powerindo. Di sini Anda dapat memantau data pegawai, laporan patroli sektor, status persetujuan, serta sinkronisasi Google Sheets dua arah secara real-time.
+              <strong>Konsol Administrasi Web:</strong> Selamat datang di portal Cleaning Service PT Haleyora Powerindo Cabang Bangka Belitung. Di sini Anda dapat memantau data pegawai, serta Data Lapoan secara real-time.
             </span>
           </div>
         </div>
@@ -819,9 +819,7 @@ service cloud.firestore {
 
       {/* Live Event Activity Notifications popups */}
       <div id="logs_activity_feed_global" className="fixed bottom-6 left-6 z-[90] max-w-xs space-y-2 hidden sm:block">
-        <h5 className="text-[10px] uppercase font-bold text-slate-500 tracking-widest mb-1.5 flex items-center gap-1">
-          <Bell size={10} /> Live Event Log
-        </h5>
+
         <AnimatePresence>
           {notifications.slice(0, 3).map((notif) => (
             <motion.div

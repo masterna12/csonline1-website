@@ -2214,7 +2214,7 @@ export default function AdminDashboard({
                       </span>
                     </h1>
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1 text-left">
-                      Sistem Integrasi Penampilan Data Sektor Utama
+                      SISTEM INTEGRASI PENMAPILAN DATA UTAMA
                     </p>
                   </div>
 
@@ -2305,7 +2305,7 @@ export default function AdminDashboard({
                           RINGKASAN DATA PEGAWAI
                         </h4>
                         <p className="text-[10px] text-slate-400">
-                          Daftar personil aktif Sektor Bangka Belitung
+                          Daftar Personil aktif Bangka Belitung.
                         </p>
                       </div>
                       <button
