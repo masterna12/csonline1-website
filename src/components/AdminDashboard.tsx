@@ -1106,7 +1106,15 @@ export default function AdminDashboard({
       employeeName: addRepName,
       role: addRepRole,
       department: addRepDept,
-      date: new Date().toISOString().split("T")[0],
+      date: (() => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}`;
+      })(),
       type: addRepType,
       title: finalTitle,
       description: finalDesc,
@@ -1203,7 +1211,15 @@ export default function AdminDashboard({
       employeeName: addRepName,
       role: addRepRole,
       department: addRepDept,
-      date: new Date().toISOString().split("T")[0],
+      date: (() => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}`;
+      })(),
       type: addRepType,
       title: finalTitle,
       description: finalDesc,
@@ -3484,15 +3500,39 @@ export default function AdminDashboard({
                                             </button>
                                           </td>
                                           <td className="p-4 text-center">
-                                            {(isAdmin || rep.nip === loggedInUserId) && (
-                                              <button
-                                                onClick={() => setEditingReport(rep)}
-                                                className="mx-auto w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700/90 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
-                                                title="Edit Data Laporan"
-                                              >
-                                                <Pencil size={12} />
-                                              </button>
-                                            )}
+                                            <div className="flex items-center justify-center gap-1.5">
+                                              {(isAdmin || rep.nip === loggedInUserId) && (
+                                                <>
+                                                  <button
+                                                    onClick={() => setEditingReport(rep)}
+                                                    className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700/90 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
+                                                    title="Edit Data Laporan"
+                                                  >
+                                                    <Pencil size={11} />
+                                                  </button>
+                                                  <button
+                                                    onClick={() => {
+                                                      if (
+                                                        confirm(
+                                                          `Apakah Anda yakin ingin menghapus data laporan kegiatan dari "${rep.employeeName}" pada tanggal ${dateStr}?`
+                                                        )
+                                                      ) {
+                                                        onDeleteReport(rep.id);
+                                                        onShowAlert(
+                                                          "Laporan Dihapus",
+                                                          `Data laporan harian berhasil dihapus secara permanen dari sistem.`,
+                                                          "success"
+                                                        );
+                                                      }
+                                                    }}
+                                                    className="w-8 h-8 rounded-lg bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
+                                                    title="Hapus Data Laporan"
+                                                  >
+                                                    <Trash2 size={11} />
+                                                  </button>
+                                                </>
+                                              )}
+                                            </div>
                                           </td>
                                         </tr>
                                       );
