@@ -283,13 +283,19 @@ export default function App() {
       localStorage.setItem('step_logged_in_user_id', 'admin');
       setLoginError('');
       handleShowAlert('Login Berhasil', `Selamat datang kembali, ${adminName}.`, 'success');
-    } else if (cleanUserId === '9826003HPI' && password === '27111998') {
-      setIsLoggedIn(true);
-      setLoggedInUserId('9826003HPI');
-      localStorage.setItem('step_is_logged_in', 'true');
-      localStorage.setItem('step_logged_in_user_id', '9826003HPI');
-      setLoginError('');
-      handleShowAlert('Login Berhasil', 'Selamat datang. Anda masuk sebagai petugas lapangan.', 'success');
+    } else if (cleanUserId === '9826003HPI') {
+      const savedUserPass = localStorage.getItem('step_user_password_' + cleanUserId) || '27111998';
+      if (password === savedUserPass) {
+        setIsLoggedIn(true);
+        setLoggedInUserId('9826003HPI');
+        localStorage.setItem('step_is_logged_in', 'true');
+        localStorage.setItem('step_logged_in_user_id', '9826003HPI');
+        setLoginError('');
+        handleShowAlert('Login Berhasil', 'Selamat datang. Anda masuk sebagai petugas lapangan.', 'success');
+      } else {
+        setLoginError('ID User atau Password salah!');
+        handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
+      }
     } else {
       setLoginError('ID User atau Password salah!');
       handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');

@@ -481,22 +481,37 @@ export default function AdminDashboard({
   const [adminFeedbackNotes, setAdminFeedbackNotes] = useState("");
   const [deletingReportId, setDeletingReportId] = useState<string | null>(null);
 
+  // Active logged-in user details determination
+  const activeEmpInfo = React.useMemo(() => {
+    if (loggedInUserId && loggedInUserId !== "admin") {
+      return employees.find((e) => e.nip === loggedInUserId) || null;
+    }
+    return null;
+  }, [employees, loggedInUserId]);
+
+  const currentUserName = activeEmpInfo ? activeEmpInfo.name : (loggedInUserId === "admin" ? adminName : "Petugas Lapangan");
+  const currentUserAvatar = activeEmpInfo ? activeEmpInfo.avatar : (loggedInUserId === "admin" ? adminAvatar : "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200");
+  const currentUserPassword = loggedInUserId && loggedInUserId !== "admin"
+    ? (localStorage.getItem("step_user_password_" + loggedInUserId) || "27111998")
+    : adminPassword;
+  const currentUserRole = activeEmpInfo ? activeEmpInfo.role : (loggedInUserId === "admin" ? "SU / Supervisor" : "Petugas Lapangan");
+
   // Settings Form State
-  const [settingName, setSettingName] = useState(adminName);
-  const [settingAvatar, setSettingAvatar] = useState(adminAvatar);
-  const [settingPassword, setSettingPassword] = useState(adminPassword);
+  const [settingName, setSettingName] = useState(currentUserName);
+  const [settingAvatar, setSettingAvatar] = useState(currentUserAvatar);
+  const [settingPassword, setSettingPassword] = useState(currentUserPassword);
   const [settingPasswordConfirm, setSettingPasswordConfirm] =
-    useState(adminPassword);
+    useState(currentUserPassword);
   const [settingOldPassword, setSettingOldPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   React.useEffect(() => {
-    setSettingName(adminName);
-    setSettingAvatar(adminAvatar);
-    setSettingPassword(adminPassword);
-    setSettingPasswordConfirm(adminPassword);
+    setSettingName(currentUserName);
+    setSettingAvatar(currentUserAvatar);
+    setSettingPassword(currentUserPassword);
+    setSettingPasswordConfirm(currentUserPassword);
     setSettingOldPassword("");
-  }, [adminName, adminAvatar, adminPassword, activeSubTab]);
+  }, [currentUserName, currentUserAvatar, currentUserPassword, activeSubTab]);
 
   // Master Sub-Tab state
   const [masterSubTab, setMasterSubTab] = useState<
@@ -2159,15 +2174,15 @@ export default function AdminDashboard({
               }}
             >
               <img
-                src={adminAvatar}
-                alt="Administrator Avatar"
+                src={currentUserAvatar}
+                alt="User Avatar"
                 className="w-8 h-8 rounded-full border-2 border-indigo-500 object-cover"
                 referrerPolicy="no-referrer"
               />
               <div className="hidden sm:block text-left text-xs leading-none">
-                <p className="font-extrabold text-white">{adminName}</p>
+                <p className="font-extrabold text-white">{currentUserName}</p>
                 <span className="text-[9px] text-[#38bdf8] font-semibold mt-1 block">
-                  Administrator
+                  {currentUserRole}
                 </span>
               </div>
             </div>
@@ -4512,22 +4527,24 @@ export default function AdminDashboard({
                             Daftar Lokasi Kerja
                           </h2>
                         </div>
-                        <button
-                          onClick={() => {
-                            setEditingLocationId(null);
-                            setLocationNameInput("");
-                            setLocationLevelInput(1);
-                            setLocationParentInput("");
-                            setLocationBarcodeInput("");
-                            setLocationJamInput("8 Jam Kerja");
-                            setLocationPosInput(1);
-                            setIsAddLocationModalOpen(true);
-                          }}
-                          className="bg-white text-slate-900 hover:bg-slate-50 font-black text-[11px] uppercase tracking-wider py-2 px-4 rounded-xl flex items-center gap-1 cursor-pointer active:scale-95 transition"
-                        >
-                          <Plus size={13} className="stroke-[3]" />
-                          <span>Tambah Lokasi</span>
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              setEditingLocationId(null);
+                              setLocationNameInput("");
+                              setLocationLevelInput(1);
+                              setLocationParentInput("");
+                              setLocationBarcodeInput("");
+                              setLocationJamInput("8 Jam Kerja");
+                              setLocationPosInput(1);
+                              setIsAddLocationModalOpen(true);
+                            }}
+                            className="bg-white text-slate-900 hover:bg-slate-50 font-black text-[11px] uppercase tracking-wider py-2 px-4 rounded-xl flex items-center gap-1 cursor-pointer active:scale-95 transition"
+                          >
+                            <Plus size={13} className="stroke-[3]" />
+                            <span>Tambah Lokasi</span>
+                          </button>
+                        )}
                       </div>
 
                       <div className="p-4 bg-slate-50 text-slate-800 divide-y divide-slate-100">
@@ -4608,45 +4625,58 @@ export default function AdminDashboard({
                                       )}
                                     </div>
                                   </div>
-
                                   <div className="flex flex-wrap items-center gap-1.5 self-end md:self-auto font-sans">
                                     {/* Assigned employees display and management button */}
-                                    <button
-                                      onClick={() => {
-                                        setSelectedLocationForAssignment(
-                                          loc.id,
-                                        );
-                                        setIsAssignEmployeeModalOpen(true);
-                                      }}
-                                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition active:scale-95 cursor-pointer"
-                                      title="Daftar Pegawai"
-                                    >
-                                      <Users size={11} />
-                                      <span>
-                                        {assignedToThisLoc.length} Pegawai
-                                      </span>
-                                    </button>
+                                    {isAdmin ? (
+                                      <button
+                                        onClick={() => {
+                                          setSelectedLocationForAssignment(
+                                            loc.id,
+                                          );
+                                          setIsAssignEmployeeModalOpen(true);
+                                        }}
+                                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition active:scale-95 cursor-pointer"
+                                        title="Daftar Pegawai"
+                                      >
+                                        <Users size={11} />
+                                        <span>
+                                          {assignedToThisLoc.length} Pegawai
+                                        </span>
+                                      </button>
+                                    ) : (
+                                      <div
+                                        className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1"
+                                        title="Daftar Pegawai (Hanya Baca)"
+                                      >
+                                        <Users size={11} />
+                                        <span>
+                                          {assignedToThisLoc.length} Pegawai
+                                        </span>
+                                      </div>
+                                    )}
 
                                     {/* Feature: Add Employee directly */}
-                                    <button
-                                      onClick={() => {
-                                        setSelectedLocationForAssignment(
-                                          loc.id,
-                                        );
-                                        setIsAssignEmployeeModalOpen(true);
-                                      }}
-                                      className="bg-sky-50 hover:bg-sky-100 border border-sky-100 text-sky-700 text-[10px] font-black px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition active:scale-95 cursor-pointer"
-                                      title="Placing / Tambah Pegawai di Lokasi"
-                                    >
-                                      <UserCheck
-                                        size={11}
-                                        className="text-sky-600"
-                                      />
-                                      <span>+ Pegawai</span>
-                                    </button>
+                                    {isAdmin && (
+                                      <button
+                                        onClick={() => {
+                                          setSelectedLocationForAssignment(
+                                            loc.id,
+                                          );
+                                          setIsAssignEmployeeModalOpen(true);
+                                        }}
+                                        className="bg-sky-50 hover:bg-sky-100 border border-sky-100 text-sky-700 text-[10px] font-black px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition active:scale-95 cursor-pointer"
+                                        title="Placing / Tambah Pegawai di Lokasi"
+                                      >
+                                        <UserCheck
+                                          size={11}
+                                          className="text-sky-600"
+                                        />
+                                        <span>+ Pegawai</span>
+                                      </button>
+                                    )}
 
                                     {/* Feature: Add Sub location */}
-                                    {loc.level < 6 && (
+                                    {isAdmin && loc.level < 6 && (
                                       <button
                                         onClick={() => {
                                           setEditingLocationId(null);
@@ -4669,44 +4699,48 @@ export default function AdminDashboard({
                                     )}
 
                                     {/* Edit buttons */}
-                                    <button
-                                      onClick={() => {
-                                        setEditingLocationId(loc.id);
-                                        setLocationNameInput(loc.name);
-                                        setLocationLevelInput(loc.level);
-                                        setLocationParentInput(
-                                          loc.parentId || "",
-                                        );
-                                        setLocationBarcodeInput(
-                                          loc.barcode || "",
-                                        );
-                                        setLocationJamInput(
-                                          loc.jamKerja || "8 Jam Kerja",
-                                        );
-                                        setLocationPosInput(loc.posCount || 1);
-                                        setIsAddLocationModalOpen(true);
-                                      }}
-                                      className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg transition cursor-pointer"
-                                      title="Edit lokasi"
-                                    >
-                                      <FileText
-                                        size={12}
-                                        className="text-amber-650"
-                                      />
-                                    </button>
+                                    {isAdmin && (
+                                      <button
+                                        onClick={() => {
+                                          setEditingLocationId(loc.id);
+                                          setLocationNameInput(loc.name);
+                                          setLocationLevelInput(loc.level);
+                                          setLocationParentInput(
+                                            loc.parentId || "",
+                                          );
+                                          setLocationBarcodeInput(
+                                            loc.barcode || "",
+                                          );
+                                          setLocationJamInput(
+                                            loc.jamKerja || "8 Jam Kerja",
+                                          );
+                                          setLocationPosInput(loc.posCount || 1);
+                                          setIsAddLocationModalOpen(true);
+                                        }}
+                                        className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg transition cursor-pointer"
+                                        title="Edit lokasi"
+                                      >
+                                        <FileText
+                                          size={12}
+                                          className="text-amber-650"
+                                        />
+                                      </button>
+                                    )}
 
-                                    <button
-                                      onClick={() =>
-                                        setLocationIdToDelete(loc.id)
-                                      }
-                                      className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg transition cursor-pointer"
-                                      title="Hapus lokasi"
-                                    >
-                                      <Trash2
-                                        size={12}
-                                        className="text-rose-650"
-                                      />
-                                    </button>
+                                    {isAdmin && (
+                                      <button
+                                        onClick={() =>
+                                          setLocationIdToDelete(loc.id)
+                                        }
+                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg transition cursor-pointer"
+                                        title="Hapus lokasi"
+                                      >
+                                        <Trash2
+                                          size={12}
+                                          className="text-rose-650"
+                                        />
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -4733,39 +4767,41 @@ export default function AdminDashboard({
                         </p>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          onClick={() => {
-                            setEditingJabatanId(null);
-                            setJabatanNameInput("");
-                            setJabatanLevelInput(1);
-                            setJabatanParentInput("");
-                            setIsAddJabatanModalOpen(true);
-                          }}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 px-4 rounded-xl flex items-center gap-1 active:scale-95 transition cursor-pointer shadow-sm"
-                        >
-                          <Plus size={13} className="stroke-[3]" />
-                          <span>+ Tambah Jabatan</span>
-                        </button>
+                      {isAdmin && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingJabatanId(null);
+                              setJabatanNameInput("");
+                              setJabatanLevelInput(1);
+                              setJabatanParentInput("");
+                              setIsAddJabatanModalOpen(true);
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 px-4 rounded-xl flex items-center gap-1 active:scale-95 transition cursor-pointer shadow-sm"
+                          >
+                            <Plus size={13} className="stroke-[3]" />
+                            <span>+ Tambah Jabatan</span>
+                          </button>
 
-                        <button
-                          onClick={() => {
-                            const newLevelOrder = window.confirm(
-                              "Aktifkan penukaran mode level hierarki jabatan?",
-                            );
-                            if (newLevelOrder)
-                              onShowAlert(
-                                "Struktur Diperbarui",
-                                "Tukar Level hierarki jabatan berhasil diaktifkan.",
-                                "success",
+                          <button
+                            onClick={() => {
+                              const newLevelOrder = window.confirm(
+                                "Aktifkan penukaran mode level hierarki jabatan?",
                               );
-                          }}
-                          className="bg-sky-550 border border-sky-600 text-sky-800 hover:bg-sky-100 font-extrabold text-xs py-2 px-3.5 rounded-xl flex items-center gap-1 active:scale-95 transition cursor-pointer"
-                        >
-                          <Layers size={13} />
-                          <span>Tukar Level</span>
-                        </button>
-                      </div>
+                              if (newLevelOrder)
+                                onShowAlert(
+                                  "Struktur Diperbarui",
+                                  "Tukar Level hierarki jabatan berhasil diaktifkan.",
+                                  "success",
+                                );
+                            }}
+                            className="bg-sky-550 border border-sky-600 text-sky-800 hover:bg-sky-100 font-extrabold text-xs py-2 px-3.5 rounded-xl flex items-center gap-1 active:scale-95 transition cursor-pointer"
+                          >
+                            <Layers size={13} />
+                            <span>Tukar Level</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="overflow-x-auto border border-slate-200 rounded-xl">
@@ -4849,50 +4885,71 @@ export default function AdminDashboard({
                                   <td className="p-3">
                                     <div className="flex items-center justify-center gap-1" />
                                     <div className="flex items-center justify-center gap-1.5">
-                                      <button
-                                        onClick={() => {
-                                          setSelectedJabatanForAssignment(
-                                            jab.id,
-                                          );
-                                          setIsAssignJabatanModalOpen(true);
-                                        }}
-                                        className="p-1 px-2 text-[9px] font-bold bg-sky-50 text-sky-700 border border-sky-200 rounded-md hover:bg-sky-100 transition"
-                                        title="Assign pegawai ke jabatan"
-                                      >
-                                        Assign (
-                                        {
-                                          employees.filter(
-                                            (emp) =>
-                                              employeeJabatans[emp.id] ===
+                                      {isAdmin ? (
+                                        <button
+                                          onClick={() => {
+                                            setSelectedJabatanForAssignment(
                                               jab.id,
-                                          ).length
-                                        }
-                                        )
-                                      </button>
+                                            );
+                                            setIsAssignJabatanModalOpen(true);
+                                          }}
+                                          className="p-1 px-2 text-[9px] font-bold bg-sky-50 text-sky-700 border border-sky-200 rounded-md hover:bg-sky-100 transition"
+                                          title="Assign pegawai ke jabatan"
+                                        >
+                                          Assign (
+                                          {
+                                            employees.filter(
+                                              (emp) =>
+                                                employeeJabatans[emp.id] ===
+                                                jab.id,
+                                            ).length
+                                          }
+                                          )
+                                        </button>
+                                      ) : (
+                                        <div
+                                          className="p-1 px-2 text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 rounded-md"
+                                          title="Jumlah pegawai dengan jabatan ini (Hanya Baca)"
+                                        >
+                                          Total: (
+                                          {
+                                            employees.filter(
+                                              (emp) =>
+                                                employeeJabatans[emp.id] ===
+                                                jab.id,
+                                            ).length
+                                          }
+                                          )
+                                        </div>
+                                      )}
 
-                                      <button
-                                        onClick={() => {
-                                          setEditingJabatanId(jab.id);
-                                          setJabatanNameInput(jab.name);
-                                          setJabatanLevelInput(jab.level);
-                                          setJabatanParentInput(
-                                            jab.parentId || "",
-                                          );
-                                          setIsAddJabatanModalOpen(true);
-                                        }}
-                                        className="p-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 rounded-lg transition"
-                                      >
-                                        <FileText size={12} />
-                                      </button>
+                                      {isAdmin && (
+                                        <button
+                                          onClick={() => {
+                                            setEditingJabatanId(jab.id);
+                                            setJabatanNameInput(jab.name);
+                                            setJabatanLevelInput(jab.level);
+                                            setJabatanParentInput(
+                                              jab.parentId || "",
+                                            );
+                                            setIsAddJabatanModalOpen(true);
+                                          }}
+                                          className="p-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 rounded-lg transition"
+                                        >
+                                          <FileText size={12} />
+                                        </button>
+                                      )}
 
-                                      <button
-                                        onClick={() =>
-                                          setJabatanIdToDelete(jab.id)
-                                        }
-                                        className="p-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg transition-all cursor-pointer"
-                                      >
-                                        <Trash2 size={12} />
-                                      </button>
+                                      {isAdmin && (
+                                        <button
+                                          onClick={() =>
+                                            setJabatanIdToDelete(jab.id)
+                                          }
+                                          className="p-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg transition-all cursor-pointer"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      )}
                                     </div>
                                   </td>
                                 </tr>
@@ -5072,16 +5129,15 @@ export default function AdminDashboard({
               >
                 <div className="pb-2 border-b border-slate-300">
                   <h1 className="text-xl md:text-2xl font-black text-slate-900 font-sans">
-                    Pengaturan Akun Administrator
+                    Pengaturan Akun Pengguna
                   </h1>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Ubah nama taktis, tautan foto avatar profil, serta kunci
-                    sandi enkripsi login
+                    Ubah nama profil, tautan foto avatar, serta kata sandi login untuk akun Anda ({loggedInUserId})
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  {/* Left Column: Visual Card Preview of Active Admin Profile */}
+                  {/* Left Column: Visual Card Preview of Active Profile */}
                   <div className="lg:col-span-4 space-y-4">
                     <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-md border border-slate-800 text-center relative overflow-hidden">
                       <div className="absolute -right-10 -top-10 w-32 h-32 bg-sky-500/10 rounded-full blur-2xl"></div>
@@ -5091,9 +5147,9 @@ export default function AdminDashboard({
                         <img
                           src={
                             settingAvatar ||
-                            "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200"
+                            "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200"
                           }
-                          alt="Avatar Administrator Preview"
+                          alt="Avatar Preview"
                           className="w-24 h-24 rounded-full border-4 border-indigo-500/50 object-cover mx-auto shadow-lg"
                           referrerPolicy="no-referrer"
                           onError={(e) => {
@@ -5102,12 +5158,12 @@ export default function AdminDashboard({
                           }}
                         />
                         <div className="absolute bottom-0 right-0 p-1 px-2.5 bg-indigo-650 border border-indigo-400 rounded-full text-[9px] font-bold text-white shadow">
-                          Admin
+                          {currentUserRole}
                         </div>
                       </div>
 
                       <h3 className="text-base font-black text-white">
-                        {settingName || "Administrator"}
+                        {settingName || "Pengguna"}
                       </h3>
                       <p className="text-[10px] text-sky-450 font-bold uppercase tracking-widest mt-1">
                         PT. Haleyora Powerindo
@@ -5119,7 +5175,7 @@ export default function AdminDashboard({
                             ID Login
                           </span>
                           <span className="text-xs font-mono font-bold text-slate-300">
-                            admin
+                            {loggedInUserId}
                           </span>
                         </div>
                         <div className="space-y-0.5 text-right">
@@ -5127,7 +5183,7 @@ export default function AdminDashboard({
                             Level Akses
                           </span>
                           <span className="text-xs text-sky-400 font-bold">
-                            SU / Supervisor
+                            {currentUserRole}
                           </span>
                         </div>
                       </div>
@@ -5150,7 +5206,7 @@ export default function AdminDashboard({
                         if (!settingName.trim()) {
                           onShowAlert(
                             "Nama Diperlukan",
-                            "Nama administrator tidak boleh kosong.",
+                            "Nama profil Anda tidak boleh kosong.",
                             "alert",
                           );
                           return;
@@ -5164,8 +5220,8 @@ export default function AdminDashboard({
                           return;
                         }
 
-                        // Check if password has changed from current adminPassword
-                        if (settingPassword !== adminPassword) {
+                        // Check if password has changed from current password
+                        if (settingPassword !== currentUserPassword) {
                           if (!settingOldPassword) {
                             onShowAlert(
                               "Sandi Lama Diperlukan",
@@ -5174,7 +5230,7 @@ export default function AdminDashboard({
                             );
                             return;
                           }
-                          if (settingOldPassword !== adminPassword) {
+                          if (settingOldPassword !== currentUserPassword) {
                             onShowAlert(
                               "Sandi Lama Salah",
                               "Kata sandi saat ini yang Anda masukkan salah. Perubahan sandi baru ditolak.",
@@ -5192,14 +5248,30 @@ export default function AdminDashboard({
                           }
                         }
 
-                        onUpdateAdminProfile(
-                          settingName,
-                          settingAvatar,
-                          settingPassword,
-                        );
+                        if (loggedInUserId === "admin" || !loggedInUserId) {
+                          onUpdateAdminProfile(
+                            settingName,
+                            settingAvatar,
+                            settingPassword,
+                          );
+                        } else {
+                          // Save the employee password in local storage
+                          localStorage.setItem("step_user_password_" + loggedInUserId, settingPassword);
+                          
+                          // If there's a matching employee record, update their details
+                          if (activeEmpInfo) {
+                            const updatedEmp = {
+                              ...activeEmpInfo,
+                              name: settingName,
+                              avatar: settingAvatar,
+                            };
+                            onAddEmployee(updatedEmp);
+                          }
+                        }
+
                         onShowAlert(
                           "Kredensial Diperbarui",
-                          "Konfigurasi identitas & password baru admin berhasil disimpan sistem.",
+                          "Konfigurasi identitas & password baru Anda berhasil disimpan sistem.",
                           "success",
                         );
                       }}
@@ -5209,27 +5281,26 @@ export default function AdminDashboard({
                       <div className="space-y-4">
                         <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-2">
                           <span className="w-1.5 h-1.5 bg-indigo-505 rounded-full"></span>
-                          Detail Profil Administrator
+                          Detail Profil {currentUserRole}
                         </h4>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {/* Nama */}
                           <div className="space-y-1.5">
                             <label className="text-[10px] text-slate-550 uppercase font-bold pl-0.5">
-                              Nama Sektor / Sebutan Taktis *
+                              Nama Lengkap / Sebutan Akun *
                             </label>
                             <input
                               id="setting_admin_name"
                               type="text"
                               required
-                              placeholder="Contoh: Bangka Belitung atau Jakarta Barat"
+                              placeholder="Masukkan nama lengkap profil Anda"
                               value={settingName}
                               onChange={(e) => setSettingName(e.target.value)}
                               className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-400 font-bold text-slate-800"
                             />
                             <p className="text-[9px] text-slate-400 leading-normal">
-                              Nama ini akan tercantum sebagai nama administrator
-                              di header atas dashboard.
+                              Nama ini akan tercantum sebagai nama pengguna Anda di seluruh sistem.
                             </p>
                           </div>
 
@@ -6630,30 +6701,32 @@ export default function AdminDashboard({
                           </div>
                         </div>
 
-                        <button
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Lepaskan jabatan ${jabatans.find((j) => j.id === selectedJabatanForDetail)?.name} dari ${emp.name}?`,
-                              )
-                            ) {
-                              const updated = { ...employeeJabatans };
-                              delete updated[emp.id];
-                              deleteDoc(doc(db, "hpi_employee_jabatans", emp.id)).catch((err) =>
-                                console.error("Error releasing employee jabatan in Firestore:", err),
-                              );
-                              setEmployeeJabatans(updated);
-                              onShowAlert(
-                                "Penugasan Dibuat",
-                                "Berhasil melepaskan penugasan jabatan.",
-                                "success",
-                              );
-                            }
-                          }}
-                          className="text-[9px] font-black text-rose-550 hover:text-rose-700 uppercase"
-                        >
-                          Lepas
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Lepaskan jabatan ${jabatans.find((j) => j.id === selectedJabatanForDetail)?.name} dari ${emp.name}?`,
+                                )
+                              ) {
+                                const updated = { ...employeeJabatans };
+                                delete updated[emp.id];
+                                deleteDoc(doc(db, "hpi_employee_jabatans", emp.id)).catch((err) =>
+                                  console.error("Error releasing employee jabatan in Firestore:", err),
+                                );
+                                setEmployeeJabatans(updated);
+                                onShowAlert(
+                                  "Penugasan Dibuat",
+                                  "Berhasil melepaskan penugasan jabatan.",
+                                  "success",
+                                );
+                              }
+                            }}
+                            className="text-[9px] font-black text-rose-550 hover:text-rose-700 uppercase"
+                          >
+                            Lepas
+                          </button>
+                        )}
                       </div>
                     ))
                 )}
