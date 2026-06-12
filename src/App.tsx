@@ -22,10 +22,10 @@ import hpiLogo from './assets/images/hpi_cs_logo_1781079989032.png';
 export default function App() {
   // Authentication States
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('step_is_logged_in') === 'true';
+    return sessionStorage.getItem('step_is_logged_in') === 'true';
   });
   const [loggedInUserId, setLoggedInUserId] = useState<string>(() => {
-    return localStorage.getItem('step_logged_in_user_id') || '';
+    return sessionStorage.getItem('step_logged_in_user_id') || '';
   });
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
@@ -279,8 +279,8 @@ export default function App() {
     if (cleanUserId.toLowerCase() === 'admin' && password === adminPassword) {
       setIsLoggedIn(true);
       setLoggedInUserId('admin');
-      localStorage.setItem('step_is_logged_in', 'true');
-      localStorage.setItem('step_logged_in_user_id', 'admin');
+      sessionStorage.setItem('step_is_logged_in', 'true');
+      sessionStorage.setItem('step_logged_in_user_id', 'admin');
       setLoginError('');
       handleShowAlert('Login Berhasil', `Selamat datang kembali, ${adminName}.`, 'success');
     } else if (cleanUserId === '9826003HPI') {
@@ -288,8 +288,8 @@ export default function App() {
       if (password === savedUserPass) {
         setIsLoggedIn(true);
         setLoggedInUserId('9826003HPI');
-        localStorage.setItem('step_is_logged_in', 'true');
-        localStorage.setItem('step_logged_in_user_id', '9826003HPI');
+        sessionStorage.setItem('step_is_logged_in', 'true');
+        sessionStorage.setItem('step_logged_in_user_id', '9826003HPI');
         setLoginError('');
         handleShowAlert('Login Berhasil', 'Selamat datang. Anda masuk sebagai petugas lapangan.', 'success');
       } else {
@@ -305,8 +305,8 @@ export default function App() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setLoggedInUserId('');
-    localStorage.removeItem('step_is_logged_in');
-    localStorage.removeItem('step_logged_in_user_id');
+    sessionStorage.removeItem('step_is_logged_in');
+    sessionStorage.removeItem('step_logged_in_user_id');
     setUserId('');
     setPassword('');
     handleShowAlert('Logout Berhasil', 'Sesi administrasi telah diakhiri dengan aman.', 'success');
