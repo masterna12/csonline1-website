@@ -54,3 +54,11 @@ export interface SystemNotification {
   timestamp: string;
   read: boolean;
 }
+
+export interface UserAccount {
+  id: string;
+  userId: string;
+  password: string;
+  createdAt: string;
+}
+

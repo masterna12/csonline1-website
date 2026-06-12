@@ -37,5 +37,9 @@ service cloud.firestore {
     match /hpi_employee_jabatans/{id} {
       allow read, write: if true;
     }
+
+    match /hpi_user_accounts/{id} {
+      allow read, write: if true;
+    }
   }
 }

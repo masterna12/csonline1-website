@@ -38,6 +38,7 @@ import {
   Globe,
   Check,
   User,
+  UserPlus,
   LogOut,
   Upload,
   Camera,
@@ -46,7 +47,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Employee, Report, Attendance } from "../types";
+import { Employee, Report, Attendance, UserAccount } from "../types";
 import {
   INITIAL_EMPLOYEES,
   INITIAL_ATTENDANCE,
@@ -161,6 +162,9 @@ interface AdminDashboardProps {
   onSyncDrafts?: () => Promise<void>;
   isDarkMode?: boolean;
   loggedInUserId?: string;
+  userAccounts?: UserAccount[];
+  onAddUserAccount?: (acc: UserAccount) => void;
+  onDeleteUserAccount?: (id: string) => void;
 }
 
 export default function AdminDashboard({
@@ -186,12 +190,15 @@ export default function AdminDashboard({
   onSyncDrafts = async () => {},
   isDarkMode = true,
   loggedInUserId = "admin",
+  userAccounts = [],
+  onAddUserAccount = () => {},
+  onDeleteUserAccount = () => {},
 }: AdminDashboardProps) {
   const isAdmin = loggedInUserId === "admin" || !loggedInUserId;
   // Sidebar tab management
-  // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun
+  // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun, 'kelola_akun' = Kelola Akun
   const [activeSubTab, setActiveSubTab] = useState<
-    "ringkasan" | "pegawai" | "laporan" | "kehadiran" | "pengaturan"
+    "ringkasan" | "pegawai" | "laporan" | "kehadiran" | "pengaturan" | "kelola_akun"
   >("ringkasan");
   const [searchQuery, setSearchQuery] = useState("");
   const [reportSubTab, setReportSubTab] = useState<
@@ -2098,6 +2105,30 @@ export default function AdminDashboard({
               />
               {isSidebarOpen && <span>Pengaturan Akun</span>}
             </button>
+            {loggedInUserId === "admin" && (
+              <button
+                id="sidebar_btn_kelola_akun"
+                onClick={() => {
+                  setActiveSubTab("kelola_akun");
+                  setSearchQuery("");
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer active:scale-95 ${
+                  activeSubTab === "kelola_akun"
+                    ? "bg-[#1e293b] text-[#38bdf8] border-l-4 border-sky-500 shadow-inner"
+                    : "text-slate-400 hover:bg-[#151f32] hover:text-slate-100"
+                }`}
+              >
+                <UserPlus
+                  size={15}
+                  className={
+                    activeSubTab === "kelola_akun"
+                      ? "text-sky-400"
+                      : "text-slate-400"
+                  }
+                />
+                {isSidebarOpen && <span>Kelola Akun User</span>}
+              </button>
+            )}
             <button
               id="sidebar_btn_logout"
               onClick={
@@ -5528,6 +5559,201 @@ export default function AdminDashboard({
                         </button>
                       </div>
                     </form>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeSubTab === "kelola_akun" && loggedInUserId === "admin" && (
+              <motion.div
+                key="tab_prisma_kelola_akun"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6 text-left font-sans"
+              >
+                <div className="pb-2 border-b border-slate-300 flex items-center justify-between">
+                  <div>
+                    <h1 className="text-xl md:text-2xl font-black text-slate-900 font-sans">
+                      Kelola Akun Pengguna CS Online
+                    </h1>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Tambahkan dan kelola hak akses log masuk (ID User & Password) untuk petugas lapangan/pengguna tambahan.
+                    </p>
+                  </div>
+                  <div className="bg-sky-500/10 text-sky-600 border border-sky-500/20 px-3 py-1 rounded-xl text-xs font-bold font-mono">
+                    Akun: {userAccounts.length + 2} Terdaftar
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  {/* Left Column: Form Tambah Akun Baru */}
+                  <div className="lg:col-span-4 bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                      <UserPlus size={14} className="text-indigo-600" />
+                      Tambah Akun Baru
+                    </h3>
+
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const target = e.currentTarget;
+                        const fd = new FormData(target);
+                        const userIdVal = (fd.get("new_user_id") as string || "").trim();
+                        const passwordVal = (fd.get("new_password") as string || "").trim();
+
+                        if (!userIdVal || !passwordVal) {
+                          onShowAlert("Error", "ID User dan Password harus diisi!", "alert");
+                          return;
+                        }
+
+                        // Prevent duplicate usernames
+                        if (userIdVal.toLowerCase() === "admin" || userIdVal === "9826003HPI") {
+                          onShowAlert("Gagal", "ID User ini adalah akun default sistem!", "alert");
+                          return;
+                        }
+
+                        if (userAccounts.some(acc => acc.userId.toLowerCase() === userIdVal.toLowerCase())) {
+                          onShowAlert("Gagal", "ID User telah terdaftar sebelumnya!", "alert");
+                          return;
+                        }
+
+                        const newAccId = `acc_${Date.now()}`;
+                        onAddUserAccount({
+                          id: newAccId,
+                          userId: userIdVal,
+                          password: passwordVal,
+                          createdAt: new Date().toLocaleDateString("id-ID")
+                        });
+
+                        onShowAlert(
+                          "Sukses",
+                          `Akun untuk ID User "${userIdVal}" berhasil dibuat secara permanen.`,
+                          "success"
+                        );
+                        target.reset();
+                      }}
+                      className="space-y-4 text-xs"
+                    >
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
+                          ID User / Username
+                        </label>
+                        <input
+                          name="new_user_id"
+                          type="text"
+                          required
+                          placeholder="Masukkan ID User (ex: NIP pegawai)"
+                          className="w-full bg-slate-50 border border-slate-350 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
+                          Kata Sandi (Password)
+                        </label>
+                        <input
+                          name="new_password"
+                          type="password"
+                          required
+                          placeholder="Masukkan Password"
+                          className="w-full bg-slate-50 border border-slate-350 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs text-center"
+                      >
+                        <Plus size={14} />
+                        Simpan Akun Pengguna
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Right Column: List of accounts */}
+                  <div className="lg:col-span-8 bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                      <Users size={14} className="text-indigo-600" />
+                      Daftar Akun Terdaftar
+                    </h3>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left border-collapse text-slate-600">
+                        <thead>
+                          <tr className="border-b border-slate-100 bg-slate-50 text-slate-500 font-bold uppercase text-[9px] tracking-wider">
+                            <th className="p-3">ID User</th>
+                            <th className="p-3">Password</th>
+                            <th className="p-3">Tanggal Dibuat</th>
+                            <th className="p-3">Tipe Sesi</th>
+                            <th className="p-3 text-center w-24">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {/* Default admin account row */}
+                          <tr className="hover:bg-slate-50/50">
+                            <td className="p-3 font-semibold text-slate-900">admin</td>
+                            <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">****** (Admin Profile)</td>
+                            <td className="p-3 text-slate-400">Default</td>
+                            <td className="p-3">
+                              <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase">
+                                Administrator
+                              </span>
+                            </td>
+                            <td className="p-3 text-center text-slate-400 italic text-[10px]">System Lock</td>
+                          </tr>
+
+                          {/* Default 9826003HPI account row */}
+                          <tr className="hover:bg-slate-50/50">
+                            <td className="p-3 font-semibold text-slate-900">9826003HPI</td>
+                            <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">****** (Kunci Pengaturan)</td>
+                            <td className="p-3 text-slate-400">Default</td>
+                            <td className="p-3">
+                              <span className="bg-sky-50 text-sky-700 border border-sky-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase">
+                                Petugas Utama
+                              </span>
+                            </td>
+                            <td className="p-3 text-center text-slate-400 italic text-[10px]">System Lock</td>
+                          </tr>
+
+                          {/* Dynamic user accounts */}
+                          {userAccounts.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="p-8 text-center text-slate-400 font-semibold italic">
+                                Belum ada akun tambahan yang ditambahkan. Silakan gunakan panel di sebelah kiri untuk menambah akun.
+                              </td>
+                            </tr>
+                          ) : (
+                            userAccounts.map((acc) => (
+                              <tr key={acc.id} className="hover:bg-slate-50/50">
+                                <td className="p-3 font-semibold text-slate-900">{acc.userId}</td>
+                                <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">{acc.password}</td>
+                                <td className="p-3 text-slate-500">{acc.createdAt}</td>
+                                <td className="p-3">
+                                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase">
+                                    Operator Lapangan
+                                  </span>
+                                </td>
+                                <td className="p-3 text-center">
+                                  <button
+                                    onClick={() => {
+                                      if (confirm(`Apakah Anda yakin ingin menghapus akun "${acc.userId}"? Pengguna tidak akan bisa log masuk lagi.`)) {
+                                        onDeleteUserAccount(acc.id);
+                                        onShowAlert("Sukses", `User ID "${acc.userId}" berhasil dihapus secara permanen.`, "success");
+                                      }
+                                    }}
+                                    className="mx-auto flex items-center justify-center p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition active:scale-95 cursor-pointer border-none"
+                                    title="Hapus Akun Pengguna"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </motion.div>

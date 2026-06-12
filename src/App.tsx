@@ -9,7 +9,7 @@ import {
   LogOut, Lock, User, ShieldAlert, Sun, Moon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Employee, Report, Attendance, SystemNotification } from './types';
+import { Employee, Report, Attendance, SystemNotification, UserAccount } from './types';
 import { INITIAL_EMPLOYEES, INITIAL_ATTENDANCE, INITIAL_REPORTS } from './data';
 import AdminDashboard from './components/AdminDashboard';
 import { 
@@ -95,6 +95,17 @@ export default function App() {
       } catch (e) {}
     }
     return defaultReportsList;
+  });
+
+  const [userAccounts, setUserAccounts] = useState<UserAccount[]>(() => {
+    const saved = localStorage.getItem('db_user_accounts');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
   });
 
   const [dbError, setDbError] = useState<string | null>(null);
@@ -201,10 +212,27 @@ export default function App() {
       setDbError(error.message);
     });
 
+    // 4. Listen to user accounts collection
+    const unsubUserAccounts = onSnapshot(collection(db, 'hpi_user_accounts'), (snapshot) => {
+      const docsList: UserAccount[] = [];
+      snapshot.forEach((docVal) => {
+        const d = docVal.data() as UserAccount;
+        if (d && d.id) {
+          docsList.push(d);
+        }
+      });
+      docsList.sort((a, b) => a.userId.localeCompare(b.userId));
+      setUserAccounts(docsList);
+      localStorage.setItem('db_user_accounts', JSON.stringify(docsList));
+    }, (error) => {
+      console.error("Firestore onSnapshot 'hpi_user_accounts' error:", error);
+    });
+
     return () => {
       unsubReports();
       unsubEmployees();
       unsubAttendance();
+      unsubUserAccounts();
     };
   }, []);
   
@@ -297,8 +325,24 @@ export default function App() {
         handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
       }
     } else {
-      setLoginError('ID User atau Password salah!');
-      handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
+      // Check dynamic user accounts
+      const matchedAccount = userAccounts.find(acc => acc.userId === cleanUserId);
+      if (matchedAccount) {
+        if (matchedAccount.password === password) {
+          setIsLoggedIn(true);
+          setLoggedInUserId(matchedAccount.userId);
+          sessionStorage.setItem('step_is_logged_in', 'true');
+          sessionStorage.setItem('step_logged_in_user_id', matchedAccount.userId);
+          setLoginError('');
+          handleShowAlert('Login Berhasil', `Selamat datang kembali, ${matchedAccount.userId}.`, 'success');
+        } else {
+          setLoginError('ID User atau Password salah!');
+          handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
+        }
+      } else {
+        setLoginError('ID User atau Password salah!');
+        handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
+      }
     }
   };
 
@@ -465,6 +509,34 @@ export default function App() {
         'Gagal mengunggah draft. Silakan periksa koneksi internet Anda atau atur hak akses Firestore.', 
         'alert'
       );
+    }
+  };
+
+  const handleAddUserAccount = async (newAcc: UserAccount) => {
+    setUserAccounts(prev => {
+      const updated = [...prev.filter(a => a.id !== newAcc.id), newAcc];
+      localStorage.setItem('db_user_accounts', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      await setDoc(doc(db, 'hpi_user_accounts', newAcc.id), newAcc);
+    } catch (e: any) {
+      console.warn("Firestore save user account failed, stored locally:", e);
+    }
+  };
+
+  const handleDeleteUserAccount = async (id: string) => {
+    setUserAccounts(prev => {
+      const updated = prev.filter(a => a.id !== id);
+      localStorage.setItem('db_user_accounts', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      await deleteDoc(doc(db, 'hpi_user_accounts', id));
+    } catch (e: any) {
+      console.warn("Firestore delete user account failed, stored locally:", e);
     }
   };
 
@@ -813,6 +885,9 @@ service cloud.firestore {
             onSyncDrafts={handleSyncDrafts}
             isDarkMode={isDarkMode}
             loggedInUserId={loggedInUserId}
+            userAccounts={userAccounts}
+            onAddUserAccount={handleAddUserAccount}
+            onDeleteUserAccount={handleDeleteUserAccount}
           />
         </div>
       </main>
