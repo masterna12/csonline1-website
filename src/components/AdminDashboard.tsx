@@ -1074,25 +1074,103 @@ export default function AdminDashboard({
     }
   };
 
+  const compressAndGetBase64 = (file: File, callback: (base64: string) => void) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        // Limit maximum dimensions to 1024px to fit perfectly into database/localStorage limits
+        const MAX_DIMENSION = 1024;
+        if (width > height) {
+          if (width > MAX_DIMENSION) {
+            height = Math.round((height * MAX_DIMENSION) / width);
+            width = MAX_DIMENSION;
+          }
+        } else {
+          if (height > MAX_DIMENSION) {
+            width = Math.round((width * MAX_DIMENSION) / height);
+            height = MAX_DIMENSION;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          // Compress base64 as JPEG with 0.70 quality to ensure it fits comfortably under database limits
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.70);
+          callback(compressedDataUrl);
+        } else {
+          callback(event.target?.result as string || "");
+        }
+      };
+      img.onerror = () => {
+        callback(event.target?.result as string || "");
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleIndoorFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAddRepIndoor(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      if (file.size > 10 * 1024 * 1024) {
+        onShowAlert(
+          "Berkas Terlalu Besar",
+          `Batas maksimal ukuran file foto adalah 10 MB. File Anda berukuran ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
+          "alert"
+        );
+        e.target.value = "";
+        return;
+      }
+      onShowAlert(
+        "Memproses Foto",
+        "Foto sedang dikompres secara otomatis agar pas untuk database...",
+        "success"
+      );
+      compressAndGetBase64(file, (base64) => {
+        setAddRepIndoor(base64);
+        onShowAlert(
+          "Foto Berhasil Diproses",
+          "Foto berhasil diringkas dan diperkecil ukurannya dengan aman.",
+          "success"
+        );
+      });
     }
   };
 
   const handleOutdoorFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAddRepOutdoor(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      if (file.size > 10 * 1024 * 1024) {
+        onShowAlert(
+          "Berkas Terlalu Besar",
+          `Batas maksimal ukuran file foto adalah 10 MB. File Anda berukuran ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
+          "alert"
+        );
+        e.target.value = "";
+        return;
+      }
+      onShowAlert(
+        "Memproses Foto",
+        "Foto sedang dikompres secara otomatis agar pas untuk database...",
+        "success"
+      );
+      compressAndGetBase64(file, (base64) => {
+        setAddRepOutdoor(base64);
+        onShowAlert(
+          "Foto Berhasil Diproses",
+          "Foto berhasil diringkas dan diperkecil ukurannya dengan aman.",
+          "success"
+        );
+      });
     }
   };
 
@@ -1154,7 +1232,7 @@ export default function AdminDashboard({
       description: finalDesc,
       status: "Disetujui", // Admin generated reports are directly set as approved
       photoIndoor: addRepIndoor,
-      photoOutdoor: addRepIndoor,
+      photoOutdoor: addRepOutdoor || addRepIndoor,
       location: {
         name: addRepLocName,
         coordinates: addRepCoord,
@@ -1255,7 +1333,7 @@ export default function AdminDashboard({
       description: finalDesc,
       status: "Pending",
       photoIndoor: addRepIndoor,
-      photoOutdoor: addRepIndoor,
+      photoOutdoor: addRepOutdoor || addRepIndoor,
       location: {
         name: addRepLocName,
         coordinates: addRepCoord,
@@ -6216,9 +6294,14 @@ export default function AdminDashboard({
                 {/* Photo Upload Fields (Choose File & Camera) */}
                 <div className="bg-[#f8fafc] p-4 rounded-xl border border-slate-200">
                   <div className="space-y-1.5 text-left">
-                    <span className="text-[10px] font-black text-slate-600 block pl-0.5 uppercase tracking-wider">
-                      ● FOTO SEBELUM & SESUDAH *
-                    </span>
+                    <div className="flex justify-between items-center pl-0.5 mb-1">
+                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
+                        ● FOTO SEBELUM & SESUDAH *
+                      </span>
+                      <span className="text-[8.5px] font-black text-[#0284c7] bg-sky-50 px-1.5 py-0.5 rounded border border-sky-150">
+                        MAKS 10 MB
+                      </span>
+                    </div>
                     <div className="flex flex-col gap-2 p-2 bg-white rounded-xl border border-dashed border-slate-300 items-center justify-center">
                       <div className="relative w-24 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center">
                         {addRepIndoor ? (
@@ -7459,7 +7542,10 @@ export default function AdminDashboard({
                     {/* FOTO SEBELUM & SESUDAH */}
                     <div className="space-y-1.5 flex flex-col justify-between">
                       <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">FOTO SEBELUM &amp; SESUDAH</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">FOTO SEBELUM &amp; SESUDAH</span>
+                          <span className="text-[8px] font-black text-[#0284c7] bg-sky-50 px-1.5 py-0.5 rounded border border-sky-120 uppercase">Maks 10 MB</span>
+                        </div>
                         {editingReport.photoIndoor && (
                           <button
                             type="button"
@@ -7492,15 +7578,32 @@ export default function AdminDashboard({
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => {
+                              if (file.size > 10 * 1024 * 1024) {
+                                onShowAlert(
+                                  "Berkas Terlalu Besar",
+                                  `Batas maksimal ukuran file foto adalah 10 MB. File Anda berukuran ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
+                                  "alert"
+                                );
+                                e.target.value = "";
+                                return;
+                              }
+                              onShowAlert(
+                                "Memproses Foto",
+                                "Foto sedang dikompres secara otomatis agar pas untuk database...",
+                                "success"
+                              );
+                              compressAndGetBase64(file, (base64) => {
                                 setEditingReport({
                                   ...editingReport,
-                                  photoIndoor: reader.result as string,
-                                  photoOutdoor: reader.result as string,
+                                  photoIndoor: base64,
+                                  photoOutdoor: base64,
                                 });
-                              };
-                              reader.readAsDataURL(file);
+                                onShowAlert(
+                                  "Foto Berhasil Diproses",
+                                  "Foto berhasil diringkas dan diperkecil ukurannya dengan aman.",
+                                  "success"
+                                );
+                              });
                             }
                           }}
                           className="hidden"
