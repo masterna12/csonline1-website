@@ -63,6 +63,8 @@ import {
 } from "../lib/sheetsService";
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
+// @ts-ignore
+import hpiLogo from "../assets/images/hpi_cs_logo_1781488342776.jpg";
 
 const LeafletMap = ({ coordinates, name }: { coordinates: string; name: string }) => {
   const mapRef = React.useRef<HTMLDivElement>(null);
@@ -1913,15 +1915,20 @@ export default function AdminDashboard({
         className={`${isSidebarOpen ? "w-full md:w-64" : "w-0 md:w-16"} shrink-0 bg-[#0e1623] text-slate-300 transition-all duration-350 ease-in-out flex flex-col border-r border-[#1e293b] select-none overflow-hidden`}
       >
         {/* Sidebar Brand Header */}
-        <div className="p-4 bg-[#090d16] border-b border-[#1e2a3f] flex items-center gap-3">
-          <div className="bg-[#1d4ed8] p-2 rounded-xl text-white font-extrabold flex items-center justify-center border border-sky-400/20 shadow-md">
-            <Shield size={18} className="text-yellow-400 fill-yellow-400" />
+        <div className="p-3 bg-[#090d16] border-b border-[#1e2a3f] flex items-center gap-3">
+          <div className={`${isSidebarOpen ? "w-14 h-14" : "w-10 h-10"} bg-white p-1 rounded-xl flex items-center justify-center border border-indigo-500/20 shadow-sm shrink-0 transition-all duration-300`}>
+            <img 
+              src={hpiLogo} 
+              alt="HPI Logo" 
+              className="w-full h-full object-contain rounded-lg" 
+              referrerPolicy="no-referrer"
+            />
           </div>
           <div className={isSidebarOpen ? "block" : "hidden md:hidden"}>
-            <h2 className="font-sans font-black text-white tracking-widest text-base leading-none">
+            <h2 className="font-sans font-black text-white tracking-widest text-sm leading-none">
               CS online
             </h2>
-            <p className="text-[8px] font-sans font-bold text-slate-400 tracking-tighter mt-1">
+            <p className="text-[7.5px] font-sans font-bold text-slate-400 tracking-tighter mt-1">
               PT. HALEYORA POWERINDO BANGKA BELITUNG
             </p>
           </div>

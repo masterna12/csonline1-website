@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 // @ts-ignore
-import hpiLogo from './assets/images/hpi_cs_logo_1781079989032.png';
+import hpiLogo from './assets/images/hpi_cs_logo_1781488342776.jpg';
 
 export default function App() {
   // Authentication States
@@ -650,16 +650,16 @@ export default function App() {
           className="w-full max-w-md bg-[#0e1623]/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 shadow-2xl z-10 relative overflow-hidden"
         >
           {/* Logo Brand area */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center mb-4 active:scale-95 transition-transform">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center mb-4 active:scale-95 transition-transform bg-white p-3 rounded-2xl border border-slate-700/50 shadow-xl max-w-[200px] mx-auto">
               <img 
                 src={hpiLogo} 
                 alt="HPI CS Online Logo" 
-                className="w-24 h-24 rounded-full object-cover border-2 border-indigo-500/30 p-1 bg-[#0e1623]/85 shadow-xl" 
+                className="w-full h-auto object-contain rounded-lg" 
                 referrerPolicy="no-referrer"
               />
             </div>
-            <h1 className="text-2xl font-black text-white tracking-widest uppercase">CS online</h1>
+            <h1 className="text-2xl font-black text-white tracking-widest uppercase mt-2">CS online</h1>
             <p className="text-[10px] text-slate-400 font-bold tracking-tighter mt-1">PT. HALEYORA POWERINDO BANGKA BELITUNG</p>
           </div>
 
