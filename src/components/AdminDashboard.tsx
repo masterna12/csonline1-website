@@ -462,12 +462,8 @@ export default function AdminDashboard({
   >("Operasional");
   const [addRepTitle, setAddRepTitle] = useState("");
   const [addRepDesc, setAddRepDesc] = useState("");
-  const [addRepIndoor, setAddRepIndoor] = useState(
-    "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300",
-  );
-  const [addRepOutdoor, setAddRepOutdoor] = useState(
-    "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300",
-  );
+  const [addRepIndoor, setAddRepIndoor] = useState("");
+  const [addRepOutdoor, setAddRepOutdoor] = useState("");
   const [addRepLocName, setAddRepLocName] = useState("Sektor Bangka Belitung");
   const [addRepCoord, setAddRepCoord] = useState("-2.1299, 106.1138");
   const [isFetchingGPS, setIsFetchingGPS] = useState(false);
@@ -1161,12 +1157,8 @@ export default function AdminDashboard({
     setAddRepDept("");
     setAddRepTitle("");
     setAddRepDesc("");
-    setAddRepIndoor(
-      "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300",
-    );
-    setAddRepOutdoor(
-      "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300",
-    );
+    setAddRepIndoor("");
+    setAddRepOutdoor("");
     setAddRepLocName("Sektor Bangka Belitung");
     setAddRepCoord("-2.1299, 106.1138");
     setIsAddReportModalOpen(false);
@@ -1248,12 +1240,8 @@ export default function AdminDashboard({
     setAddRepDept("");
     setAddRepTitle("");
     setAddRepDesc("");
-    setAddRepIndoor(
-      "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=300",
-    );
-    setAddRepOutdoor(
-      "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=300",
-    );
+    setAddRepIndoor("");
+    setAddRepOutdoor("");
     setAddRepLocName("Sektor Bangka Belitung");
     setAddRepCoord("-2.1299, 106.1138");
     setIsAddReportModalOpen(false);
@@ -6189,8 +6177,8 @@ export default function AdminDashboard({
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <span className="text-[9px] text-slate-400">
-                            Belum ada foto
+                          <span className="text-[9px] text-slate-400 font-bold bg-slate-100/50 px-2 py-1.5 rounded-md border border-slate-200/40">
+                            Belum Ada Foto
                           </span>
                         )}
                       </div>
