@@ -64,7 +64,7 @@ import {
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 // @ts-ignore
-import hpiLogo from "../assets/images/hpi_cs_logo_1781488342776.jpg";
+import hpiLogo from "../assets/images/hpi_cs_logo_dark_1781488961865.jpg";
 
 const LeafletMap = ({ coordinates, name }: { coordinates: string; name: string }) => {
   const mapRef = React.useRef<HTMLDivElement>(null);
@@ -1916,7 +1916,7 @@ export default function AdminDashboard({
       >
         {/* Sidebar Brand Header */}
         <div className="p-3 bg-[#090d16] border-b border-[#1e2a3f] flex items-center gap-3">
-          <div className={`${isSidebarOpen ? "w-14 h-14" : "w-10 h-10"} bg-white p-1 rounded-xl flex items-center justify-center border border-indigo-500/20 shadow-sm shrink-0 transition-all duration-300`}>
+          <div className={`${isSidebarOpen ? "w-14 h-14" : "w-10 h-10"} p-1 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300`}>
             <img 
               src={hpiLogo} 
               alt="HPI Logo" 

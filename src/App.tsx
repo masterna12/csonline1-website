@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 // @ts-ignore
-import hpiLogo from './assets/images/hpi_cs_logo_1781488342776.jpg';
+import hpiLogo from './assets/images/hpi_cs_logo_dark_1781488961865.jpg';
 
 export default function App() {
   // Authentication States
@@ -651,7 +651,7 @@ export default function App() {
         >
           {/* Logo Brand area */}
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center mb-4 active:scale-95 transition-transform bg-white p-3 rounded-2xl border border-slate-700/50 shadow-xl max-w-[200px] mx-auto">
+            <div className="inline-flex items-center justify-center mb-4 active:scale-95 transition-transform max-w-[200px] mx-auto">
               <img 
                 src={hpiLogo} 
                 alt="HPI CS Online Logo" 
