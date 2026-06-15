@@ -6,7 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, CheckCircle2, Bell, X, Compass, Info,
-  LogOut, Lock, User, ShieldAlert, Sun, Moon
+  LogOut, Lock, User, ShieldAlert, Sun, Moon,
+  ExternalLink, Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, Report, Attendance, SystemNotification, UserAccount } from './types';
@@ -22,10 +23,10 @@ import hpiLogo from './assets/images/hpi_cs_logo_dark_1781488961865.jpg';
 export default function App() {
   // Authentication States
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return sessionStorage.getItem('step_is_logged_in') === 'true';
+    return sessionStorage.getItem('step_is_logged_in') === 'true' || localStorage.getItem('step_is_logged_in') === 'true';
   });
   const [loggedInUserId, setLoggedInUserId] = useState<string>(() => {
-    return sessionStorage.getItem('step_logged_in_user_id') || '';
+    return sessionStorage.getItem('step_logged_in_user_id') || localStorage.getItem('step_logged_in_user_id') || '';
   });
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
@@ -309,6 +310,8 @@ export default function App() {
       setLoggedInUserId('admin');
       sessionStorage.setItem('step_is_logged_in', 'true');
       sessionStorage.setItem('step_logged_in_user_id', 'admin');
+      localStorage.setItem('step_is_logged_in', 'true');
+      localStorage.setItem('step_logged_in_user_id', 'admin');
       setLoginError('');
       handleShowAlert('Login Berhasil', `Selamat datang kembali, ${adminName}.`, 'success');
     } else if (cleanUserId === '9826003HPI') {
@@ -318,6 +321,8 @@ export default function App() {
         setLoggedInUserId('9826003HPI');
         sessionStorage.setItem('step_is_logged_in', 'true');
         sessionStorage.setItem('step_logged_in_user_id', '9826003HPI');
+        localStorage.setItem('step_is_logged_in', 'true');
+        localStorage.setItem('step_logged_in_user_id', '9826003HPI');
         setLoginError('');
         handleShowAlert('Login Berhasil', 'Selamat datang. Anda masuk sebagai petugas lapangan.', 'success');
       } else {
@@ -333,6 +338,8 @@ export default function App() {
           setLoggedInUserId(matchedAccount.userId);
           sessionStorage.setItem('step_is_logged_in', 'true');
           sessionStorage.setItem('step_logged_in_user_id', matchedAccount.userId);
+          localStorage.setItem('step_is_logged_in', 'true');
+          localStorage.setItem('step_logged_in_user_id', matchedAccount.userId);
           setLoginError('');
           handleShowAlert('Login Berhasil', `Selamat datang kembali, ${matchedAccount.userId}.`, 'success');
         } else {
@@ -351,6 +358,8 @@ export default function App() {
     setLoggedInUserId('');
     sessionStorage.removeItem('step_is_logged_in');
     sessionStorage.removeItem('step_logged_in_user_id');
+    localStorage.removeItem('step_is_logged_in');
+    localStorage.removeItem('step_logged_in_user_id');
     setUserId('');
     setPassword('');
     handleShowAlert('Logout Berhasil', 'Sesi administrasi telah diakhiri dengan aman.', 'success');
@@ -720,6 +729,7 @@ export default function App() {
             </button>
           </form>
         </motion.div>
+
 
         {/* Floating absolute alert toast */}
         <AnimatePresence>

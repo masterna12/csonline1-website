@@ -202,6 +202,28 @@ export default function AdminDashboard({
   const [activeSubTab, setActiveSubTab] = useState<
     "ringkasan" | "pegawai" | "laporan" | "kehadiran" | "pengaturan" | "kelola_akun"
   >("ringkasan");
+
+  // Listen to hash change to support standard browser links/tabs natively
+  React.useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace("#", "");
+      const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun"];
+      if (validTabs.includes(hash)) {
+        setActiveSubTab(hash as any);
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  // Sync hash with active tab state
+  React.useEffect(() => {
+    if (activeSubTab) {
+      window.location.hash = activeSubTab;
+    }
+  }, [activeSubTab]);
   const [searchQuery, setSearchQuery] = useState("");
   const [reportSubTab, setReportSubTab] = useState<
     "semua" | "draft" | "rekap_kinerja"
@@ -1943,9 +1965,11 @@ export default function AdminDashboard({
             >
               Menu Utama
             </span>
-            <button
+            <a
               id="sidebar_btn_dashboard"
-              onClick={() => {
+              href="#ringkasan"
+              onClick={(e) => {
+                e.preventDefault();
                 setActiveSubTab("ringkasan");
                 setSearchQuery("");
               }}
@@ -1964,11 +1988,13 @@ export default function AdminDashboard({
                 }
               />
               {isSidebarOpen && <span>Dashboard</span>}
-            </button>
+            </a>
 
-            <button
+            <a
               id="sidebar_btn_pegawai"
-              onClick={() => {
+              href="#pegawai"
+              onClick={(e) => {
+                e.preventDefault();
                 setActiveSubTab("pegawai");
                 setSearchQuery("");
               }}
@@ -1992,7 +2018,7 @@ export default function AdminDashboard({
                   </span>
                 </div>
               )}
-            </button>
+            </a>
           </div>
 
           {/* Section: Pelaporan */}
@@ -2002,9 +2028,11 @@ export default function AdminDashboard({
             >
               Data Pelaporan
             </span>
-            <button
+            <a
               id="sidebar_btn_laporan_primary"
-              onClick={() => {
+              href="#laporan"
+              onClick={(e) => {
+                e.preventDefault();
                 setActiveSubTab("laporan");
                 setSearchQuery("");
               }}
@@ -2032,7 +2060,7 @@ export default function AdminDashboard({
                   )}
                 </div>
               )}
-            </button>
+            </a>
           </div>
 
           {/* Section: Master & Sistem */}
@@ -2042,9 +2070,11 @@ export default function AdminDashboard({
             >
               Sistem Master
             </span>
-            <button
+            <a
               id="sidebar_btn_master"
-              onClick={() => {
+              href="#kehadiran"
+              onClick={(e) => {
+                e.preventDefault();
                 setActiveSubTab("kehadiran");
                 setSearchQuery("");
               }}
@@ -2068,7 +2098,7 @@ export default function AdminDashboard({
                   <ChevronRight size={12} className="text-slate-500" />
                 </div>
               )}
-            </button>
+            </a>
           </div>
 
           {/* Section: Akun */}
@@ -2078,9 +2108,11 @@ export default function AdminDashboard({
             >
               Sesi Akun
             </span>
-            <button
+            <a
               id="sidebar_btn_pengaturan"
-              onClick={() => {
+              href="#pengaturan"
+              onClick={(e) => {
+                e.preventDefault();
                 setActiveSubTab("pengaturan");
                 setSearchQuery("");
               }}
@@ -2099,11 +2131,13 @@ export default function AdminDashboard({
                 }
               />
               {isSidebarOpen && <span>Pengaturan Akun</span>}
-            </button>
+            </a>
             {loggedInUserId === "admin" && (
-              <button
+              <a
                 id="sidebar_btn_kelola_akun"
-                onClick={() => {
+                href="#kelola_akun"
+                onClick={(e) => {
+                  e.preventDefault();
                   setActiveSubTab("kelola_akun");
                   setSearchQuery("");
                 }}
@@ -2122,24 +2156,28 @@ export default function AdminDashboard({
                   }
                 />
                 {isSidebarOpen && <span>Kelola Akun User</span>}
-              </button>
+              </a>
             )}
-            <button
+            <a
               id="sidebar_btn_logout"
-              onClick={
-                onLogout ||
-                (() =>
+              href="#logout"
+              onClick={(e) => {
+                e.preventDefault();
+                if (onLogout) {
+                  onLogout();
+                } else {
                   onShowAlert(
                     "Pemberitahuan",
                     "Sesi login administrator terenkripsi aman.",
-                    "alert",
-                  ))
-              }
+                    "alert"
+                  );
+                }
+              }}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-400 hover:bg-rose-950/20 hover:text-rose-300 transition-all text-left cursor-pointer active:scale-95"
             >
               <LogOut size={15} />
               {isSidebarOpen && <span>Logout</span>}
-            </button>
+            </a>
           </div>
         </div>
 
@@ -2168,7 +2206,7 @@ export default function AdminDashboard({
             </button>
 
             {/* PRISMA Global Indicator */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 pl-3 ml-1 border-l border-slate-800/80">
               <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>
               <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-extrabold hidden sm:inline">
                 ● Posko Bangka Belitung Online
