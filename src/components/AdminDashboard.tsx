@@ -201,7 +201,14 @@ export default function AdminDashboard({
   // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun, 'kelola_akun' = Kelola Akun
   const [activeSubTab, setActiveSubTab] = useState<
     "ringkasan" | "pegawai" | "laporan" | "kehadiran" | "pengaturan" | "kelola_akun"
-  >("ringkasan");
+  >(() => {
+    const hash = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
+    const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun"];
+    if (validTabs.includes(hash)) {
+      return hash as any;
+    }
+    return "ringkasan";
+  });
 
   // Listen to hash change to support standard browser links/tabs natively
   React.useEffect(() => {
