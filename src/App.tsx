@@ -14,7 +14,7 @@ import { Employee, Report, Attendance, SystemNotification, UserAccount } from '.
 import { INITIAL_EMPLOYEES, INITIAL_ATTENDANCE, INITIAL_REPORTS } from './data';
 import AdminDashboard from './components/AdminDashboard';
 import { 
-  collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot 
+  collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 // @ts-ignore
@@ -22,6 +22,24 @@ import hpiLogo from './assets/images/hpi_cs_logo_dark_1781488961865.jpg';
 
 export function safeSaveToLocalStorage(key: string, data: any) {
   try {
+    // Proactively trim massive Base64 images to prevent localStorage QuotaExceededError entirely
+    if ((key === 'db_reports' || key === 'db_attendance') && Array.isArray(data)) {
+      const trimmed = data.map((item: any) => {
+        if (item) {
+          return {
+            ...item,
+            photoIndoor: item.photoIndoor && item.photoIndoor.length > 500 ? "data:image/jpeg;base64,placeholder_trimmed" : (item.photoIndoor || ""),
+            photoOutdoor: item.photoOutdoor && item.photoOutdoor.length > 500 ? "data:image/jpeg;base64,placeholder_trimmed" : (item.photoOutdoor || ""),
+            photo: item.photo && item.photo.length > 500 ? "data:image/jpeg;base64,placeholder_trimmed" : (item.photo || ""),
+            imagePath: item.imagePath && item.imagePath.length > 500 ? "data:image/jpeg;base64,placeholder_trimmed" : (item.imagePath || "")
+          };
+        }
+        return item;
+      });
+      localStorage.setItem(key, JSON.stringify(trimmed));
+      return;
+    }
+
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e: any) {
     if (
@@ -757,17 +775,44 @@ export default function App() {
   };
 
   const handleUpdateReport = async (updatedReport: Report) => {
-    // 1. Save locally first (instant UI update)
+    let targetReport = { ...updatedReport };
+    
+    // 1. Recover primary photo data from Firestore if the client holds trimmed placeholders
+    try {
+      const reportRef = doc(db, 'dashboard', updatedReport.id);
+      const snap = await getDoc(reportRef);
+      if (snap.exists()) {
+        const currentData = snap.data() as any;
+        if (currentData) {
+          if (targetReport.photoIndoor && targetReport.photoIndoor.includes("placeholder_trimmed")) {
+            targetReport.photoIndoor = currentData.photoIndoor || currentData.photo || currentData.imagePath || "";
+          }
+          if (targetReport.photoOutdoor && targetReport.photoOutdoor.includes("placeholder_trimmed")) {
+            targetReport.photoOutdoor = currentData.photoOutdoor || currentData.photo || currentData.imagePath || "";
+          }
+          if ((targetReport as any).photo && (targetReport as any).photo.includes("placeholder_trimmed")) {
+            (targetReport as any).photo = currentData.photo || "";
+          }
+          if (targetReport.imagePath && targetReport.imagePath.includes("placeholder_trimmed")) {
+            targetReport.imagePath = currentData.imagePath || "";
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to retrieve existing photo during report update:", e);
+    }
+
+    // 2. Save locally first (instant UI update)
     setReports(prev => {
-      const updated = prev.map(r => r.id === updatedReport.id ? updatedReport : r);
+      const updated = prev.map(r => r.id === targetReport.id ? targetReport : r);
       safeSaveToLocalStorage('db_reports', updated);
       return updated;
     });
 
-    // 2. Sync with Firestore in background
+    // 3. Sync with Firestore in background
     try {
-      const reportRef = doc(db, 'dashboard', updatedReport.id);
-      await updateDoc(reportRef, updatedReport as any);
+      const reportRef = doc(db, 'dashboard', targetReport.id);
+      await updateDoc(reportRef, targetReport as any);
     } catch (error: any) {
       console.warn("Firestore update report failed, stored locally instead:", error);
     }

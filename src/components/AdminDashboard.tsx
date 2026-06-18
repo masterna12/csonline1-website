@@ -62,7 +62,7 @@ import {
   writeReportsToSpreadsheet,
   parseSpreadsheetToReports,
 } from "../lib/sheetsService";
-import { collection, doc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 // @ts-ignore
 import hpiLogo from "../assets/images/hpi_cs_logo_dark_1781488961865.jpg";
@@ -673,6 +673,82 @@ export default function AdminDashboard({
   const [editingReport, setEditingReport] = useState<Report | null>(null);
   const [clickedStatType, setClickedStatType] = useState<'total' | 'sudah' | 'belum' | 'lokasi_ada_pegawai' | 'lokasi_tanpa_pegawai' | 'pegawai_punya_lokasi' | 'pegawai_tanpa_lokasi' | null>(null);
   const [statModalSearch, setStatModalSearch] = useState("");
+
+  // Self-healing for Photo Viewer: if opening a report and its photos are trimmed, fetch live photos from Firestore
+  React.useEffect(() => {
+    if (!activePhotoModalRow) return;
+
+    const hasTrimmedPhotos = 
+      (activePhotoModalRow.photoIndoor && activePhotoModalRow.photoIndoor.includes("placeholder_trimmed")) ||
+      (activePhotoModalRow.photoOutdoor && activePhotoModalRow.photoOutdoor.includes("placeholder_trimmed")) ||
+      (activePhotoModalRow.photo && activePhotoModalRow.photo.includes("placeholder_trimmed")) ||
+      (activePhotoModalRow.imagePath && activePhotoModalRow.imagePath.includes("placeholder_trimmed"));
+
+    if (hasTrimmedPhotos) {
+      const fetchLivePhotos = async () => {
+        try {
+          const reportRef = doc(db, 'dashboard', activePhotoModalRow.id);
+          const snap = await getDoc(reportRef);
+          if (snap.exists()) {
+            const data = snap.data() as any;
+            if (data) {
+              setActivePhotoModalRow(prev => {
+                if (!prev || prev.id !== activePhotoModalRow.id) return prev;
+                return {
+                  ...prev,
+                  photoIndoor: data.photoIndoor || data.photo_indoor || data.photo || data.imagePath || "",
+                  photoOutdoor: data.photoOutdoor || data.photo_outdoor || data.photo || data.imagePath || "",
+                  photo: data.photo || "",
+                  imagePath: data.imagePath || ""
+                };
+              });
+            }
+          }
+        } catch (e) {
+          console.error("Gagal mengambil foto dari cloud:", e);
+        }
+      };
+      fetchLivePhotos();
+    }
+  }, [activePhotoModalRow]);
+
+  // Self-healing for Editing: if opening a report to edit and its photos are trimmed, fetch live photos from Firestore
+  React.useEffect(() => {
+    if (!editingReport) return;
+
+    const hasTrimmedPhotos = 
+      (editingReport.photoIndoor && editingReport.photoIndoor.includes("placeholder_trimmed")) ||
+      (editingReport.photoOutdoor && editingReport.photoOutdoor.includes("placeholder_trimmed")) ||
+      (editingReport.photo && editingReport.photo.includes("placeholder_trimmed")) ||
+      (editingReport.imagePath && editingReport.imagePath.includes("placeholder_trimmed"));
+
+    if (hasTrimmedPhotos) {
+      const restorePhotos = async () => {
+        try {
+          const reportRef = doc(db, 'dashboard', editingReport.id);
+          const snap = await getDoc(reportRef);
+          if (snap.exists()) {
+            const data = snap.data() as any;
+            if (data) {
+              setEditingReport(prev => {
+                if (!prev || prev.id !== editingReport.id) return prev;
+                return {
+                  ...prev,
+                  photoIndoor: data.photoIndoor || data.photo_indoor || data.photo || data.imagePath || "",
+                  photoOutdoor: data.photoOutdoor || data.photo_outdoor || data.photo || data.imagePath || "",
+                  photo: data.photo || "",
+                  imagePath: data.imagePath || ""
+                };
+              });
+            }
+          }
+        } catch (e) {
+          console.error("Gagal mengunduh foto asli untuk pengeditan laporan:", e);
+        }
+      };
+      restorePhotos();
+    }
+  }, [editingReport]);
 
   // Live Camera Capture States & Lifecycle Methods
   const [activeCameraStream, setActiveCameraStream] =
@@ -3860,84 +3936,85 @@ export default function AdminDashboard({
                                       );
                                     }
 
-                                    return (
-                                      <div className={`grid ${photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} gap-4 w-full`}>
-                                        {photos.map((item, idx) => {
-                                          const isTrimmed = item.url && item.url.includes("placeholder_trimmed");
+                                     return (
+                                       <div className={`grid ${photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} gap-4 w-full`}>
+                                         {photos.map((item, idx) => {
+                                           const isTrimmed = item.url && item.url.includes("placeholder_trimmed");
 
-                                          return (
-                                            <div key={idx} className="flex flex-col items-stretch space-y-2 bg-white border border-slate-200 p-2.5 rounded-2xl shadow-xs">
-                                              <span className="text-[10px] font-black tracking-wider uppercase text-slate-400 text-center block pt-1">
-                                                {item.label}
-                                              </span>
-                                              <div className="border border-slate-150 bg-slate-100 rounded-xl overflow-hidden relative flex items-center justify-center aspect-square shadow-inner">
-                                                {isTrimmed ? (
-                                                  <div className="flex flex-col items-center justify-center p-4 text-center space-y-2 h-full w-full">
-                                                    <div className="p-1 px-2.5 bg-amber-50 rounded-full text-amber-600 font-extrabold text-[9px] tracking-wide uppercase border border-amber-100">
-                                                      Cache Optimal
-                                                    </div>
-                                                    <span className="text-[10.5px] font-bold text-slate-500 leading-normal max-w-[150px]">
-                                                      Foto diringkas lokal untuk hemat RAM/browser. Silakan refresh untuk memuat ulang dari Cloud.
-                                                    </span>
-                                                  </div>
-                                                ) : (
-                                                  <img
-                                                    src={item.url}
-                                                    alt={item.label}
-                                                    className="w-full h-full object-cover rounded-xl"
-                                                    referrerPolicy="no-referrer"
-                                                  />
-                                                )}
-                                              </div>
+                                           return (
+                                             <div key={idx} className="flex flex-col items-stretch space-y-2 bg-white border border-slate-200 p-2.5 rounded-2xl shadow-xs">
+                                               <span className="text-[10px] font-black tracking-wider uppercase text-slate-400 text-center block pt-1">
+                                                 {item.label}
+                                               </span>
+                                               <div className="border border-slate-150 bg-slate-100 rounded-xl overflow-hidden relative flex items-center justify-center aspect-square shadow-inner py-6">
+                                                 {isTrimmed ? (
+                                                   <div className="flex flex-col items-center justify-center p-4 text-center space-y-2 h-full w-full">
+                                                     <div className="p-1 px-2.5 bg-amber-50 rounded-full text-amber-600 font-extrabold text-[9px] tracking-wide uppercase border border-amber-100 animate-pulse">
+                                                       Sinkronisasi Cloud...
+                                                     </div>
+                                                     <span className="text-[10.5px] font-bold text-slate-500 leading-normal max-w-[150px]">
+                                                       Foto diringkas lokal. Sedang mengunduh foto asli dari Cloud secara otomatis...
+                                                     </span>
+                                                   </div>
+                                                 ) : (
+                                                   <img
+                                                     src={item.url}
+                                                     alt={item.label}
+                                                     className="w-full h-full object-cover rounded-xl"
+                                                     referrerPolicy="no-referrer"
+                                                   />
+                                                 )}
+                                               </div>
 
-                                              {/* Per-photo download action button */}
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  if (isTrimmed) {
-                                                    onShowAlert("Cache Optimal", "Foto disinkronkan di Cloud. Hubungkan internet dan muat ulang halaman untuk mengunduh.", "alert");
-                                                  } else {
-                                                    handleDownloadImage(item.url, `HPI_${item.label.replace(/\s+/g, '_')}_${activePhotoModalRow.employeeName.replace(/\s+/g, '_')}_${activePhotoModalRow.date.replace(/[\s:]+/g, '_')}.jpg`);
-                                                  }
-                                                }}
-                                                className="mt-1 w-full bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-850 text-xs font-black py-2.5 px-3 rounded-xl transition duration-150 border-none cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
-                                              >
-                                                <Download size={11} />
-                                                <span>{isTrimmed ? "Optimal" : "Unduh Foto"}</span>
-                                              </button>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
+                                               {/* Per-photo download action button */}
+                                               <button
+                                                 type="button"
+                                                 disabled={isTrimmed}
+                                                 onClick={() => {
+                                                   handleDownloadImage(item.url, `HPI_${item.label.replace(/\s+/g, '_')}_${activePhotoModalRow.employeeName.replace(/\s+/g, '_')}_${activePhotoModalRow.date.replace(/[\s:]+/g, '_')}.jpg`);
+                                                 }}
+                                                 className={`mt-1 w-full text-xs font-black py-2.5 px-3 rounded-xl transition duration-150 border-none flex items-center justify-center gap-1.5 shadow-xs ${
+                                                   isTrimmed 
+                                                     ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                                                     : "bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-850 cursor-pointer"
+                                                 }`}
+                                               >
+                                                 <Download size={11} />
+                                                 <span>{isTrimmed ? "Mengunduh Foto..." : "Unduh Foto"}</span>
+                                               </button>
+                                             </div>
+                                           );
+                                         })}
+                                       </div>
+                                     );
+                                   })()}
+                                 </div>
 
-                                {/* Footer */}
-                                <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50">
-                                  <div className="text-[10px] text-slate-400 font-bold max-w-[200px]">
-                                    Format: JPEG • Resolusi Terkompresi Pintar
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() => {
-                                        const photosToDownload: { label: string; url: string }[] = [];
-                                        if (activePhotoModalRow.photoIndoor) {
-                                          photosToDownload.push({ label: "SEBELUM", url: activePhotoModalRow.photoIndoor });
-                                        }
-                                        if (activePhotoModalRow.photoOutdoor && activePhotoModalRow.photoOutdoor !== activePhotoModalRow.photoIndoor) {
-                                          photosToDownload.push({ label: "SETELAH", url: activePhotoModalRow.photoOutdoor });
-                                        }
-                                        if (photosToDownload.length === 0 && activePhotoModalRow.imagePath) {
-                                          photosToDownload.push({ label: "DOKUMENTASI", url: activePhotoModalRow.imagePath });
-                                        }
+                                 {/* Footer */}
+                                 <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50">
+                                   <div className="text-[10px] text-slate-400 font-bold max-w-[200px]">
+                                     Format: JPEG • Resolusi Terkompresi Pintar
+                                   </div>
+                                   <div className="flex items-center gap-2">
+                                     <button
+                                       onClick={() => {
+                                         const photosToDownload: { label: string; url: string }[] = [];
+                                         if (activePhotoModalRow.photoIndoor) {
+                                           photosToDownload.push({ label: "SEBELUM", url: activePhotoModalRow.photoIndoor });
+                                         }
+                                         if (activePhotoModalRow.photoOutdoor && activePhotoModalRow.photoOutdoor !== activePhotoModalRow.photoIndoor) {
+                                           photosToDownload.push({ label: "SETELAH", url: activePhotoModalRow.photoOutdoor });
+                                         }
+                                         if (photosToDownload.length === 0 && activePhotoModalRow.imagePath) {
+                                           photosToDownload.push({ label: "DOKUMENTASI", url: activePhotoModalRow.imagePath });
+                                         }
 
-                                        const validPhotos = photosToDownload.filter(p => p.url && !p.url.includes("placeholder_trimmed"));
+                                         const validPhotos = photosToDownload.filter(p => p.url && !p.url.includes("placeholder_trimmed"));
 
-                                        if (validPhotos.length === 0) {
-                                          onShowAlert("Cache Terkompresi", "Foto berada dalam mode hemat ruang. Silakan muat ulang (refresh) halaman untuk menarik dari cloud agar dapat diunduh.", "alert");
-                                          return;
-                                        }
+                                         if (validPhotos.length === 0) {
+                                           onShowAlert("Foto Sedang Dimuat", "Silakan tunggu sampai seluruh lampiran foto selesai diunduh dari Cloud Database.", "alert");
+                                           return;
+                                         }
 
                                         validPhotos.forEach((item, index) => {
                                           setTimeout(() => {
