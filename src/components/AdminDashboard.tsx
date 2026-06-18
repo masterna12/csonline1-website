@@ -3643,23 +3643,23 @@ export default function AdminDashboard({
                                 />
                               </div>
 
-                              {/* LOKASI */}
+                              {/* UNIT KERJA */}
                               <div className="space-y-1 text-left">
                                 <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                                  LOKASI
+                                  UNIT KERJA
                                 </label>
                                 <select
-                                  value={reportLocationFilter}
-                                  onChange={(e) => setReportLocationFilter(e.target.value)}
+                                  value={reportDeptFilter}
+                                  onChange={(e) => setReportDeptFilter(e.target.value)}
                                   className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-700 outline-none focus:ring-1 focus:ring-sky-500/50 font-bold"
                                 >
-                                  <option value="Semua">Semua Lokasi</option>
+                                  <option value="Semua">Semua Unit Kerja</option>
                                   {Array.from(new Set([
-                                    ...locations.map(l => l.name),
-                                    ...reports.map(r => r.location?.name).filter(Boolean)
-                                  ])).map((loc) => (
-                                    <option key={loc} value={loc}>
-                                      {loc}
+                                    ...employees.map(e => e.department).filter(Boolean),
+                                    ...reports.map(r => r.department).filter(Boolean)
+                                  ])).sort().map((dept) => (
+                                    <option key={dept} value={dept}>
+                                      {dept}
                                     </option>
                                   ))}
                                 </select>
@@ -3681,6 +3681,7 @@ export default function AdminDashboard({
                                     setReportStartDateFilter("");
                                     setReportEndDateFilter("");
                                     setReportLocationFilter("Semua");
+                                    setReportDeptFilter("Semua");
                                     setSearchQuery("");
                                   }}
                                   className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs p-2.5 px-3.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow"
@@ -3796,20 +3797,7 @@ export default function AdminDashboard({
                                                     <Pencil size={11} />
                                                   </button>
                                                   <button
-                                                    onClick={() => {
-                                                      if (
-                                                        confirm(
-                                                          `Apakah Anda yakin ingin menghapus data laporan kegiatan dari "${rep.employeeName}" pada tanggal ${dateStr}?`
-                                                        )
-                                                      ) {
-                                                        onDeleteReport(rep.id);
-                                                        onShowAlert(
-                                                          "Laporan Dihapus",
-                                                          `Data laporan harian berhasil dihapus secara permanen dari sistem.`,
-                                                          "success"
-                                                        );
-                                                      }
-                                                    }}
+                                                    onClick={() => setDeletingReportId(rep.id)}
                                                     className="w-8 h-8 rounded-lg bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
                                                     title="Hapus Data Laporan"
                                                   >
@@ -6274,6 +6262,87 @@ export default function AdminDashboard({
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
+      {/* --- CUSTOM REPORT DELETION CONFIRMATION MODAL --- */}
+      <AnimatePresence>
+        {deletingReportId && (() => {
+          const rep = reports.find(r => r.id === deletingReportId);
+          if (!rep) return null;
+          return (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs font-sans">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white border border-slate-200 w-full max-w-md p-6 rounded-3xl space-y-4 shadow-2xl text-xs text-slate-800 text-left"
+              >
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                  <div className="flex items-center gap-2 text-rose-600 font-extrabold text-sm">
+                    <Trash2 size={16} />
+                    <span>Konfirmasi Hapus Laporan</span>
+                  </div>
+                  <button
+                    onClick={() => setDeletingReportId(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 border-none bg-transparent cursor-pointer font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-slate-600 leading-relaxed font-semibold">
+                    Apakah Anda yakin ingin menghapus data laporan kegiatan ini secara permanen? Tindakan ini tidak dapat dibatalkan.
+                  </p>
+
+                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-150 space-y-1.5 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-black uppercase">NAMA PERSONIL</span>
+                      <span className="font-extrabold text-slate-800 uppercase">{rep.employeeName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-black uppercase">NIP / NO INDUK</span>
+                      <span className="font-mono text-slate-700 font-bold">{rep.nip || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-black uppercase">JABATAN &amp; UNIT</span>
+                      <span className="font-bold text-sky-600 uppercase text-[10px]">{rep.role || "SATGAS"} - {rep.department || "SEKTOR"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-black uppercase">TANGGAL LAPORAN</span>
+                      <span className="font-mono text-slate-700 font-bold">{rep.date}</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200 flex flex-col gap-0.5">
+                      <span className="text-slate-400 font-black uppercase">RINGKASAN KEGIATAN:</span>
+                      <span className="text-slate-600 italic bg-white p-2.5 rounded-lg border border-slate-200 mt-1 block max-h-20 overflow-y-auto leading-relaxed">
+                        {rep.description || "Aktivitas Patroli Lapangan"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    onClick={() => setDeletingReportId(null)}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-extrabold rounded-xl transition cursor-pointer border-none text-xs"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={() => {
+                      onDeleteReport(rep.id);
+                      setDeletingReportId(null);
+                    }}
+                    className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl transition cursor-pointer border-none text-xs flex items-center gap-1.5 shadow"
+                  >
+                    <Trash2 size={13} />
+                    <span>Ya, Hapus Laporan</span>
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
 
       {/* --- ADD REPORT MANUAL DIALOG (ADMIN OVERRIDE) --- */}

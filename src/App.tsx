@@ -20,6 +20,53 @@ import { db, handleFirestoreError, OperationType } from './firebase';
 // @ts-ignore
 import hpiLogo from './assets/images/hpi_cs_logo_dark_1781488961865.jpg';
 
+export function safeSaveToLocalStorage(key: string, data: any) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e: any) {
+    if (
+      e.name === 'QuotaExceededError' ||
+      e.code === 22 ||
+      e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      String(e).toLowerCase().includes('quota') ||
+      String(e).toLowerCase().includes('exceeded')
+    ) {
+      console.warn("Local storage quota exceeded! Trimming photos from saved local cache to save space for key:", key);
+      try {
+        if (Array.isArray(data)) {
+          const trimmed = data.map((item: any) => {
+            if (item && (item.photoIndoor || item.photoOutdoor || item.photo || item.imagePath)) {
+              return {
+                ...item,
+                photoIndoor: item.photoIndoor && item.photoIndoor.length > 500 ? "data:image/jpeg;base64,placeholder_trimmed" : (item.photoIndoor || ""),
+                photoOutdoor: item.photoOutdoor && item.photoOutdoor.length > 500 ? "data:image/jpeg;base64,placeholder_trimmed" : (item.photoOutdoor || ""),
+                photo: item.photo && item.photo.length > 500 ? "data:image/jpeg;base64,placeholder_trimmed" : (item.photo || ""),
+                imagePath: item.imagePath && item.imagePath.length > 500 ? "data:image/jpeg;base64,placeholder_trimmed" : (item.imagePath || "")
+              };
+            }
+            return item;
+          });
+          localStorage.setItem(key, JSON.stringify(trimmed));
+        } else if (data && typeof data === 'object') {
+          const trimmed = { ...data };
+          for (const k of Object.keys(trimmed)) {
+            if (typeof trimmed[k] === 'string' && trimmed[k].length > 500 && trimmed[k].startsWith('data:image')) {
+              trimmed[k] = "data:image/jpeg;base64,placeholder_trimmed";
+            }
+          }
+          localStorage.setItem(key, JSON.stringify(trimmed));
+        } else {
+          localStorage.setItem(key, JSON.stringify(data));
+        }
+      } catch (innerError) {
+        console.error("Failed to save even with trimmed records:", innerError);
+      }
+    } else {
+      console.error("Local storage error:", e);
+    }
+  }
+}
+
 export default function App() {
   // Authentication States
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -137,9 +184,33 @@ export default function App() {
     const unsubReports = onSnapshot(collection(db, 'dashboard'), (snapshot) => {
       const docsList: Report[] = [];
       snapshot.forEach((docVal) => {
-        const d = docVal.data() as Report;
-        if (d && d.id) {
-          docsList.push(d);
+        const d = docVal.data() as any;
+        if (d) {
+          const reportId = d.id || docVal.id;
+          const mappedReport: Report = {
+            id: reportId,
+            employeeId: d.employeeId || d.employee_id || "",
+            nip: d.nip || "",
+            employeeName: d.employeeName || d.employee_name || "Pegawai Lapangan",
+            role: d.role || d.jabatan || "Satgas",
+            department: d.department || d.unit_kerja || d.unit || "Sektor Lapangan",
+            date: d.date || d.tanggal || new Date().toISOString().replace('T', ' ').substring(0, 16),
+            type: d.type || d.kategori || "Operasional",
+            title: d.title || d.judul || "Aktivitas Lapangan",
+            description: d.description || d.deskripsi || "",
+            status: d.status || "Disetujui",
+            notes: d.notes || d.catat_admin || "",
+            photoIndoor: d.photoIndoor || d.photo_indoor || d.photo || d.imagePath || "",
+            photoOutdoor: d.photoOutdoor || d.photo_outdoor || d.photo || d.imagePath || "",
+            location: d.location || (d.latitude && d.longitude ? {
+              name: d.locationName || d.lokasi_nama || "Sektor Bangka Belitung",
+              coordinates: `${d.latitude}, ${d.longitude}`
+            } : {
+              name: d.locationName || d.lokasi_nama || "Sektor Bangka Belitung",
+              coordinates: "-2.1299, 106.1138"
+            })
+          };
+          docsList.push(mappedReport);
         }
       });
       
@@ -155,13 +226,13 @@ export default function App() {
 
       if (snapshot.empty) {
         setReports(defaultReportsList);
-        localStorage.setItem('db_reports', JSON.stringify(defaultReportsList));
+        safeSaveToLocalStorage('db_reports', defaultReportsList);
         defaultReportsList.forEach((rep) => {
           setDoc(doc(db, 'dashboard', rep.id), rep).catch(e => console.error('Error seeding report: ', e));
         });
       } else {
         setReports(docsList);
-        localStorage.setItem('db_reports', JSON.stringify(docsList));
+        safeSaveToLocalStorage('db_reports', docsList);
       }
     }, (error) => {
       console.error("Firestore onSnapshot 'dashboard' error:", error);
@@ -479,17 +550,17 @@ export default function App() {
     // 1. Delete locally first (instant UI update)
     setEmployees(prev => {
       const updated = prev.filter(e => e.id !== id);
-      localStorage.setItem('db_employees', JSON.stringify(updated));
+      safeSaveToLocalStorage('db_employees', updated);
       return updated;
     });
     setReports(prev => {
       const updated = prev.filter(r => r.employeeId !== id);
-      localStorage.setItem('db_reports', JSON.stringify(updated));
+      safeSaveToLocalStorage('db_reports', updated);
       return updated;
     });
     setAttendance(prev => {
       const updated = prev.filter(a => a.employeeId !== id);
-      localStorage.setItem('db_attendance', JSON.stringify(updated));
+      safeSaveToLocalStorage('db_attendance', updated);
       return updated;
     });
 
@@ -512,7 +583,7 @@ export default function App() {
     // 1. Save locally first (instant UI update)
     setAttendance(prev => {
       const updated = [...prev.filter(a => a.id !== newAtt.id), newAtt];
-      localStorage.setItem('db_attendance', JSON.stringify(updated));
+      safeSaveToLocalStorage('db_attendance', updated);
       return updated;
     });
 
@@ -534,7 +605,7 @@ export default function App() {
         if (dateA !== dateB) return dateB.localeCompare(dateA);
         return b.id.localeCompare(a.id);
       });
-      localStorage.setItem('db_reports', JSON.stringify(updated));
+      safeSaveToLocalStorage('db_reports', updated);
       return updated;
     });
 
@@ -549,7 +620,7 @@ export default function App() {
   const handleAddDraftReport = (draft: Report) => {
     setDraftReports(prev => {
       const updated = [...prev.filter(d => d.id !== draft.id), draft];
-      localStorage.setItem('db_draft_reports', JSON.stringify(updated));
+      safeSaveToLocalStorage('db_draft_reports', updated);
       return updated;
     });
     handleShowAlert('Draft Tersimpan', 'Laporan berhasil disimpan sebagai Draft lokal.', 'success');
@@ -558,7 +629,7 @@ export default function App() {
   const handleDeleteDraftReport = (id: string) => {
     setDraftReports(prev => {
       const updated = prev.filter(d => d.id !== id);
-      localStorage.setItem('db_draft_reports', JSON.stringify(updated));
+      safeSaveToLocalStorage('db_draft_reports', updated);
       return updated;
     });
     handleShowAlert('Draft Dihapus', 'Laporan draft berhasil dihapus.', 'success');
@@ -585,7 +656,7 @@ export default function App() {
             if (dateA !== dateB) return dateB.localeCompare(dateA);
             return b.id.localeCompare(a.id);
           });
-          localStorage.setItem('db_reports', JSON.stringify(updated));
+          safeSaveToLocalStorage('db_reports', updated);
           return updated;
         });
         
@@ -597,7 +668,7 @@ export default function App() {
     }
     
     setDraftReports(remainingDrafts);
-    localStorage.setItem('db_draft_reports', JSON.stringify(remainingDrafts));
+    safeSaveToLocalStorage('db_draft_reports', remainingDrafts);
     
     if (successCount > 0) {
       handleShowAlert(
@@ -646,7 +717,7 @@ export default function App() {
     // 1. Delete locally first (instant UI update)
     setReports(prev => {
       const updated = prev.filter(r => r.id !== id);
-      localStorage.setItem('db_reports', JSON.stringify(updated));
+      safeSaveToLocalStorage('db_reports', updated);
       return updated;
     });
 
@@ -668,7 +739,7 @@ export default function App() {
         }
         return r;
       });
-      localStorage.setItem('db_reports', JSON.stringify(updated));
+      safeSaveToLocalStorage('db_reports', updated);
       return updated;
     });
 
@@ -689,7 +760,7 @@ export default function App() {
     // 1. Save locally first (instant UI update)
     setReports(prev => {
       const updated = prev.map(r => r.id === updatedReport.id ? updatedReport : r);
-      localStorage.setItem('db_reports', JSON.stringify(updated));
+      safeSaveToLocalStorage('db_reports', updated);
       return updated;
     });
 
@@ -720,7 +791,7 @@ export default function App() {
           if (dateA !== dateB) return dateB.localeCompare(dateA);
           return b.id.localeCompare(a.id);
         });
-        localStorage.setItem('db_reports', JSON.stringify(updated));
+        safeSaveToLocalStorage('db_reports', updated);
         return updated;
       });
 
