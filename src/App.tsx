@@ -124,7 +124,16 @@ export default function App() {
 
   // Real-time synchronization and automatic seeding with Firestore
   React.useEffect(() => {
-    // 1. Listen to dashboard (reports) collection
+    // Cache configuration: 10 minutes cache validity for secondary metadata collections
+    const CACHE_COOLDOWN = 10 * 60 * 1000;
+    const isCacheValid = (key: string): boolean => {
+      const lastSync = localStorage.getItem(key);
+      if (!lastSync) return false;
+      const now = Date.now();
+      return now - parseInt(lastSync, 10) < CACHE_COOLDOWN;
+    };
+
+    // 1. Listen to dashboard (reports) collection (Keep completely real-time as requested!)
     const unsubReports = onSnapshot(collection(db, 'dashboard'), (snapshot) => {
       const docsList: Report[] = [];
       snapshot.forEach((docVal) => {
@@ -159,75 +168,117 @@ export default function App() {
       setDbError(error.message);
     });
 
-    // 2. Listen to employees collection
-    const unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
-      const docsList: Employee[] = [];
-      snapshot.forEach((docVal) => {
-        const d = docVal.data() as Employee;
-        if (d && d.id) {
-          docsList.push(d);
-        }
-      });
-      // Sort employees
-      docsList.sort((a, b) => a.id.localeCompare(b.id));
-
-      if (snapshot.empty) {
-        setEmployees(defaultEmployeesList);
-        localStorage.setItem('db_employees', JSON.stringify(defaultEmployeesList));
-        defaultEmployeesList.forEach((emp) => {
-          setDoc(doc(db, 'employees', emp.id), emp).catch(e => console.error('Error seeding employee: ', e));
+    // 2. Listen to employees collection (Cached to optimize read quota)
+    let unsubEmployees = () => {};
+    if (!isCacheValid('last_sync_employees')) {
+      unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
+        const docsList: Employee[] = [];
+        snapshot.forEach((docVal) => {
+          const d = docVal.data() as Employee;
+          if (d && d.id) {
+            docsList.push(d);
+          }
         });
-      } else {
-        setEmployees(docsList);
-        localStorage.setItem('db_employees', JSON.stringify(docsList));
-      }
-    }, (error) => {
-      console.error("Firestore onSnapshot 'employees' error:", error);
-      setDbError(error.message);
-    });
+        // Sort employees
+        docsList.sort((a, b) => a.id.localeCompare(b.id));
 
-    // 3. Listen to attendance collection
-    const unsubAttendance = onSnapshot(collection(db, 'attendance'), (snapshot) => {
-      const docsList: Attendance[] = [];
-      snapshot.forEach((docVal) => {
-        const d = docVal.data() as Attendance;
-        if (d && d.id) {
-          docsList.push(d);
+        if (snapshot.empty) {
+          setEmployees(defaultEmployeesList);
+          localStorage.setItem('db_employees', JSON.stringify(defaultEmployeesList));
+          defaultEmployeesList.forEach((emp) => {
+            setDoc(doc(db, 'employees', emp.id), emp).catch(e => console.error('Error seeding employee: ', e));
+          });
+        } else {
+          setEmployees(docsList);
+          localStorage.setItem('db_employees', JSON.stringify(docsList));
+          localStorage.setItem('last_sync_employees', Date.now().toString());
         }
+      }, (error) => {
+        console.error("Firestore onSnapshot 'employees' error:", error);
+        setDbError(error.message);
       });
-      // Sort attendance by date/id
-      docsList.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+    } else {
+      const saved = localStorage.getItem('db_employees');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && Array.isArray(parsed)) {
+            setEmployees(parsed);
+          }
+        } catch (e) {}
+      }
+    }
 
-      if (snapshot.empty) {
-        setAttendance(defaultAttendanceList);
-        localStorage.setItem('db_attendance', JSON.stringify(defaultAttendanceList));
-        defaultAttendanceList.forEach((att) => {
-          setDoc(doc(db, 'attendance', att.id), att).catch(e => console.error('Error seeding attendance: ', e));
+    // 3. Listen to attendance collection (Cached to optimize read quota)
+    let unsubAttendance = () => {};
+    if (!isCacheValid('last_sync_attendance')) {
+      unsubAttendance = onSnapshot(collection(db, 'attendance'), (snapshot) => {
+        const docsList: Attendance[] = [];
+        snapshot.forEach((docVal) => {
+          const d = docVal.data() as Attendance;
+          if (d && d.id) {
+            docsList.push(d);
+          }
         });
-      } else {
-        setAttendance(docsList);
-        localStorage.setItem('db_attendance', JSON.stringify(docsList));
-      }
-    }, (error) => {
-      console.error("Firestore onSnapshot 'attendance' error:", error);
-      setDbError(error.message);
-    });
+        // Sort attendance by date/id
+        docsList.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
 
-    // 4. Listen to user accounts collection
-    const unsubUserAccounts = onSnapshot(collection(db, 'hpi_user_accounts'), (snapshot) => {
-      const docsList: UserAccount[] = [];
-      snapshot.forEach((docVal) => {
-        const d = docVal.data() as UserAccount;
-        if (d && d.id) {
-          docsList.push(d);
+        if (snapshot.empty) {
+          setAttendance(defaultAttendanceList);
+          localStorage.setItem('db_attendance', JSON.stringify(defaultAttendanceList));
+          defaultAttendanceList.forEach((att) => {
+            setDoc(doc(db, 'attendance', att.id), att).catch(e => console.error('Error seeding attendance: ', e));
+          });
+        } else {
+          setAttendance(docsList);
+          localStorage.setItem('db_attendance', JSON.stringify(docsList));
+          localStorage.setItem('last_sync_attendance', Date.now().toString());
         }
+      }, (error) => {
+        console.error("Firestore onSnapshot 'attendance' error:", error);
+        setDbError(error.message);
       });
-      docsList.sort((a, b) => a.userId.localeCompare(b.userId));
-      setUserAccounts(docsList);
-      localStorage.setItem('db_user_accounts', JSON.stringify(docsList));
-    }, (error) => {
-      console.error("Firestore onSnapshot 'hpi_user_accounts' error:", error);
-    });
+    } else {
+      const saved = localStorage.getItem('db_attendance');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && Array.isArray(parsed)) {
+            setAttendance(parsed);
+          }
+        } catch (e) {}
+      }
+    }
+
+    // 4. Listen to user accounts collection (Cached to optimize read quota)
+    let unsubUserAccounts = () => {};
+    if (!isCacheValid('last_sync_user_accounts')) {
+      unsubUserAccounts = onSnapshot(collection(db, 'hpi_user_accounts'), (snapshot) => {
+        const docsList: UserAccount[] = [];
+        snapshot.forEach((docVal) => {
+          const d = docVal.data() as UserAccount;
+          if (d && d.id) {
+            docsList.push(d);
+          }
+        });
+        docsList.sort((a, b) => a.userId.localeCompare(b.userId));
+        setUserAccounts(docsList);
+        localStorage.setItem('db_user_accounts', JSON.stringify(docsList));
+        localStorage.setItem('last_sync_user_accounts', Date.now().toString());
+      }, (error) => {
+        console.error("Firestore onSnapshot 'hpi_user_accounts' error:", error);
+      });
+    } else {
+      const saved = localStorage.getItem('db_user_accounts');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && Array.isArray(parsed)) {
+            setUserAccounts(parsed);
+          }
+        } catch (e) {}
+      }
+    }
 
     return () => {
       unsubReports();
@@ -815,50 +866,7 @@ export default function App() {
       {/* Main Container workspace */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6">
         
-        {dbError && (
-          <div className="mb-6 bg-rose-950/40 border border-rose-800/60 p-4 rounded-3xl flex flex-col gap-2.5 text-xs shadow-md relative overflow-hidden">
-            <div className="flex items-start gap-3 text-rose-300">
-              <AlertCircle size={18} className="text-rose-500 mt-0.5 flex-shrink-0" />
-              <div className="flex-1 text-left">
-                <h4 className="font-extrabold text-sm text-white mb-0.5">⚠️ Koneksi Cloud Firestore Terhambat (Penyimpanan Lokal Aktif)</h4>
-                <p className="text-[11px] leading-relaxed text-slate-300">
-                  Aplikasi gagal menyinkronkan data langsung ke project Firebase Anda (<strong className="text-rose-400">quick-tract-wh7sp</strong>) karena: <code className="bg-rose-950/80 px-1 py-0.5 rounded text-white font-mono break-all text-[10px]">{dbError}</code>.
-                </p>
-                <div className="mt-2 bg-slate-950/60 p-3 rounded-xl border border-rose-900/30 text-slate-300 space-y-1.5">
-                  <p className="font-bold text-[10px] text-rose-300 uppercase tracking-wider">Langkah Solusi di Firebase Console Anda:</p>
-                  <ul className="list-decimal pl-4 space-y-1 text-[11px] text-slate-400">
-                    <li>Buka <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="text-sky-400 underline hover:text-sky-300 font-semibold">Firebase Console</a>, pilih project <strong>quick-tract-wh7sp</strong>.</li>
-                    <li>Samping kiri menu, buka <strong>Build &gt; Firestore Database</strong> lalu buat database (klik <em>Create Database</em> jika belum ada).</li>
-                    <li>Pindah ke tab <strong>Rules</strong> di bagian atas.</li>
-                    <li>Ubah ketentuannya agar mengizinkan akses publik untuk pengembangan, contoh:
-                      <pre className="mt-1 bg-[#0b0f19] p-2 rounded-lg font-mono text-[9px] text-emerald-400 overflow-x-auto border border-slate-800/80">
-{`rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
-    }
-  }
-}`}
-                      </pre>
-                    </li>
-                    <li>Klik <strong>Publish</strong>. Setelah itu, silakan reload halaman ini!</li>
-                  </ul>
-                </div>
-                <p className="mt-2.5 text-[10px] text-slate-300">
-                  💡 <em>Sistem beralih ke <strong>Penyimpanan Lokal (LocalStorage)</strong> secara otomatis. Semua penambahan pegawai atau laporan penugasan tetap tersimpan aman di browser Anda dan tersimpan real-time!</em>
-                </p>
-              </div>
-              <button 
-                onClick={() => setDbError(null)} 
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-rose-900/30 transition-colors"
-                title="Tutup Peringatan"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-        )}
+
 
         {/* Welcome information banner */}
         <div className={`mb-6 p-4 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-md border ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-205 text-slate-800'}`}>

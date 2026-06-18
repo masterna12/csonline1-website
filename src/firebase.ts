@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 export const firebaseConfig = {
@@ -14,7 +14,14 @@ export const firebaseConfig = {
 
 // Initialize Firebase safely to prevent "[DEFAULT] app already exists" errors
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-export const db = getFirestore(app, "ai-studio-87ec3faf-a54d-45d2-9df2-1a7a38bce0dd");
+
+// Initialize Firestore with persistent caching to dramatically minimize read operations
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+}, "ai-studio-87ec3faf-a54d-45d2-9df2-1a7a38bce0dd");
+
 export const auth = getAuth(app);
 
 // Operation types for custom error logging as required by standard integration guidelines
