@@ -168,6 +168,7 @@ interface AdminDashboardProps {
   userAccounts?: UserAccount[];
   onAddUserAccount?: (acc: UserAccount) => void;
   onDeleteUserAccount?: (id: string) => void;
+  dbError?: string | null;
 }
 
 export default function AdminDashboard({
@@ -196,6 +197,7 @@ export default function AdminDashboard({
   userAccounts = [],
   onAddUserAccount = () => {},
   onDeleteUserAccount = () => {},
+  dbError = null,
 }: AdminDashboardProps) {
   const isAdmin = loggedInUserId === "admin" || !loggedInUserId;
   // Sidebar tab management
@@ -1588,6 +1590,7 @@ export default function AdminDashboard({
   };
 
   const handleRefresh = () => {
+    // Clear all synchronization cooldown trackers
     localStorage.removeItem("last_sync_employees");
     localStorage.removeItem("last_sync_attendance");
     localStorage.removeItem("last_sync_user_accounts");
@@ -1596,15 +1599,25 @@ export default function AdminDashboard({
     localStorage.removeItem("last_sync_jabatans");
     localStorage.removeItem("last_sync_employee_jabatans");
 
+    // Clear actual database caches to force the client to completely re-download all documents from Cloud Firestore
+    localStorage.removeItem("db_reports");
+    localStorage.removeItem("db_attendance");
+    localStorage.removeItem("db_employees");
+    localStorage.removeItem("db_user_accounts");
+    localStorage.removeItem("hpi_locations");
+    localStorage.removeItem("hpi_employee_locations");
+    localStorage.removeItem("hpi_jabatans");
+    localStorage.removeItem("hpi_employee_jabatans");
+
     onShowAlert(
-      "Sinkronisasi Paksa",
-      "Berhasil mengosongkan cache lokal. Segera memuat ulang data terbaru langsung dari cloud Firestore...",
+      "Sinkronisasi Cloud",
+      "Seluruh cache lokal dihapus. Membuka koneksi segar dan mengambil seluruh data terbaru langsung dari Cloud Firestore...",
       "success",
     );
 
     setTimeout(() => {
       window.location.reload();
-    }, 1200);
+    }, 1500);
   };
 
   const handleSaveLocation = (e: React.FormEvent) => {
@@ -2591,9 +2604,15 @@ export default function AdminDashboard({
                         Pegawai & Pelaporan
                       </span>
                     </h1>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1 text-left">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1 text-left inline-block mr-2">
                       SISTEM INTEGRASI PENMAPILAN DATA UTAMA
                     </p>
+                    <div className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full align-middle">
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${dbError ? "bg-rose-500 animate-pulse" : "bg-[#10b981] animate-pulse"}`} />
+                      <span className="text-[8.5px] font-black tracking-wide text-slate-600 uppercase">
+                        {dbError ? `OFFLINE: ${dbError}` : "CLOUD REAL-TIME LISTENER ACTIVE (FIREBASE)"}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Refresh Trigger */}

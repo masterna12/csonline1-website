@@ -1064,6 +1064,7 @@ export default function App() {
             userAccounts={userAccounts}
             onAddUserAccount={handleAddUserAccount}
             onDeleteUserAccount={handleDeleteUserAccount}
+            dbError={dbError}
           />
         </div>
       </main>
