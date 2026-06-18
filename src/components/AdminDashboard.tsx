@@ -805,6 +805,15 @@ export default function AdminDashboard({
         }
       }, (error) => {
         console.error("Firestore 'hpi_locations' error: ", error);
+        const local = localStorage.getItem("hpi_locations");
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed)) {
+              setLocations(parsed);
+            }
+          } catch(e){}
+        }
       });
     } else {
       const local = localStorage.getItem("hpi_locations");
@@ -862,6 +871,15 @@ export default function AdminDashboard({
         }
       }, (error) => {
         console.error("Firestore 'hpi_employee_locations' error: ", error);
+        const local = localStorage.getItem("hpi_employee_locations");
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (parsed && typeof parsed === "object") {
+              setEmployeeLocations(parsed);
+            }
+          } catch(e){}
+        }
       });
     } else {
       const local = localStorage.getItem("hpi_employee_locations");
@@ -914,6 +932,15 @@ export default function AdminDashboard({
         }
       }, (error) => {
         console.error("Firestore 'hpi_jabatans' error: ", error);
+        const local = localStorage.getItem("hpi_jabatans");
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed)) {
+              setJabatans(parsed);
+            }
+          } catch(e){}
+        }
       });
     } else {
       const local = localStorage.getItem("hpi_jabatans");
@@ -971,6 +998,15 @@ export default function AdminDashboard({
         }
       }, (error) => {
         console.error("Firestore 'hpi_employee_jabatans' error: ", error);
+        const local = localStorage.getItem("hpi_employee_jabatans");
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (parsed && typeof parsed === "object") {
+              setEmployeeJabatans(parsed);
+            }
+          } catch(e){}
+        }
       });
     } else {
       const local = localStorage.getItem("hpi_employee_jabatans");

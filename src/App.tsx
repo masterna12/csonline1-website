@@ -166,6 +166,17 @@ export default function App() {
     }, (error) => {
       console.error("Firestore onSnapshot 'dashboard' error:", error);
       setDbError(error.message);
+      const saved = localStorage.getItem('db_reports');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && Array.isArray(parsed)) {
+            setReports(parsed);
+          }
+        } catch (e) {}
+      } else {
+        setReports(defaultReportsList);
+      }
     });
 
     // 2. Listen to employees collection (Cached to optimize read quota)
@@ -196,6 +207,17 @@ export default function App() {
       }, (error) => {
         console.error("Firestore onSnapshot 'employees' error:", error);
         setDbError(error.message);
+        const saved = localStorage.getItem('db_employees');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed && Array.isArray(parsed)) {
+              setEmployees(parsed);
+            }
+          } catch (e) {}
+        } else {
+          setEmployees(defaultEmployeesList);
+        }
       });
     } else {
       const saved = localStorage.getItem('db_employees');
@@ -237,6 +259,17 @@ export default function App() {
       }, (error) => {
         console.error("Firestore onSnapshot 'attendance' error:", error);
         setDbError(error.message);
+        const saved = localStorage.getItem('db_attendance');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed && Array.isArray(parsed)) {
+              setAttendance(parsed);
+            }
+          } catch (e) {}
+        } else {
+          setAttendance(defaultAttendanceList);
+        }
       });
     } else {
       const saved = localStorage.getItem('db_attendance');
@@ -267,6 +300,15 @@ export default function App() {
         localStorage.setItem('last_sync_user_accounts', Date.now().toString());
       }, (error) => {
         console.error("Firestore onSnapshot 'hpi_user_accounts' error:", error);
+        const saved = localStorage.getItem('db_user_accounts');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed && Array.isArray(parsed)) {
+              setUserAccounts(parsed);
+            }
+          } catch (e) {}
+        }
       });
     } else {
       const saved = localStorage.getItem('db_user_accounts');
