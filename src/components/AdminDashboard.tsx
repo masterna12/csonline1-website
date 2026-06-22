@@ -67,6 +67,48 @@ import { db } from "../firebase";
 // @ts-ignore
 import hpiLogo from "../assets/images/hpi_cs_logo_dark_1781488961865.jpg";
 
+const INDONESIA_HOLIDAYS_2026 = new Set([
+  "2026-01-01", // Tahun Baru Masehi
+  "2026-01-19", // Isra Mikraj Muhammad SAW
+  "2026-02-17", // Tahun Baru Imlek
+  "2026-03-19", // Hari Raya Nyepi
+  "2026-03-20", // Idul Fitri Hari 1 / Cuti Bersama
+  "2026-03-21", // Idul Fitri Hari 2
+  "2026-03-23", // Cuti Bersama Idul Fitri
+  "2026-03-24", // Cuti Bersama Idul Fitri
+  "2026-03-25", // Cuti Bersama Idul Fitri
+  "2026-04-03", // Wafat Yesus Kristus
+  "2026-05-01", // Hari Buruh Internasional
+  "2026-05-14", // Kenaikan Yesus Kristus
+  "2026-05-25", // Hari Raya Waisak
+  "2026-05-26", // Cuti Bersama Waisak
+  "2026-06-01", // Hari Lahir Pancasila
+  "2026-06-26", // Hari Raya Idul Adha
+  "2026-07-16", // Tahun Baru Islam 1448 H
+  "2026-08-17", // Hari Kemerdekaan RI
+  "2026-09-25", // Maulid Nabi Muhammad SAW
+  "2026-12-25", // Hari Raya Natal
+  "2026-12-26", // Cuti Bersama Natal
+]);
+
+const isGenericHoliday = (month: number, day: number) => {
+  if (month === 1 && day === 1) return true;
+  if (month === 5 && day === 1) return true;
+  if (month === 8 && day === 1) return true;
+  if (month === 12 && day === 25) return true;
+  return false;
+};
+
+const isTanggalMerah = (year: number, month: number, day: number) => {
+  const mm = String(month).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  const dateStr = `${year}-${mm}-${dd}`;
+  if (year === 2026) {
+    return INDONESIA_HOLIDAYS_2026.has(dateStr);
+  }
+  return isGenericHoliday(month, day);
+};
+
 const LeafletMap = ({ coordinates, name }: { coordinates: string; name: string }) => {
   const mapRef = React.useRef<HTMLDivElement>(null);
   const mapInstance = React.useRef<any>(null);
@@ -3559,7 +3601,16 @@ export default function AdminDashboard({
                     {(() => {
                       const totalPatroli = filteredReports.length;
                       const lokasiAktif = Array.from(new Set(reports.map(r => r.location?.name).filter(Boolean))).length;
-                      const sudahPatroli = Array.from(new Set(reports.map(r => r.employeeId))).length;
+                      
+                      // SUDAH LAPORAN dibikin harian sesuai request user
+                      const now = new Date();
+                      const year = now.getFullYear();
+                      const month = String(now.getMonth() + 1).padStart(2, '0');
+                      const day = String(now.getDate()).padStart(2, '0');
+                      const todayPrefix = `${year}-${month}-${day}`;
+                      const todayReports = reports.filter(r => r.date && (r.date.startsWith(todayPrefix) || r.date.includes(todayPrefix)));
+                      
+                      const sudahPatroli = Array.from(new Set(todayReports.map(r => r.employeeId))).length;
                       const belumPatroli = Math.max(0, employees.length - sudahPatroli);
 
                       const handleExportTableCurrent = () => {
@@ -3644,14 +3695,14 @@ export default function AdminDashboard({
                             <div 
                               onClick={() => { setClickedStatType('sudah'); setStatModalSearch(''); }}
                               className="bg-[#0097a7] hover:bg-[#007b88] rounded-xl shadow-sm text-white overflow-hidden flex items-stretch cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
-                              title="Klik untuk melihat daftar pegawai yang SUDAH mengirim laporan"
+                              title="Klik untuk melihat daftar pegawai yang SUDAH mengirim laporan hari ini"
                             >
                               <div className="bg-black/15 p-4 px-6 flex items-center justify-center">
                                 <UserCheck size={34} className="text-white" />
                               </div>
                               <div className="p-4 flex flex-col justify-center">
                                 <span className="text-[10px] font-black uppercase tracking-wider text-cyan-100 flex items-center gap-1 font-sans">
-                                  SUDAH LAPORAN
+                                  SUDAH LAPORAN (HARI INI)
                                   <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-bold">Detail</span>
                                 </span>
                                 <h3 className="text-2xl font-black mt-0.5 font-mono">{sudahPatroli}</h3>
@@ -3662,14 +3713,14 @@ export default function AdminDashboard({
                             <div 
                               onClick={() => { setClickedStatType('belum'); setStatModalSearch(''); }}
                               className="bg-[#c0392b] hover:bg-[#a62c1f] rounded-xl shadow-sm text-white overflow-hidden flex items-stretch cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
-                              title="Klik untuk melihat daftar pegawai yang BELUM mengirim laporan"
+                              title="Klik untuk melihat daftar pegawai yang BELUM mengirim laporan hari ini"
                             >
                               <div className="bg-black/15 p-4 px-6 flex items-center justify-center">
                                 <UserX size={34} className="text-white" />
                               </div>
                               <div className="p-4 flex flex-col justify-center">
                                 <span className="text-[10px] font-black uppercase tracking-wider text-rose-100 flex items-center gap-1 font-sans">
-                                  BELUM LAPORAN
+                                  BELUM LAPORAN (HARI INI)
                                   <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-bold">Detail</span>
                                 </span>
                                 <h3 className="text-2xl font-black mt-0.5 font-mono">{belumPatroli}</h3>
@@ -4333,6 +4384,28 @@ export default function AdminDashboard({
                       );
                     });
 
+                    const getWeekdaysInMonth = (month: number, year: number) => {
+                      const list: string[] = [];
+                      const daysInMonthVal = new Date(year, month, 0).getDate();
+                      for (let d = 1; d <= daysInMonthVal; d++) {
+                        const dateObj = new Date(year, month - 1, d);
+                        const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+                        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                          if (!isTanggalMerah(year, month, d)) {
+                            const mmStr = String(month).padStart(2, "0");
+                            const ddStr = String(d).padStart(2, "0");
+                            list.push(`${year}-${mmStr}-${ddStr}`);
+                          }
+                        }
+                      }
+                      return list;
+                    };
+
+                    const weekdaysInMonthList = getWeekdaysInMonth(rekapMonth, rekapYear);
+                    const activeWeekdaysList = weekdaysInMonthList;
+
+                    const totalHariKerja = activeWeekdaysList.length;
+
                     const employeePerformance = filteredEmployees.map((emp) => {
                       const empReports = reports.filter((r) => {
                         const isSameId = r.employeeId === emp.id;
@@ -4354,12 +4427,33 @@ export default function AdminDashboard({
                       );
                       const workingDaysCount = uniqueDates.length;
 
-                      // Photo target is 4 Before photos and 4 After photos per day (Total 8 Photos/Day)
-                      const targetPhotosCount = workingDaysCount * 8;
+                      // Check which weekdays has valid reporting photo
+                      let countHariKirimLaporan = 0;
+                      activeWeekdaysList.forEach(dayStr => {
+                        const repsOnDay = empReports.filter((r) => {
+                          if (!r.date) return false;
+                          if (r.date.startsWith(dayStr)) return true;
+                          return r.date.slice(0, 10) === dayStr;
+                        });
+
+                        const hasPhoto = repsOnDay.some(r => 
+                          (r.photoIndoor && r.photoIndoor.trim() !== "") ||
+                          (r.photoOutdoor && r.photoOutdoor.trim() !== "")
+                        );
+                        if (hasPhoto) {
+                          countHariKirimLaporan++;
+                        }
+                      });
+
+                      const photoPercentage = totalHariKerja > 0 
+                        ? Math.round((countHariKirimLaporan / totalHariKerja) * 100)
+                        : 0;
+
+                      // Count total photos
                       const totalPhotosOnWorkingDays = uniqueDates.reduce(
                         (sum, date) => {
                           const repsOnDate = empReports.filter(
-                            (r) => r.date === date,
+                            (r) => r.date === date || (r.date && r.date.slice(0, 10) === date),
                           );
                           const countIndoor = repsOnDate.filter(
                             (r) => r.photoIndoor && r.photoIndoor.trim() !== ""
@@ -4367,19 +4461,10 @@ export default function AdminDashboard({
                           const countOutdoor = repsOnDate.filter(
                             (r) => r.photoOutdoor && r.photoOutdoor.trim() !== ""
                           ).length;
-                          // Max 4 of each type per day
                           return sum + Math.min(4, countIndoor) + Math.min(4, countOutdoor);
                         },
                         0,
                       );
-
-                      const photoPercentage =
-                        targetPhotosCount > 0
-                          ? Math.round(
-                              (totalPhotosOnWorkingDays / targetPhotosCount) *
-                                100,
-                            )
-                          : 0;
 
                       const countIndoorDays = empReports.filter(
                         (r) => r.photoIndoor && r.photoIndoor.trim() !== "",
@@ -4390,7 +4475,7 @@ export default function AdminDashboard({
 
                       let scoreText = "KURANG";
                       let scoreColor = "bg-rose-500 text-white";
-                      if (workingDaysCount > 0) {
+                      if (totalHariKerja > 0) {
                         if (photoPercentage >= 90) {
                           scoreText = "SANGAT BAIK";
                           scoreColor = "bg-emerald-600 text-white";
@@ -4411,7 +4496,7 @@ export default function AdminDashboard({
                         reportsCount: empReports.length,
                         workingDaysCount,
                         totalPhotosOnWorkingDays,
-                        targetPhotosCount,
+                        targetPhotosCount: totalHariKerja * 8, // custom target representation
                         photoPercentage,
                         countIndoorDays,
                         countOutdoorDays,
@@ -4419,6 +4504,9 @@ export default function AdminDashboard({
                         outdoorPercentage: photoPercentage, // fallback support
                         scoreText,
                         scoreColor,
+                        countHariKirimLaporan,
+                        totalHariKerja,
+                        performancePercent: photoPercentage,
                       };
                     });
 
@@ -4586,10 +4674,10 @@ export default function AdminDashboard({
                                   </th>
                                   <th className="py-3 px-4">Jabatan & Unit</th>
                                   <th className="py-3 px-4 text-center">
-                                    Hari Kerja Pelaporan
+                                    Hari Memenuhi Kewajiban (Kirim Foto)
                                   </th>
                                   <th className="py-3 px-4 text-center">
-                                    Foto Sebelum & Sesudah (Target 4/Hari)
+                                    Persentase Kinerja Bulanan
                                   </th>
                                   <th className="py-3 px-4 text-center">
                                     Status Rekapitulasi
@@ -4657,22 +4745,19 @@ export default function AdminDashboard({
                                         </td>
 
                                         <td className="py-3 px-4 text-center">
-                                          <span className="font-mono bg-slate-100 text-slate-705 border border-slate-200/60 px-2 rounded-lg font-bold">
-                                            {item.workingDaysCount} Hari
+                                          <span className="font-mono bg-slate-100 text-[#0f766e] border border-slate-200 px-2 rounded-lg font-bold whitespace-nowrap">
+                                            {item.countHariKirimLaporan} / {item.totalHariKerja} Hari
                                           </span>
                                         </td>
 
                                         <td className="py-3 px-4">
                                           <div className="flex flex-col items-center justify-center gap-1.5">
-                                            <div className="font-mono font-bold text-slate-700 text-[11px] flex items-center gap-1">
+                                            <div className="font-mono font-black text-slate-700 text-[11px] flex items-center gap-1">
                                               <span>
-                                                {item.totalPhotosOnWorkingDays}{" "}
-                                                /{" "}
-                                                {item.targetPhotosCount || "0"}{" "}
-                                                Foto
+                                                {item.performancePercent}% Kinerja
                                               </span>
                                             </div>
-                                            {item.workingDaysCount > 0 ? (
+                                            {item.totalHariKerja > 0 ? (
                                               <div className="w-24 bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
                                                 <div
                                                   className={`h-full rounded-full transition-all duration-300 ${item.photoPercentage >= 80 ? "bg-emerald-500" : item.photoPercentage >= 50 ? "bg-amber-500" : "bg-rose-500"}`}
@@ -4683,15 +4768,14 @@ export default function AdminDashboard({
                                               </div>
                                             ) : (
                                               <span className="text-[10px] text-slate-400 italic">
-                                                Tidak ada laporan
+                                                Tidak ada hari kerja
                                               </span>
                                             )}
-                                            {item.workingDaysCount > 0 && (
+                                            {item.totalHariKerja > 0 && (
                                               <span
-                                                className={`text-[9px] font-black ${item.photoPercentage >= 80 ? "text-emerald-600" : item.photoPercentage >= 50 ? "text-amber-600" : "text-rose-600"}`}
+                                                className={`text-[9px] font-black ${item.performancePercent >= 80 ? "text-emerald-600" : item.performancePercent >= 50 ? "text-amber-600" : "text-rose-600"}`}
                                               >
-                                                {item.photoPercentage}% Target
-                                                Selesai
+                                                {item.countHariKirimLaporan} Hari Kirim Foto
                                               </span>
                                             )}
                                           </div>
@@ -8190,17 +8274,25 @@ export default function AdminDashboard({
                   }
 
                   // --- RENDER FOR EMPLOYEES (total | sudah | belum | pegawai_punya_lokasi | pegawai_tanpa_lokasi) ---
+                  const nowE = new Date();
+                  const yearE = nowE.getFullYear();
+                  const monthE = String(nowE.getMonth() + 1).padStart(2, '0');
+                  const dayE = String(nowE.getDate()).padStart(2, '0');
+                  const todayPrefixE = `${yearE}-${monthE}-${dayE}`;
+                  const todayReportsE = reports.filter(r => r.date && (r.date.startsWith(todayPrefixE) || r.date.includes(todayPrefixE)));
+
                   const matchingEmployees = employees.filter(emp => {
                     let isMatch = false;
-                    const reportsSubmitted = reports.filter(r => r.employeeId === emp.id || r.nip === emp.nip);
+                    const reportsSubmittedAll = reports.filter(r => r.employeeId === emp.id || r.nip === emp.nip);
+                    const reportsSubmittedToday = todayReportsE.filter(r => r.employeeId === emp.id || r.nip === emp.nip);
                     const hasLoc = !!employeeLocations[emp.id];
 
                     if (clickedStatType === 'total') {
                       isMatch = true;
                     } else if (clickedStatType === 'sudah') {
-                      isMatch = reportsSubmitted.length > 0;
+                      isMatch = reportsSubmittedToday.length > 0;
                     } else if (clickedStatType === 'belum') {
-                      isMatch = reportsSubmitted.length === 0;
+                      isMatch = reportsSubmittedToday.length === 0;
                     } else if (clickedStatType === 'pegawai_punya_lokasi') {
                       isMatch = hasLoc;
                     } else if (clickedStatType === 'pegawai_tanpa_lokasi') {
@@ -8229,6 +8321,7 @@ export default function AdminDashboard({
 
                   return matchingEmployees.map((emp) => {
                     const submissionCount = reports.filter(r => r.employeeId === emp.id || r.nip === emp.nip).length;
+                    const todaySubmissionCount = todayReportsE.filter(r => r.employeeId === emp.id || r.nip === emp.nip).length;
                     const locId = employeeLocations[emp.id];
                     const assignedLoc = locations.find(l => l.id === locId);
 
@@ -8282,6 +8375,10 @@ export default function AdminDashboard({
                             </span>
                           ) : clickedStatType === 'sudah' ? (
                             <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-2 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1">
+                              <span>{todaySubmissionCount} Laporan Hari Ini</span>
+                            </span>
+                          ) : clickedStatType === 'total' ? (
+                            <span className="text-[9px] font-bold bg-sky-100 text-sky-700 px-2 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1">
                               <span>{submissionCount} Laporan</span>
                             </span>
                           ) : null}
@@ -8562,6 +8659,43 @@ export default function AdminDashboard({
               );
             });
 
+            const getWeekdaysInMonth = (month: number, year: number) => {
+              const list: string[] = [];
+              const daysInMonthVal = new Date(year, month, 0).getDate();
+              for (let d = 1; d <= daysInMonthVal; d++) {
+                const dateObj = new Date(year, month - 1, d);
+                const dayOfWeek = dateObj.getDay(); 
+                if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                  if (!isTanggalMerah(year, month, d)) {
+                    const mmStr = String(month).padStart(2, "0");
+                    const ddStr = String(d).padStart(2, "0");
+                    list.push(`${year}-${mmStr}-${ddStr}`);
+                  }
+                }
+              }
+              return list;
+            };
+
+            const weekdaysM = getWeekdaysInMonth(rekapMonth, rekapYear);
+            const activeWeekdaysM = weekdaysM;
+
+            const totalHariKerjaM = activeWeekdaysM.length;
+            let countHariKirimLaporanM = 0;
+            activeWeekdaysM.forEach(dayStr => {
+              const repsOnDay = empReports.filter(r => r.date && r.date.startsWith(dayStr));
+              const hasPhoto = repsOnDay.some(r => 
+                (r.photoIndoor && r.photoIndoor.trim() !== "") ||
+                (r.photoOutdoor && r.photoOutdoor.trim() !== "")
+              );
+              if (hasPhoto) {
+                countHariKirimLaporanM++;
+              }
+            });
+
+            const currentScore = totalHariKerjaM > 0 
+              ? Math.round((countHariKirimLaporanM / totalHariKerjaM) * 100)
+              : 0;
+
             return (
               <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
                 <motion.div
@@ -8573,10 +8707,10 @@ export default function AdminDashboard({
                     <div className="flex items-center gap-3 text-left">
                       {emp.avatar ? (
                         <img
-                          src={emp.avatar}
-                          alt={emp.name}
-                          className="w-10 h-10 rounded-full object-cover border-2 border-sky-400 shrink-0"
-                          referrerPolicy="no-referrer"
+                           src={emp.avatar}
+                           alt={emp.name}
+                           className="w-10 h-10 rounded-full object-cover border-2 border-sky-400 shrink-0"
+                           referrerPolicy="no-referrer"
                         />
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-slate-800 text-slate-300 font-extrabold flex items-center justify-center shrink-0 uppercase border border-slate-700">
@@ -8604,25 +8738,52 @@ export default function AdminDashboard({
                     <div className="bg-white border border-slate-205 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div className="space-y-1">
                         <h4 className="text-xs font-black text-slate-400 uppercase tracking-wide text-left">
-                          Ringkasan Pelaporan Bulan Ini
+                          Ringkasan Pelaporan Bulan Ini (Kerja Mon-Fri)
                         </h4>
                         <p className="text-xs text-slate-600 leading-normal text-left">
-                          Karyawan merekam{" "}
+                          Karyawan memenuhi kewajiban mengirim foto sebanyak{" "}
                           <span className="font-extrabold text-[#0284c7]">
-                            {
-                              Array.from(new Set(empReports.map((r) => r.date)))
-                                .length
-                            }{" "}
-                            hari
+                            {countHariKirimLaporanM} hari
                           </span>{" "}
-                          pelaporan aktif dari total {daysInMonth} hari di bulan{" "}
-                          {monthsNamesIndo[rekapMonth - 1]}.
+                          dari total {totalHariKerjaM} hari kerja (Sabtu & Minggu tidak dihitung). Nilai Kinerja Bulanan: <span className="font-extrabold text-emerald-600">{currentScore}%</span>
                         </p>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
                       {daysArray.map((day) => {
+                        const dateObj = new Date(rekapYear, rekapMonth - 1, day);
+                        const dayOfWeek = dateObj.getDay(); // 0 is Sunday, 6 is Saturday
+                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+                        const isHoliday = isTanggalMerah(rekapYear, rekapMonth, day);
+
+                        if (isWeekend || isHoliday) {
+                          return (
+                            <div
+                              key={day}
+                              className="bg-slate-100/60 opacity-75 rounded-2xl p-4 border border-slate-200/50 flex flex-col justify-between gap-1 shadow-xs"
+                            >
+                              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                <div className="text-slate-500 font-bold text-xs flex items-center gap-1.5">
+                                  <span>{day} {monthsNamesIndo[rekapMonth - 1]} {rekapYear}</span>
+                                  <span className="text-[10px] text-slate-400">
+                                    ({isWeekend ? (dayOfWeek === 0 ? "Minggu" : "Sabtu") : "Tanggal Merah"})
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className={`border text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg ${isWeekend ? "bg-slate-200 text-slate-500 border-slate-300" : "bg-rose-50 text-rose-600 border-rose-200"}`}>
+                                    {isWeekend ? "WEEKEND" : "TANGGAL MERAH"}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className={`py-8 text-center italic font-black text-[9px] tracking-widest uppercase ${isWeekend ? "text-slate-400" : "text-rose-500"}`}>
+                                {isWeekend ? "HARI LIBUR / TIDAK ADA KEWAJIBAN" : "HARI LIBUR NASIONAL / TIDAK ADA KEWAJIBAN"}
+                              </div>
+                            </div>
+                          );
+                        }
+
                         const dayStr = `${rekapYear}-${String(rekapMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                         const reportsOnDay = empReports.filter((r) => {
                           if (!r.date) return false;
