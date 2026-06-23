@@ -889,54 +889,32 @@ export default function AdminDashboard({
     };
   }, [activeCameraStream]);
 
-  // Real-time synchronization for locations to/from Firestore (with 10-minute caching to minimize reads)
+  // Real-time synchronization for locations to/from Firestore (Fully real-time)
   React.useEffect(() => {
-    const CACHE_COOLDOWN = 10 * 60 * 1000;
-    const isCacheValid = (key: string): boolean => {
-      const lastSync = localStorage.getItem(key);
-      if (!lastSync) return false;
-      const now = Date.now();
-      return now - parseInt(lastSync, 10) < CACHE_COOLDOWN;
-    };
-
-    let unsub = () => {};
-    if (!isCacheValid("last_sync_locations")) {
-      unsub = onSnapshot(collection(db, "hpi_locations"), (snapshot) => {
-        const list: any[] = [];
-        snapshot.forEach((docVal) => {
-          list.push(docVal.data());
-        });
-        if (!snapshot.empty) {
-          setLocations(list);
-          localStorage.setItem("hpi_locations", JSON.stringify(list));
-          localStorage.setItem("last_sync_locations", Date.now().toString());
-        } else {
-          // Seed from existing local storage if available
-          const local = localStorage.getItem("hpi_locations");
-          if (local) {
-            try {
-              const parsed = JSON.parse(local);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                parsed.forEach((loc) => {
-                  setDoc(doc(db, "hpi_locations", loc.id), loc).catch(e => console.error("Error seeding location: ", e));
-                });
-              }
-            } catch(e){}
-          }
-        }
-      }, (error) => {
-        console.error("Firestore 'hpi_locations' error: ", error);
+    const unsub = onSnapshot(collection(db, "hpi_locations"), (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((docVal) => {
+        list.push(docVal.data());
+      });
+      if (!snapshot.empty) {
+        setLocations(list);
+        localStorage.setItem("hpi_locations", JSON.stringify(list));
+      } else {
+        // Seed from existing local storage if available
         const local = localStorage.getItem("hpi_locations");
         if (local) {
           try {
             const parsed = JSON.parse(local);
-            if (Array.isArray(parsed)) {
-              setLocations(parsed);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              parsed.forEach((loc) => {
+                setDoc(doc(db, "hpi_locations", loc.id), loc).catch(e => console.error("Error seeding location: ", e));
+              });
             }
           } catch(e){}
         }
-      });
-    } else {
+      }
+    }, (error) => {
+      console.error("Firestore 'hpi_locations' error: ", error);
       const local = localStorage.getItem("hpi_locations");
       if (local) {
         try {
@@ -946,63 +924,41 @@ export default function AdminDashboard({
           }
         } catch(e){}
       }
-    }
+    });
     return () => unsub();
   }, []);
 
-  // Real-time synchronization for employeeLocations to/from Firestore (with 10-minute caching to minimize reads)
+  // Real-time synchronization for employeeLocations to/from Firestore (Fully real-time)
   React.useEffect(() => {
-    const CACHE_COOLDOWN = 10 * 60 * 1000;
-    const isCacheValid = (key: string): boolean => {
-      const lastSync = localStorage.getItem(key);
-      if (!lastSync) return false;
-      const now = Date.now();
-      return now - parseInt(lastSync, 10) < CACHE_COOLDOWN;
-    };
-
-    let unsub = () => {};
-    if (!isCacheValid("last_sync_employee_locations")) {
-      unsub = onSnapshot(collection(db, "hpi_employee_locations"), (snapshot) => {
-        const mapping: { [key: string]: string } = {};
-        snapshot.forEach((docVal) => {
-          const data = docVal.data();
-          if (data && data.id && data.locationId) {
-            mapping[data.id] = data.locationId;
-          }
-        });
-        if (!snapshot.empty) {
-          setEmployeeLocations(mapping);
-          localStorage.setItem("hpi_employee_locations", JSON.stringify(mapping));
-          localStorage.setItem("last_sync_employee_locations", Date.now().toString());
-        } else {
-          // Seed from existing local storage
-          const local = localStorage.getItem("hpi_employee_locations");
-          if (local) {
-            try {
-              const parsed = JSON.parse(local);
-              if (parsed && typeof parsed === "object") {
-                Object.entries(parsed).forEach(([empId, locId]) => {
-                  if (empId && locId) {
-                    setDoc(doc(db, "hpi_employee_locations", empId), { id: empId, locationId: locId }).catch(e => console.error("Error seeding employee location: ", e));
-                  }
-                });
-              }
-            } catch(e){}
-          }
+    const unsub = onSnapshot(collection(db, "hpi_employee_locations"), (snapshot) => {
+      const mapping: { [key: string]: string } = {};
+      snapshot.forEach((docVal) => {
+        const data = docVal.data();
+        if (data && data.id && data.locationId) {
+          mapping[data.id] = data.locationId;
         }
-      }, (error) => {
-        console.error("Firestore 'hpi_employee_locations' error: ", error);
+      });
+      if (!snapshot.empty) {
+        setEmployeeLocations(mapping);
+        localStorage.setItem("hpi_employee_locations", JSON.stringify(mapping));
+      } else {
+        // Seed from existing local storage
         const local = localStorage.getItem("hpi_employee_locations");
         if (local) {
           try {
             const parsed = JSON.parse(local);
             if (parsed && typeof parsed === "object") {
-              setEmployeeLocations(parsed);
+              Object.entries(parsed).forEach(([empId, locId]) => {
+                if (empId && locId) {
+                  setDoc(doc(db, "hpi_employee_locations", empId), { id: empId, locationId: locId }).catch(e => console.error("Error seeding employee location: ", e));
+                }
+              });
             }
           } catch(e){}
         }
-      });
-    } else {
+      }
+    }, (error) => {
+      console.error("Firestore 'hpi_employee_locations' error: ", error);
       const local = localStorage.getItem("hpi_employee_locations");
       if (local) {
         try {
@@ -1012,58 +968,36 @@ export default function AdminDashboard({
           }
         } catch(e){}
       }
-    }
+    });
     return () => unsub();
   }, []);
 
-  // Real-time synchronization for jabatans to/from Firestore (with 10-minute caching to minimize reads)
+  // Real-time synchronization for jabatans to/from Firestore (Fully real-time)
   React.useEffect(() => {
-    const CACHE_COOLDOWN = 10 * 60 * 1000;
-    const isCacheValid = (key: string): boolean => {
-      const lastSync = localStorage.getItem(key);
-      if (!lastSync) return false;
-      const now = Date.now();
-      return now - parseInt(lastSync, 10) < CACHE_COOLDOWN;
-    };
-
-    let unsub = () => {};
-    if (!isCacheValid("last_sync_jabatans")) {
-      unsub = onSnapshot(collection(db, "hpi_jabatans"), (snapshot) => {
-        const list: any[] = [];
-        snapshot.forEach((docVal) => {
-          list.push(docVal.data());
-        });
-        if (!snapshot.empty) {
-          setJabatans(list);
-          localStorage.setItem("hpi_jabatans", JSON.stringify(list));
-          localStorage.setItem("last_sync_jabatans", Date.now().toString());
-        } else {
-          // Seed from existing local storage
-          const local = localStorage.getItem("hpi_jabatans");
-          if (local) {
-            try {
-              const parsed = JSON.parse(local);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                parsed.forEach((jab) => {
-                  setDoc(doc(db, "hpi_jabatans", jab.id), jab).catch(e => console.error("Error seeding jabatan: ", e));
-                });
-              }
-            } catch(e){}
-          }
-        }
-      }, (error) => {
-        console.error("Firestore 'hpi_jabatans' error: ", error);
+    const unsub = onSnapshot(collection(db, "hpi_jabatans"), (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((docVal) => {
+        list.push(docVal.data());
+      });
+      if (!snapshot.empty) {
+        setJabatans(list);
+        localStorage.setItem("hpi_jabatans", JSON.stringify(list));
+      } else {
+        // Seed from existing local storage
         const local = localStorage.getItem("hpi_jabatans");
         if (local) {
           try {
             const parsed = JSON.parse(local);
-            if (Array.isArray(parsed)) {
-              setJabatans(parsed);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              parsed.forEach((jab) => {
+                setDoc(doc(db, "hpi_jabatans", jab.id), jab).catch(e => console.error("Error seeding jabatan: ", e));
+              });
             }
           } catch(e){}
         }
-      });
-    } else {
+      }
+    }, (error) => {
+      console.error("Firestore 'hpi_jabatans' error: ", error);
       const local = localStorage.getItem("hpi_jabatans");
       if (local) {
         try {
@@ -1073,63 +1007,41 @@ export default function AdminDashboard({
           }
         } catch(e){}
       }
-    }
+    });
     return () => unsub();
   }, []);
 
-  // Real-time synchronization for employeeJabatans to/from Firestore (with 10-minute caching to minimize reads)
+  // Real-time synchronization for employeeJabatans to/from Firestore (Fully real-time)
   React.useEffect(() => {
-    const CACHE_COOLDOWN = 10 * 60 * 1000;
-    const isCacheValid = (key: string): boolean => {
-      const lastSync = localStorage.getItem(key);
-      if (!lastSync) return false;
-      const now = Date.now();
-      return now - parseInt(lastSync, 10) < CACHE_COOLDOWN;
-    };
-
-    let unsub = () => {};
-    if (!isCacheValid("last_sync_employee_jabatans")) {
-      unsub = onSnapshot(collection(db, "hpi_employee_jabatans"), (snapshot) => {
-        const mapping: { [key: string]: string } = {};
-        snapshot.forEach((docVal) => {
-          const data = docVal.data();
-          if (data && data.id && data.jabatanId) {
-            mapping[data.id] = data.jabatanId;
-          }
-        });
-        if (!snapshot.empty) {
-          setEmployeeJabatans(mapping);
-          localStorage.setItem("hpi_employee_jabatans", JSON.stringify(mapping));
-          localStorage.setItem("last_sync_employee_jabatans", Date.now().toString());
-        } else {
-          // Seed from existing local storage
-          const local = localStorage.getItem("hpi_employee_jabatans");
-          if (local) {
-            try {
-              const parsed = JSON.parse(local);
-              if (parsed && typeof parsed === "object") {
-                Object.entries(parsed).forEach(([empId, jabId]) => {
-                  if (empId && jabId) {
-                    setDoc(doc(db, "hpi_employee_jabatans", empId), { id: empId, jabatanId: jabId }).catch(e => console.error("Error seeding employee jabatan: ", e));
-                  }
-                });
-              }
-            } catch(e){}
-          }
+    const unsub = onSnapshot(collection(db, "hpi_employee_jabatans"), (snapshot) => {
+      const mapping: { [key: string]: string } = {};
+      snapshot.forEach((docVal) => {
+        const data = docVal.data();
+        if (data && data.id && data.jabatanId) {
+          mapping[data.id] = data.jabatanId;
         }
-      }, (error) => {
-        console.error("Firestore 'hpi_employee_jabatans' error: ", error);
+      });
+      if (!snapshot.empty) {
+        setEmployeeJabatans(mapping);
+        localStorage.setItem("hpi_employee_jabatans", JSON.stringify(mapping));
+      } else {
+        // Seed from existing local storage
         const local = localStorage.getItem("hpi_employee_jabatans");
         if (local) {
           try {
             const parsed = JSON.parse(local);
             if (parsed && typeof parsed === "object") {
-              setEmployeeJabatans(parsed);
+              Object.entries(parsed).forEach(([empId, jabId]) => {
+                if (empId && jabId) {
+                  setDoc(doc(db, "hpi_employee_jabatans", empId), { id: empId, jabatanId: jabId }).catch(e => console.error("Error seeding employee jabatan: ", e));
+                }
+              });
             }
           } catch(e){}
         }
-      });
-    } else {
+      }
+    }, (error) => {
+      console.error("Firestore 'hpi_employee_jabatans' error: ", error);
       const local = localStorage.getItem("hpi_employee_jabatans");
       if (local) {
         try {
@@ -1139,7 +1051,7 @@ export default function AdminDashboard({
           }
         } catch(e){}
       }
-    }
+    });
     return () => unsub();
   }, []);
 
@@ -1686,7 +1598,7 @@ export default function AdminDashboard({
       }
       onShowAlert("Sukses", "Lokasi kerja berhasil diperbarui.", "success");
     } else {
-      const parentId = locationParentInput || undefined;
+      const parentId = locationParentInput || "";
       const level = parentId
         ? (locations.find((l) => l.id === parentId)?.level || 1) + 1
         : 1;
@@ -1776,7 +1688,7 @@ export default function AdminDashboard({
               ...j,
               name: jabatanNameInput.trim(),
               level: jabatanLevelInput,
-              parentId: jabatanParentInput || undefined,
+              parentId: jabatanParentInput || "",
             }
           : j,
       );
@@ -1793,7 +1705,7 @@ export default function AdminDashboard({
         id: "JAB_" + Date.now().toString().slice(-6),
         name: jabatanNameInput.trim(),
         level: jabatanLevelInput,
-        parentId: jabatanParentInput || undefined,
+        parentId: jabatanParentInput || "",
       };
       setJabatans([...jabatans, newJab]);
       setDoc(doc(db, "hpi_jabatans", newJab.id), newJab).catch((err) =>
@@ -2652,7 +2564,7 @@ export default function AdminDashboard({
                     <div className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full align-middle">
                       <span className={`inline-block w-1.5 h-1.5 rounded-full ${dbError ? "bg-rose-500 animate-pulse" : "bg-[#10b981] animate-pulse"}`} />
                       <span className="text-[8.5px] font-black tracking-wide text-slate-600 uppercase">
-                        {dbError ? `OFFLINE: ${dbError}` : "CLOUD REAL-TIME LISTENER ACTIVE (FIREBASE)"}
+                        {dbError ? "OFFLINE" : "CLOUD REAL-TIME LISTENER ACTIVE (FIREBASE)"}
                       </span>
                     </div>
                   </div>
