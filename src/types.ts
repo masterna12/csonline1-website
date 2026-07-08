@@ -1,3 +1,5 @@
+import { CloudinaryMetadata } from './lib/cloudinary';
+
 export interface Employee {
   id: string;
   nip: string;
@@ -7,6 +9,7 @@ export interface Employee {
   email: string;
   phone: string;
   avatar: string;
+  avatarMetadata?: CloudinaryMetadata;
   status: 'Aktif' | 'Cuti' | 'Nonaktif';
   joinDate: string;
 }
@@ -29,7 +32,9 @@ export interface Report {
     coordinates: string;
   };
   photoIndoor?: string;
+  photoIndoorMetadata?: CloudinaryMetadata;
   photoOutdoor?: string;
+  photoOutdoorMetadata?: CloudinaryMetadata;
   imagePath?: string;
 }
 

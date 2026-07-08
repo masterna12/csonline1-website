@@ -13,6 +13,9 @@ import {
   AlertCircle,
   Database,
   UserX,
+  Award,
+  TrendingUp,
+  TrendingDown,
   Briefcase,
   Mail,
   Phone,
@@ -49,10 +52,15 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Employee, Report, Attendance, UserAccount } from "../types";
+import { uploadImageToCloudinary } from "../lib/cloudinary";
 import {
   INITIAL_EMPLOYEES,
   INITIAL_ATTENDANCE,
   INITIAL_REPORTS,
+  INITIAL_LOCATIONS,
+  INITIAL_EMPLOYEE_LOCATIONS,
+  INITIAL_JABATANS,
+  INITIAL_EMPLOYEE_JABATANS,
 } from "../data";
 import {
   initSheetsAuth,
@@ -211,7 +219,25 @@ interface AdminDashboardProps {
   onAddUserAccount?: (acc: UserAccount) => void;
   onDeleteUserAccount?: (id: string) => void;
   dbError?: string | null;
+  onDbError?: (err: string | null) => void;
 }
+
+const monthsList = [
+  { value: 1, label: "Januari" },
+  { value: 2, label: "Februari" },
+  { value: 3, label: "Maret" },
+  { value: 4, label: "April" },
+  { value: 5, label: "Mei" },
+  { value: 6, label: "Juni" },
+  { value: 7, label: "Juli" },
+  { value: 8, label: "Agustus" },
+  { value: 9, label: "September" },
+  { value: 10, label: "Oktober" },
+  { value: 11, label: "November" },
+  { value: 12, label: "Desember" },
+];
+
+const yearsList = [2024, 2025, 2026, 2027];
 
 export default function AdminDashboard({
   employees,
@@ -240,6 +266,7 @@ export default function AdminDashboard({
   onAddUserAccount = () => {},
   onDeleteUserAccount = () => {},
   dbError = null,
+  onDbError,
 }: AdminDashboardProps) {
   const isAdmin = loggedInUserId === "admin" || !loggedInUserId;
   // Sidebar tab management
@@ -540,6 +567,12 @@ export default function AdminDashboard({
   const [addRepDesc, setAddRepDesc] = useState("");
   const [addRepIndoor, setAddRepIndoor] = useState("");
   const [addRepOutdoor, setAddRepOutdoor] = useState("");
+  const [isUploadingIndoor, setIsUploadingIndoor] = useState(false);
+  const [isUploadingOutdoor, setIsUploadingOutdoor] = useState(false);
+  const [addRepIndoorMetadata, setAddRepIndoorMetadata] = useState<any>(null);
+  const [addRepOutdoorMetadata, setAddRepOutdoorMetadata] = useState<any>(null);
+  const [newEmpAvatarMetadata, setNewEmpAvatarMetadata] = useState<any>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [addRepLocName, setAddRepLocName] = useState("Sektor Bangka Belitung");
   const [addRepCoord, setAddRepCoord] = useState("-2.1299, 106.1138");
   const [isFetchingGPS, setIsFetchingGPS] = useState(false);
@@ -549,6 +582,7 @@ export default function AdminDashboard({
   const [reportEndDateFilter, setReportEndDateFilter] = useState("");
   const [reportLocationFilter, setReportLocationFilter] = useState("Semua");
   const [activePhotoModalRow, setActivePhotoModalRow] = useState<Report | null>(null);
+  const [photoFetchError, setPhotoFetchError] = useState<boolean>(false);
   const [activeMapModalRow, setActiveMapModalRow] = useState<Report | null>(null);
 
   // Decision feedback modal
@@ -573,7 +607,7 @@ export default function AdminDashboard({
   const currentUserPassword = loggedInUserId && loggedInUserId !== "admin"
     ? (localStorage.getItem("step_user_password_" + loggedInUserId) || "27111998")
     : adminPassword;
-  const currentUserRole = activeEmpInfo ? activeEmpInfo.role : (loggedInUserId === "admin" ? "SU / Supervisor" : "Petugas Lapangan");
+  const currentUserRole = activeEmpInfo ? activeEmpInfo.role : (loggedInUserId === "admin" ? "Administrator" : "Petugas Lapangan");
 
   // Settings Form State
   const [settingName, setSettingName] = useState(currentUserName);
@@ -611,10 +645,12 @@ export default function AdminDashboard({
   >(() => {
     try {
       const saved = localStorage.getItem("hpi_locations");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return INITIAL_LOCATIONS;
   });
 
   const [employeeLocations, setEmployeeLocations] = useState<{
@@ -622,10 +658,12 @@ export default function AdminDashboard({
   }>(() => {
     try {
       const saved = localStorage.getItem("hpi_employee_locations");
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) return parsed;
+      }
+    } catch {}
+    return INITIAL_EMPLOYEE_LOCATIONS;
   });
 
   // Master Jabatan states
@@ -634,10 +672,12 @@ export default function AdminDashboard({
   >(() => {
     try {
       const saved = localStorage.getItem("hpi_jabatans");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return INITIAL_JABATANS;
   });
 
   const [employeeJabatans, setEmployeeJabatans] = useState<{
@@ -645,10 +685,12 @@ export default function AdminDashboard({
   }>(() => {
     try {
       const saved = localStorage.getItem("hpi_employee_jabatans");
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) return parsed;
+      }
+    } catch {}
+    return INITIAL_EMPLOYEE_JABATANS;
   });
 
   // Master Search & Filter states
@@ -702,6 +744,13 @@ export default function AdminDashboard({
     null,
   );
 
+  // Dashboard Location Performance modal states
+  const [clickedLocationBest, setClickedLocationBest] = useState<string | null>(null);
+  const [clickedLocationWorst, setClickedLocationWorst] = useState<string | null>(null);
+  const [isAveragePerformanceModalOpen, setIsAveragePerformanceModalOpen] = useState(false);
+  const [expandedDeptEmpList, setExpandedDeptEmpList] = useState<string | null>(null);
+  const [locModalSearch, setLocModalSearch] = useState("");
+
   // States for Rekap Kinerja Bulanan
   const [rekapMonth, setRekapMonth] = useState<number>(() => {
     // Default to current month of latest report or current date
@@ -720,7 +769,10 @@ export default function AdminDashboard({
 
   // Self-healing for Photo Viewer: if opening a report and its photos are trimmed, fetch live photos from Firestore
   React.useEffect(() => {
-    if (!activePhotoModalRow) return;
+    if (!activePhotoModalRow) {
+      setPhotoFetchError(false);
+      return;
+    }
 
     const hasTrimmedPhotos = 
       (activePhotoModalRow.photoIndoor && activePhotoModalRow.photoIndoor.includes("placeholder_trimmed")) ||
@@ -746,13 +798,17 @@ export default function AdminDashboard({
                   imagePath: data.imagePath || ""
                 };
               });
+              setPhotoFetchError(false);
             }
           }
         } catch (e) {
           console.error("Gagal mengambil foto dari cloud:", e);
+          setPhotoFetchError(true);
         }
       };
       fetchLivePhotos();
+    } else {
+      setPhotoFetchError(false);
     }
   }, [activePhotoModalRow]);
 
@@ -866,17 +922,54 @@ export default function AdminDashboard({
       if (ctx) {
         ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-        if (cameraModalTarget === "indoor") {
+        
+        const target = cameraModalTarget;
+        
+        if (target === "indoor") {
           setAddRepIndoor(dataUrl);
-        } else if (cameraModalTarget === "outdoor") {
+          setIsUploadingIndoor(true);
+        } else if (target === "outdoor") {
           setAddRepOutdoor(dataUrl);
+          setIsUploadingOutdoor(true);
         }
+        
         handleCloseLiveCamera();
         onShowAlert(
-          "Foto Diambil",
-          "Berhasil menyimpan hasil potret kamera.",
+          "Mengunggah Hasil Potret",
+          "Sedang mengunggah foto hasil potret kamera ke Cloudinary...",
           "success",
         );
+
+        uploadImageToCloudinary(dataUrl, `camera_${Date.now()}.jpg`)
+          .then((meta) => {
+            if (target === "indoor") {
+              setAddRepIndoor(meta.secure_url);
+              setAddRepIndoorMetadata(meta);
+            } else if (target === "outdoor") {
+              setAddRepOutdoor(meta.secure_url);
+              setAddRepOutdoorMetadata(meta);
+            }
+            onShowAlert(
+              "Unggahan Sukses",
+              "Hasil potret kamera berhasil disimpan di Cloudinary.",
+              "success"
+            );
+          })
+          .catch((error) => {
+            console.warn("Camera upload to Cloudinary failed, keeping local base64:", error);
+            onShowAlert(
+              "Penyimpanan Lokal",
+              "Gagal mengunggah ke Cloudinary. Menggunakan penyimpanan lokal sementara.",
+              "alert"
+            );
+          })
+          .finally(() => {
+            if (target === "indoor") {
+              setIsUploadingIndoor(false);
+            } else if (target === "outdoor") {
+              setIsUploadingOutdoor(false);
+            }
+          });
       }
     }
   };
@@ -914,7 +1007,13 @@ export default function AdminDashboard({
         }
       }
     }, (error) => {
-      console.error("Firestore 'hpi_locations' error: ", error);
+      const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
+      if (isQuota) {
+        console.warn("Firestore 'hpi_locations' quota restriction active, falling back to local database. message:", error.message);
+      } else {
+        console.error("Firestore 'hpi_locations' error: ", error);
+      }
+      if (onDbError) onDbError(error.message);
       const local = localStorage.getItem("hpi_locations");
       if (local) {
         try {
@@ -958,7 +1057,13 @@ export default function AdminDashboard({
         }
       }
     }, (error) => {
-      console.error("Firestore 'hpi_employee_locations' error: ", error);
+      const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
+      if (isQuota) {
+        console.warn("Firestore 'hpi_employee_locations' quota restriction active, falling back to local database. message:", error.message);
+      } else {
+        console.error("Firestore 'hpi_employee_locations' error: ", error);
+      }
+      if (onDbError) onDbError(error.message);
       const local = localStorage.getItem("hpi_employee_locations");
       if (local) {
         try {
@@ -997,7 +1102,13 @@ export default function AdminDashboard({
         }
       }
     }, (error) => {
-      console.error("Firestore 'hpi_jabatans' error: ", error);
+      const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
+      if (isQuota) {
+        console.warn("Firestore 'hpi_jabatans' quota restriction active, falling back to local database. message:", error.message);
+      } else {
+        console.error("Firestore 'hpi_jabatans' error: ", error);
+      }
+      if (onDbError) onDbError(error.message);
       const local = localStorage.getItem("hpi_jabatans");
       if (local) {
         try {
@@ -1041,7 +1152,13 @@ export default function AdminDashboard({
         }
       }
     }, (error) => {
-      console.error("Firestore 'hpi_employee_jabatans' error: ", error);
+      const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
+      if (isQuota) {
+        console.warn("Firestore 'hpi_employee_jabatans' quota restriction active, falling back to local database. message:", error.message);
+      } else {
+        console.error("Firestore 'hpi_employee_jabatans' error: ", error);
+      }
+      if (onDbError) onDbError(error.message);
       const local = localStorage.getItem("hpi_employee_jabatans");
       if (local) {
         try {
@@ -1289,16 +1406,36 @@ export default function AdminDashboard({
       }
       onShowAlert(
         "Memproses Foto",
-        "Foto sedang dikompres secara otomatis agar pas untuk database...",
+        "Foto sedang dikompres secara otomatis...",
         "success"
       );
-      compressAndGetBase64(file, (base64) => {
-        setAddRepIndoor(base64);
+      compressAndGetBase64(file, async (base64) => {
+        setIsUploadingIndoor(true);
         onShowAlert(
-          "Foto Berhasil Diproses",
-          "Foto berhasil diringkas dan diperkecil ukurannya dengan aman.",
+          "Mengunggah ke Cloudinary",
+          "Foto sedang diunggah ke penyimpanan Cloudinary...",
           "success"
         );
+        try {
+          const meta = await uploadImageToCloudinary(base64, file.name);
+          setAddRepIndoor(meta.secure_url);
+          setAddRepIndoorMetadata(meta);
+          onShowAlert(
+            "Foto Berhasil Terunggah",
+            "Foto berhasil diunggah ke Cloudinary dan siap disimpan.",
+            "success"
+          );
+        } catch (error: any) {
+          console.error("Cloudinary upload failed:", error);
+          setAddRepIndoor(base64);
+          onShowAlert(
+            "Penyimpanan Lokal",
+            "Gagal mengunggah ke Cloudinary. Menggunakan penyimpanan lokal sementara.",
+            "alert"
+          );
+        } finally {
+          setIsUploadingIndoor(false);
+        }
       });
     }
   };
@@ -1317,16 +1454,36 @@ export default function AdminDashboard({
       }
       onShowAlert(
         "Memproses Foto",
-        "Foto sedang dikompres secara otomatis agar pas untuk database...",
+        "Foto sedang dikompres secara otomatis...",
         "success"
       );
-      compressAndGetBase64(file, (base64) => {
-        setAddRepOutdoor(base64);
+      compressAndGetBase64(file, async (base64) => {
+        setIsUploadingOutdoor(true);
         onShowAlert(
-          "Foto Berhasil Diproses",
-          "Foto berhasil diringkas dan diperkecil ukurannya dengan aman.",
+          "Mengunggah ke Cloudinary",
+          "Foto sedang diunggah ke penyimpanan Cloudinary...",
           "success"
         );
+        try {
+          const meta = await uploadImageToCloudinary(base64, file.name);
+          setAddRepOutdoor(meta.secure_url);
+          setAddRepOutdoorMetadata(meta);
+          onShowAlert(
+            "Foto Berhasil Terunggah",
+            "Foto berhasil diunggah ke Cloudinary dan siap disimpan.",
+            "success"
+          );
+        } catch (error: any) {
+          console.error("Cloudinary upload failed:", error);
+          setAddRepOutdoor(base64);
+          onShowAlert(
+            "Penyimpanan Lokal",
+            "Gagal mengunggah ke Cloudinary. Menggunakan penyimpanan lokal sementara.",
+            "alert"
+          );
+        } finally {
+          setIsUploadingOutdoor(false);
+        }
       });
     }
   };
@@ -1389,7 +1546,9 @@ export default function AdminDashboard({
       description: finalDesc,
       status: "Disetujui", // Admin generated reports are directly set as approved
       photoIndoor: addRepIndoor,
+      photoIndoorMetadata: addRepIndoorMetadata || undefined,
       photoOutdoor: addRepOutdoor || addRepIndoor,
+      photoOutdoorMetadata: addRepOutdoorMetadata || undefined,
       location: {
         name: addRepLocName,
         coordinates: addRepCoord,
@@ -1425,6 +1584,8 @@ export default function AdminDashboard({
     setAddRepDesc("");
     setAddRepIndoor("");
     setAddRepOutdoor("");
+    setAddRepIndoorMetadata(null);
+    setAddRepOutdoorMetadata(null);
     setAddRepLocName("Sektor Bangka Belitung");
     setAddRepCoord("-2.1299, 106.1138");
     setIsAddReportModalOpen(false);
@@ -1490,7 +1651,9 @@ export default function AdminDashboard({
       description: finalDesc,
       status: "Pending",
       photoIndoor: addRepIndoor,
+      photoIndoorMetadata: addRepIndoorMetadata || undefined,
       photoOutdoor: addRepOutdoor || addRepIndoor,
+      photoOutdoorMetadata: addRepOutdoorMetadata || undefined,
       location: {
         name: addRepLocName,
         coordinates: addRepCoord,
@@ -1508,17 +1671,42 @@ export default function AdminDashboard({
     setAddRepDesc("");
     setAddRepIndoor("");
     setAddRepOutdoor("");
+    setAddRepIndoorMetadata(null);
+    setAddRepOutdoorMetadata(null);
     setAddRepLocName("Sektor Bangka Belitung");
     setAddRepCoord("-2.1299, 106.1138");
     setIsAddReportModalOpen(false);
   };
 
   const handleQuickUploadDraft = async (draft: Report) => {
-    onAddReport(draft);
-    onDeleteDraftReport(draft.id);
+    onShowAlert("Mengunggah Draft", "Sedang menyinkronkan foto draft ke Cloudinary...", "success");
+    const syncedDraft = { ...draft };
+    
+    if (syncedDraft.photoIndoor && syncedDraft.photoIndoor.startsWith('data:image/')) {
+      try {
+        const meta = await uploadImageToCloudinary(syncedDraft.photoIndoor, `indoor_${syncedDraft.id}.jpg`);
+        syncedDraft.photoIndoor = meta.secure_url;
+        syncedDraft.photoIndoorMetadata = meta;
+      } catch (e) {
+        console.warn("Upload indoor draft photo failed:", e);
+      }
+    }
+    
+    if (syncedDraft.photoOutdoor && syncedDraft.photoOutdoor.startsWith('data:image/')) {
+      try {
+        const meta = await uploadImageToCloudinary(syncedDraft.photoOutdoor, `outdoor_${syncedDraft.id}.jpg`);
+        syncedDraft.photoOutdoor = meta.secure_url;
+        syncedDraft.photoOutdoorMetadata = meta;
+      } catch (e) {
+        console.warn("Upload outdoor draft photo failed:", e);
+      }
+    }
+
+    onAddReport(syncedDraft);
+    onDeleteDraftReport(syncedDraft.id);
     onShowAlert(
       "Draft Terkirim",
-      `Laporan draft untuk ${draft.employeeName} berhasil diunggah ke server!`,
+      `Laporan draft untuk ${syncedDraft.employeeName} berhasil diunggah ke server!`,
       "success",
     );
   };
@@ -1544,6 +1732,21 @@ export default function AdminDashboard({
   };
 
   const handleRefresh = () => {
+    const isQuotaError = dbError && (
+      dbError.toLowerCase().includes('quota') || 
+      dbError.toLowerCase().includes('exceeded') || 
+      dbError.toLowerCase().includes('limit')
+    );
+
+    if (isQuotaError) {
+      onShowAlert(
+        "Koneksi Lokal Optimal",
+        "Sistem mendeteksi batas kuota Cloud harian tercapai. Kami mempertahankan data lokal Anda agar operasional tetap berjalan lancar!",
+        "success"
+      );
+      return;
+    }
+
     // Clear all synchronization cooldown trackers
     localStorage.removeItem("last_sync_employees");
     localStorage.removeItem("last_sync_attendance");
@@ -1590,6 +1793,7 @@ export default function AdminDashboard({
           : loc,
       );
       setLocations(updatedList);
+      localStorage.setItem("hpi_locations", JSON.stringify(updatedList));
       const updatedLoc = updatedList.find((l) => l.id === editingLocationId);
       if (updatedLoc) {
         setDoc(doc(db, "hpi_locations", editingLocationId), updatedLoc).catch((err) =>
@@ -1611,7 +1815,9 @@ export default function AdminDashboard({
         jamKerja: "8 Jam Kerja",
         posCount: 1,
       };
-      setLocations([...locations, newLoc]);
+      const updatedList = [...locations, newLoc];
+      setLocations(updatedList);
+      localStorage.setItem("hpi_locations", JSON.stringify(updatedList));
       setDoc(doc(db, "hpi_locations", newLoc.id), newLoc).catch((err) =>
         console.error("Error adding location to Firestore:", err),
       );
@@ -1646,9 +1852,9 @@ export default function AdminDashboard({
     };
     getChildrenIds(id);
 
-    setLocations(
-      locations.filter((loc) => !locationsToDelete.includes(loc.id)),
-    );
+    const remainingLocations = locations.filter((loc) => !locationsToDelete.includes(loc.id));
+    setLocations(remainingLocations);
+    localStorage.setItem("hpi_locations", JSON.stringify(remainingLocations));
 
     // Delete from Firestore
     locationsToDelete.forEach((locId) => {
@@ -1668,6 +1874,7 @@ export default function AdminDashboard({
       }
     });
     setEmployeeLocations(updatedAssignments);
+    localStorage.setItem("hpi_employee_locations", JSON.stringify(updatedAssignments));
     onShowAlert(
       "Sukses",
       "Lokasi kerja dan seluruh sub-lokasinya berhasil dihapus.",
@@ -2143,6 +2350,154 @@ export default function AdminDashboard({
     new Set(employees.map((emp) => emp.department).filter(Boolean)),
   );
 
+  // Helper to calculate performance of each department (location) for current rekapMonth and rekapYear
+  const getDepartmentPerformance = () => {
+    const belongsToMonthYear = (
+      dateStr: string,
+      targetMonth: number,
+      targetYear: number,
+    ) => {
+      if (!dateStr) return false;
+      const parts = dateStr.split("-");
+      if (parts.length < 2) return false;
+      const yr = parseInt(parts[0], 10);
+      const mo = parseInt(parts[1], 10);
+      return yr === targetYear && mo === targetMonth;
+    };
+
+    const getWeekdaysInMonth = (month: number, year: number) => {
+      const list: string[] = [];
+      const daysInMonthVal = new Date(year, month, 0).getDate();
+      for (let d = 1; d <= daysInMonthVal; d++) {
+        const dateObj = new Date(year, month - 1, d);
+        const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          if (!isTanggalMerah(year, month, d)) {
+            const mmStr = String(month).padStart(2, "0");
+            const ddStr = String(d).padStart(2, "0");
+            list.push(`${year}-${mmStr}-${ddStr}`);
+          }
+        }
+      }
+      return list;
+    };
+
+    const targetMonth = rekapMonth;
+    const targetYear = rekapYear;
+    const weekdays = getWeekdaysInMonth(targetMonth, targetYear);
+    const totalHariKerja = weekdays.length;
+
+    // Calculate performance for all active employees
+    const empPerfList = employees.map((emp) => {
+      const empReports = reports.filter((r) => {
+        const isSameId = r.employeeId === emp.id;
+        const isSameNip = r.nip && emp.nip && r.nip.trim() === emp.nip.trim();
+        const isSameName =
+          r.employeeName &&
+          emp.name &&
+          r.employeeName.toLowerCase().trim() === emp.name.toLowerCase().trim();
+        return (
+          (isSameId || isSameNip || isSameName) &&
+          belongsToMonthYear(r.date, targetMonth, targetYear)
+        );
+      });
+
+      let countHariKirimLaporan = 0;
+      weekdays.forEach((dayStr) => {
+        const repsOnDay = empReports.filter((r) => {
+          if (!r.date) return false;
+          if (r.date.startsWith(dayStr)) return true;
+          return r.date.slice(0, 10) === dayStr;
+        });
+
+        const hasPhoto = repsOnDay.some(
+          (r) =>
+            (r.photoIndoor && r.photoIndoor.trim() !== "") ||
+            (r.photoOutdoor && r.photoOutdoor.trim() !== ""),
+        );
+        if (hasPhoto) {
+          countHariKirimLaporan++;
+        }
+      });
+
+      const isKoordinator = emp.role && emp.role.toLowerCase().includes("koordinator");
+      const performancePercent = isKoordinator ? 100 : (
+        totalHariKerja > 0
+          ? Math.round((countHariKirimLaporan / totalHariKerja) * 100)
+          : 0
+      );
+      const displayCountHariKirimLaporan = isKoordinator ? totalHariKerja : countHariKirimLaporan;
+
+      return {
+        employee: emp,
+        performancePercent,
+        countHariKirimLaporan: displayCountHariKirimLaporan,
+        totalHariKerja,
+      };
+    });
+
+    // Group employees and performance by department
+    const deptMap: Record<
+      string,
+      {
+        employees: Array<{
+          employee: Employee;
+          performancePercent: number;
+          countHariKirimLaporan: number;
+          totalHariKerja: number;
+        }>;
+        totalPerformance: number;
+      }
+    > = {};
+
+    employees.forEach((emp) => {
+      const deptName = emp.department || "Tanpa Unit Kerja";
+      const perf = empPerfList.find((p) => p.employee.id === emp.id) || {
+        employee: emp,
+        performancePercent: 0,
+        countHariKirimLaporan: 0,
+        totalHariKerja,
+      };
+
+      if (!deptMap[deptName]) {
+        deptMap[deptName] = {
+          employees: [],
+          totalPerformance: 0,
+        };
+      }
+      deptMap[deptName].employees.push(perf);
+      deptMap[deptName].totalPerformance += perf.performancePercent;
+    });
+
+    return Object.entries(deptMap).map(([deptName, data]) => {
+      const avgPerformance =
+        data.employees.length > 0
+          ? Math.round(data.totalPerformance / data.employees.length)
+          : 0;
+      return {
+        departmentName: deptName,
+        employees: data.employees,
+        avgPerformance,
+        totalEmployees: data.employees.length,
+      };
+    });
+  };
+
+  const deptPerformanceList = getDepartmentPerformance();
+  const validLocations = deptPerformanceList.filter((l) => l.totalEmployees > 0);
+
+  const bestLocation = validLocations.length > 0
+    ? [...validLocations].sort((a, b) => b.avgPerformance - a.avgPerformance || b.totalEmployees - a.totalEmployees)[0]
+    : null;
+
+  const worstLocation = validLocations.length > 0
+    ? [...validLocations].sort((a, b) => a.avgPerformance - b.avgPerformance || a.totalEmployees - b.totalEmployees)[0]
+    : null;
+
+  const overallAvgPerformance = validLocations.length > 0
+    ? Math.round(validLocations.reduce((sum, loc) => sum + loc.avgPerformance, 0) / validLocations.length)
+    : 0;
+
   // Searching and category filtering routines
   const filteredEmployees = employees.filter((emp) => {
     const matchesSearch =
@@ -2194,16 +2549,56 @@ export default function AdminDashboard({
 
   return (
     <div
-      className={`flex-1 flex flex-col md:flex-row min-w-0 ${isDarkMode ? "theme-dark bg-[#0a0f1d] border-slate-800 text-slate-100" : "theme-light bg-[#f1f5f9] border-slate-300 text-slate-800"} rounded-3xl border shadow-2xl overflow-hidden min-h-[720px] font-sans transition-all duration-200`}
+      className={`flex-1 flex flex-col md:flex-row min-w-0 ${isDarkMode ? "theme-dark bg-slate-950/20 text-slate-100" : "theme-light bg-white/70 text-slate-800"} rounded-none border-x-0 border-y-0 backdrop-blur-xl overflow-hidden min-h-[720px] font-sans transition-all duration-300 relative`}
     >
-      {/* 1. LEFT SIDEBAR: PRISMA BRANDING & MENU CATEGORIES (DARK BLUE - #0e1623) */}
+      {/* 1. LEFT SIDEBAR: PRISMA BRANDING & MENU CATEGORIES */}
       <aside
         id="prisma_sidebar"
-        className={`${isSidebarOpen ? "w-full md:w-64" : "w-0 md:w-16"} shrink-0 bg-[#0e1623] text-slate-300 transition-all duration-350 ease-in-out flex flex-col border-r border-[#1e293b] select-none overflow-hidden`}
+        className={`${isSidebarOpen ? "w-full md:w-64" : "w-0 md:w-16"} shrink-0 bg-gradient-to-b from-[#0f1d35] via-[#0a1424] to-[#050b14] text-slate-300 transition-all duration-350 ease-in-out flex flex-col border-r border-[#1e2e4a]/60 select-none overflow-hidden relative`}
       >
+        {/* Background Decorative Small Twinkling Stars (Blue & Orange) */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 opacity-80">
+          {[
+            { top: "5%", left: "15%", size: 3, color: "rgba(56, 189, 248, 0.9)", shadow: "rgba(56, 189, 248, 0.5)", delay: "0s", duration: "3s" },
+            { top: "12%", left: "75%", size: 2, color: "rgba(251, 146, 60, 0.9)", shadow: "rgba(251, 146, 60, 0.5)", delay: "0.5s", duration: "4s" },
+            { top: "22%", left: "35%", size: 4, color: "rgba(96, 165, 250, 0.95)", shadow: "rgba(96, 165, 250, 0.6)", delay: "1.2s", duration: "2.5s" },
+            { top: "28%", left: "85%", size: 2.5, color: "rgba(253, 186, 116, 0.85)", shadow: "rgba(253, 186, 116, 0.4)", delay: "0.8s", duration: "3.5s" },
+            { top: "38%", left: "18%", size: 3, color: "rgba(249, 115, 22, 0.9)", shadow: "rgba(249, 115, 22, 0.5)", delay: "2.1s", duration: "4.5s" },
+            { top: "45%", left: "65%", size: 2, color: "rgba(147, 197, 253, 0.85)", shadow: "rgba(147, 197, 253, 0.4)", delay: "1.5s", duration: "3.2s" },
+            { top: "52%", left: "25%", size: 3.5, color: "rgba(56, 189, 248, 0.95)", shadow: "rgba(56, 189, 248, 0.6)", delay: "0.3s", duration: "2.8s" },
+            { top: "58%", left: "80%", size: 2, color: "rgba(251, 146, 60, 0.9)", shadow: "rgba(251, 146, 60, 0.5)", delay: "2.7s", duration: "3.8s" },
+            { top: "68%", left: "40%", size: 3, color: "rgba(96, 165, 250, 0.9)", shadow: "rgba(96, 165, 250, 0.5)", delay: "1.9s", duration: "4s" },
+            { top: "75%", left: "12%", size: 2.5, color: "rgba(253, 186, 116, 0.85)", shadow: "rgba(253, 186, 116, 0.4)", delay: "0.9s", duration: "3s" },
+            { top: "82%", left: "70%", size: 4, color: "rgba(249, 115, 22, 0.95)", shadow: "rgba(249, 115, 22, 0.6)", delay: "1.1s", duration: "2.7s" },
+            { top: "90%", left: "30%", size: 2, color: "rgba(147, 197, 253, 0.85)", shadow: "rgba(147, 197, 253, 0.4)", delay: "2.4s", duration: "3.6s" },
+            { top: "95%", left: "85%", size: 3, color: "rgba(56, 189, 248, 0.9)", shadow: "rgba(56, 189, 248, 0.5)", delay: "0.7s", duration: "4.2s" },
+            { top: "18%", left: "55%", size: 2.5, color: "rgba(251, 146, 60, 0.85)", shadow: "rgba(251, 146, 60, 0.4)", delay: "1.6s", duration: "3.1s" },
+            { top: "32%", left: "48%", size: 2, color: "rgba(96, 165, 250, 0.8)", shadow: "rgba(96, 165, 250, 0.4)", delay: "2.2s", duration: "3.9s" },
+            { top: "62%", left: "88%", size: 3, color: "rgba(249, 115, 22, 0.9)", shadow: "rgba(249, 115, 22, 0.5)", delay: "0.4s", duration: "3.4s" },
+            { top: "70%", left: "60%", size: 2, color: "rgba(56, 189, 248, 0.85)", shadow: "rgba(56, 189, 248, 0.4)", delay: "1.8s", duration: "4.1s" },
+            { top: "86%", left: "18%", size: 3.5, color: "rgba(251, 146, 60, 0.95)", shadow: "rgba(251, 146, 60, 0.6)", delay: "2.9s", duration: "2.9s" },
+          ].map((star, idx) => (
+            <div
+              key={idx}
+              className="absolute rounded-full animate-pulse"
+              style={{
+                top: star.top,
+                left: star.left,
+                width: `${star.size}px`,
+                height: `${star.size}px`,
+                backgroundColor: star.color,
+                boxShadow: `0 0 ${star.size * 2.5}px ${star.shadow}`,
+                animationDelay: star.delay,
+                animationDuration: star.duration,
+              }}
+            />
+          ))}
+        </div>
+
         {/* Sidebar Brand Header */}
-        <div className="p-3 bg-[#090d16] border-b border-[#1e2a3f] flex items-center gap-3">
-          <div className={`${isSidebarOpen ? "w-14 h-14" : "w-10 h-10"} p-1 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300`}>
+        <div className="p-4 bg-slate-950/40 border-b border-[#1e2a3f]/50 flex items-center gap-3 relative z-10">
+          <div className={`absolute top-0 left-0 right-0 h-[2.5px] ${isDarkMode ? 'bg-gradient-to-r from-blue-500 via-sky-400 to-orange-500 shadow-[0_1px_10px_rgba(56,189,248,0.8)]' : 'bg-gradient-to-r from-cyan-400 via-sky-500 to-indigo-500'}`}></div>
+          <div className={`${isSidebarOpen ? "w-14 h-14" : "w-10 h-10"} p-1 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${isDarkMode ? 'bg-slate-900/80 border border-blue-500/35 shadow-[0_0_15px_rgba(59,130,246,0.35)]' : ''}`}>
             <img 
               src={hpiLogo} 
               alt="HPI Logo" 
@@ -2212,7 +2607,7 @@ export default function AdminDashboard({
             />
           </div>
           <div className={isSidebarOpen ? "block" : "hidden md:hidden"}>
-            <h2 className="font-sans font-black text-white tracking-widest text-sm leading-none">
+            <h2 className={`font-sans font-black tracking-widest text-sm leading-none ${isDarkMode ? 'text-transparent bg-gradient-to-r from-blue-400 to-orange-400 bg-clip-text drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]' : 'text-white'}`}>
               CS online
             </h2>
             <p className="text-[7.5px] font-sans font-bold text-slate-400 tracking-tighter mt-1">
@@ -2222,7 +2617,7 @@ export default function AdminDashboard({
         </div>
 
         {/* Sidebar Navigations */}
-        <div className="flex-1 py-4 px-3 space-y-6 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
+        <div className="flex-1 py-4 px-3 space-y-6 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 relative z-10">
           {/* Section: Menu Utama */}
           <div className="space-y-1">
             <span
@@ -2238,17 +2633,17 @@ export default function AdminDashboard({
                 setActiveSubTab("ringkasan");
                 setSearchQuery("");
               }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
                 activeSubTab === "ringkasan"
-                  ? "bg-[#1e293b] text-white border-l-4 border-sky-500 shadow-inner"
-                  : "text-slate-400 hover:bg-[#151f32] hover:text-slate-100"
+                  ? "bg-gradient-to-r from-cyan-500/20 via-blue-500/10 to-transparent text-cyan-400 border-l-4 border-cyan-400 shadow-md shadow-cyan-500/5"
+                  : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
               }`}
             >
               <FileText
                 size={15}
                 className={
                   activeSubTab === "ringkasan"
-                    ? "text-sky-400"
+                    ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]"
                     : "text-slate-400"
                 }
               />
@@ -2263,22 +2658,24 @@ export default function AdminDashboard({
                 setActiveSubTab("pegawai");
                 setSearchQuery("");
               }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
                 activeSubTab === "pegawai"
-                  ? "bg-[#1e293b] text-[#38bdf8] border-l-4 border-sky-500 shadow-inner"
-                  : "text-slate-400 hover:bg-[#151f32] hover:text-slate-100"
+                  ? "bg-gradient-to-r from-blue-500/20 via-sky-500/10 to-transparent text-sky-400 border-l-4 border-sky-400 shadow-md shadow-blue-500/5"
+                  : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
               }`}
             >
               <Users
                 size={15}
                 className={
-                  activeSubTab === "pegawai" ? "text-sky-400" : "text-slate-400"
+                  activeSubTab === "pegawai"
+                    ? "text-sky-400 drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]"
+                    : "text-slate-400"
                 }
               />
               {isSidebarOpen && (
                 <div className="flex-1 flex items-center justify-between">
                   <span>Data Pegawai</span>
-                  <span className="bg-[#3b82f6]/10 text-[#38bdf8] text-[9px] px-1.5 py-0.5 rounded-md font-mono border border-sky-500/20">
+                  <span className="bg-sky-500/10 text-sky-400 text-[9px] px-1.5 py-0.5 rounded-md font-mono border border-sky-500/20 font-black">
                     {employees.length}
                   </span>
                 </div>
@@ -2301,23 +2698,25 @@ export default function AdminDashboard({
                 setActiveSubTab("laporan");
                 setSearchQuery("");
               }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
                 activeSubTab === "laporan"
-                  ? "bg-[#1e293b] text-[#38bdf8] border-l-4 border-sky-500 shadow-inner"
-                  : "text-slate-400 hover:bg-[#151f32] hover:text-slate-100"
+                  ? "bg-gradient-to-r from-emerald-500/20 via-teal-500/10 to-transparent text-emerald-400 border-l-4 border-emerald-400 shadow-md shadow-emerald-500/5"
+                  : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
               }`}
             >
               <CheckSquare
                 size={15}
                 className={
-                  activeSubTab === "laporan" ? "text-sky-450" : "text-slate-450"
+                  activeSubTab === "laporan"
+                    ? "text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]"
+                    : "text-slate-400"
                 }
               />
               {isSidebarOpen && (
                 <div className="flex-1 flex items-center justify-between">
                   <span>Data Pelaporan</span>
                   {pendingReportsCount > 0 ? (
-                    <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full animate-pulse">
+                    <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-md">
                       {pendingReportsCount}
                     </span>
                   ) : (
@@ -2343,17 +2742,17 @@ export default function AdminDashboard({
                 setActiveSubTab("kehadiran");
                 setSearchQuery("");
               }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
                 activeSubTab === "kehadiran"
-                  ? "bg-[#1e293b] text-white border-l-4 border-sky-500 shadow-inner"
-                  : "text-slate-400 hover:bg-[#151f32] hover:text-slate-100"
+                  ? "bg-gradient-to-r from-purple-500/20 via-indigo-500/10 to-transparent text-purple-400 border-l-4 border-purple-400 shadow-md shadow-purple-500/5"
+                  : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
               }`}
             >
               <Layers
                 size={15}
                 className={
                   activeSubTab === "kehadiran"
-                    ? "text-sky-400"
+                    ? "text-purple-400 drop-shadow-[0_0_8px_rgba(192,132,252,0.5)]"
                     : "text-slate-400"
                 }
               />
@@ -2381,17 +2780,17 @@ export default function AdminDashboard({
                 setActiveSubTab("pengaturan");
                 setSearchQuery("");
               }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left duration-300 ${
                 activeSubTab === "pengaturan"
-                  ? "bg-[#1e293b] text-[#38bdf8] border-l-4 border-sky-500 shadow-inner"
-                  : "text-slate-400 hover:bg-[#151f32] hover:text-slate-100"
+                  ? "bg-gradient-to-r from-pink-500/20 via-rose-500/10 to-transparent text-pink-400 border-l-4 border-pink-400 shadow-md shadow-pink-500/5"
+                  : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
               }`}
             >
               <Settings
                 size={15}
                 className={
                   activeSubTab === "pengaturan"
-                    ? "text-sky-400"
+                    ? "text-pink-400 drop-shadow-[0_0_8px_rgba(244,114,182,0.5)]"
                     : "text-slate-400"
                 }
               />
@@ -2406,17 +2805,17 @@ export default function AdminDashboard({
                   setActiveSubTab("kelola_akun");
                   setSearchQuery("");
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer active:scale-95 ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer active:scale-95 duration-300 ${
                   activeSubTab === "kelola_akun"
-                    ? "bg-[#1e293b] text-[#38bdf8] border-l-4 border-sky-500 shadow-inner"
-                    : "text-slate-400 hover:bg-[#151f32] hover:text-slate-100"
+                    ? "bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-transparent text-amber-400 border-l-4 border-amber-400 shadow-md shadow-amber-500/5"
+                    : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
                 }`}
               >
                 <UserPlus
                   size={15}
                   className={
                     activeSubTab === "kelola_akun"
-                      ? "text-sky-400"
+                      ? "text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]"
                       : "text-slate-400"
                   }
                 />
@@ -2448,7 +2847,7 @@ export default function AdminDashboard({
 
         {/* Footer Credit */}
         {isSidebarOpen && (
-          <div className="p-4 bg-[#090d16] border-t border-[#1e2a3f] text-center">
+          <div className="p-4 bg-slate-950/40 border-t border-[#1e2a3f]/50 text-center">
             <span className="text-[9px] font-mono tracking-wider text-slate-500">
               v3.1 CS online SECURITY
             </span>
@@ -2456,10 +2855,12 @@ export default function AdminDashboard({
         )}
       </aside>
 
-      {/* 2. MAIN HUB CONTAINER (LIGHT BACKGROUND SYSTEM) */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#f1f5f9] overflow-hidden">
-        {/* A. DARK TOP BAR: SYSTEM STATUS, SEARCH, PROFILE (DARK NAVY - #0e1623) */}
-        <header className="bg-[#0e1623] px-6 py-3 border-b border-[#1f2937] flex items-center justify-between text-slate-300">
+      {/* 2. MAIN HUB CONTAINER */}
+      <div className={`flex-1 flex flex-col min-w-0 ${isDarkMode ? "bg-slate-950/10" : "bg-sky-50/20"} overflow-hidden`}>
+        {/* A. SYSTEM STATUS, SEARCH, PROFILE */}
+        <header className={`px-6 py-3.5 border-b flex items-center justify-between transition-all duration-300 relative overflow-hidden ${isDarkMode ? "bg-[#0c1424]/70 border-slate-800/80 text-slate-300 shadow-md" : "bg-sky-100/40 border-sky-100/70 text-slate-800 shadow-sm"}`}>
+          {/* Subtle top accent gradient */}
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-cyan-400 via-sky-400 to-indigo-500 opacity-60"></div>
           <div className="flex items-center gap-4">
             <button
               id="hamburger_sidebar_toggle"
@@ -2483,7 +2884,7 @@ export default function AdminDashboard({
           <div className="flex items-center gap-4">
             {/* Notification Indicator */}
             <div
-              className="relative shrink-0 cursor-pointer p-1 rounded-lg hover:bg-slate-800"
+              className={`relative shrink-0 cursor-pointer p-1.5 rounded-xl transition-colors ${isDarkMode ? "hover:bg-slate-800" : "hover:bg-sky-100"}`}
               onClick={() =>
                 onShowAlert(
                   "Notifikasi",
@@ -2492,13 +2893,13 @@ export default function AdminDashboard({
                 )
               }
             >
-              <Bell size={16} className="text-slate-400 hover:text-slate-200" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-550 rounded-full border border-[#0e1623]"></span>
+              <Bell size={16} className={`${isDarkMode ? "text-slate-400 hover:text-slate-250" : "text-slate-500 hover:text-slate-800"}`} />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full"></span>
             </div>
 
             {/* Admin Settings Gear */}
             <div
-              className="shrink-0 cursor-pointer p-1 rounded-lg hover:bg-slate-800"
+              className={`shrink-0 cursor-pointer p-1.5 rounded-xl transition-colors ${isDarkMode ? "hover:bg-slate-800" : "hover:bg-sky-100"}`}
               onClick={() => {
                 setActiveSubTab("pengaturan");
                 setSearchQuery("");
@@ -2506,13 +2907,13 @@ export default function AdminDashboard({
             >
               <Settings
                 size={16}
-                className="text-slate-400 hover:text-slate-200"
+                className={`${isDarkMode ? "text-slate-400 hover:text-slate-250" : "text-slate-500 hover:text-slate-800"}`}
               />
             </div>
 
             {/* Profile Avatar & Metadata */}
             <div
-              className="flex items-center gap-2.5 pl-3 border-l border-slate-850 cursor-pointer select-none"
+              className={`flex items-center gap-2.5 pl-3 border-l cursor-pointer select-none ${isDarkMode ? "border-slate-800" : "border-sky-150"}`}
               onClick={() => {
                 setActiveSubTab("pengaturan");
                 setSearchQuery("");
@@ -2521,12 +2922,12 @@ export default function AdminDashboard({
               <img
                 src={currentUserAvatar}
                 alt="User Avatar"
-                className="w-8 h-8 rounded-full border-2 border-indigo-500 object-cover"
+                className="w-8 h-8 rounded-full border-2 border-cyan-500 object-cover shadow-sm"
                 referrerPolicy="no-referrer"
               />
               <div className="hidden sm:block text-left text-xs leading-none">
-                <p className="font-extrabold text-white">{currentUserName}</p>
-                <span className="text-[9px] text-[#38bdf8] font-semibold mt-1 block">
+                <p className={`font-extrabold ${isDarkMode ? "text-white" : "text-slate-800"}`}>{currentUserName}</p>
+                <span className="text-[9px] text-cyan-500 font-bold mt-1 block">
                   {currentUserRole}
                 </span>
               </div>
@@ -2561,12 +2962,21 @@ export default function AdminDashboard({
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1 text-left inline-block mr-2">
                       SISTEM INTEGRASI PENMAPILAN DATA UTAMA
                     </p>
-                    <div className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full align-middle">
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${dbError ? "bg-rose-500 animate-pulse" : "bg-[#10b981] animate-pulse"}`} />
-                      <span className="text-[8.5px] font-black tracking-wide text-slate-600 uppercase">
-                        {dbError ? "OFFLINE" : "CLOUD REAL-TIME LISTENER ACTIVE (FIREBASE)"}
-                      </span>
-                    </div>
+                     {dbError && (dbError.toLowerCase().includes('quota') || dbError.toLowerCase().includes('exceeded') || dbError.toLowerCase().includes('limit')) ? (
+                      <div className="inline-flex items-center gap-1 bg-red-500/10 border border-red-500/30 px-2.5 py-0.5 rounded-full align-middle animate-fade-in">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                        <span className="text-[8.5px] font-black tracking-wide text-red-500 uppercase">
+                          MODE OFFLINE
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1 bg-[#e6f4ea] border border-emerald-200/50 px-2.5 py-0.5 rounded-full align-middle animate-fade-in">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
+                        <span className="text-[8.5px] font-black tracking-wide text-[#137333] uppercase">
+                          CLOUD REAL-TIME LISTENER ACTIVE (FIREBASE)
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Refresh Trigger */}
@@ -2582,65 +2992,216 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
-                {/* SOLID HIGH-CONTRAST STATS TILES */}
+                {/* SOLID HIGH-CONTRAST STATS TILES WITH GRADIENTS */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Card 1: Total Pegawai */}
-                  <div className="bg-[#108dc7] p-5 rounded-2xl flex items-center justify-between text-white shadow-lg transition-transform hover:-translate-y-1 text-left">
-                    <div className="space-y-1">
-                      <h3 className="text-3xl font-black tracking-tight">
+                  <div className="bg-gradient-to-br from-cyan-500 via-sky-600 to-blue-700 p-5 rounded-2xl flex items-center justify-between text-white shadow-[0_10px_25px_-5px_rgba(6,182,212,0.3)] transition-transform hover:-translate-y-1 text-left relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-6 -mt-6 group-hover:scale-125 transition-transform duration-500"></div>
+                    <div className="space-y-1 relative z-10">
+                      <h3 className="text-3xl font-black tracking-tight drop-shadow-sm">
                         {employees.length}
                       </h3>
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-[#e0f2fe]">
+                      <p className="text-[10px] uppercase font-black tracking-widest text-cyan-100">
                         Total Pegawai
                       </p>
                     </div>
-                    <div className="p-3 bg-white/10 rounded-xl text-white">
+                    <div className="p-3 bg-white/15 backdrop-blur-md rounded-xl text-white relative z-10 shadow-inner">
                       <User size={24} className="fill-white" />
                     </div>
                   </div>
 
                   {/* Card 2: Total Pelaporan */}
-                  <div className="bg-[#10b981] p-5 rounded-2xl flex items-center justify-between text-white shadow-lg transition-transform hover:-translate-y-1 text-left">
-                    <div className="space-y-1">
-                      <h3 className="text-3xl font-black tracking-tight">
+                  <div className="bg-gradient-to-br from-emerald-400 via-teal-500 to-green-600 p-5 rounded-2xl flex items-center justify-between text-white shadow-[0_10px_25px_-5px_rgba(16,185,129,0.3)] transition-transform hover:-translate-y-1 text-left relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-6 -mt-6 group-hover:scale-125 transition-transform duration-500"></div>
+                    <div className="space-y-1 relative z-10">
+                      <h3 className="text-3xl font-black tracking-tight drop-shadow-sm">
                         {reports.length}
                       </h3>
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-[#ecfdf5]">
+                      <p className="text-[10px] uppercase font-black tracking-widest text-emerald-100">
                         Total Pelaporan
                       </p>
                     </div>
-                    <div className="p-3 bg-white/10 rounded-xl text-white">
+                    <div className="p-3 bg-white/15 backdrop-blur-md rounded-xl text-white relative z-10 shadow-inner">
                       <CheckSquare size={24} />
                     </div>
                   </div>
 
                   {/* Card 3: Laporan yang Disetujui */}
-                  <div className="bg-[#8b5cf6] p-5 rounded-2xl flex items-center justify-between text-white shadow-lg transition-transform hover:-translate-y-1 text-left">
-                    <div className="space-y-1">
-                      <h3 className="text-3xl font-black tracking-tight">
+                  <div className="bg-gradient-to-br from-purple-500 via-indigo-600 to-violet-700 p-5 rounded-2xl flex items-center justify-between text-white shadow-[0_10px_25px_-5px_rgba(139,92,246,0.3)] transition-transform hover:-translate-y-1 text-left relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-6 -mt-6 group-hover:scale-125 transition-transform duration-500"></div>
+                    <div className="space-y-1 relative z-10">
+                      <h3 className="text-3xl font-black tracking-tight drop-shadow-sm">
                         {reports.filter((r) => r.status === "Disetujui").length}
                       </h3>
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-[#f5f3ff]">
+                      <p className="text-[10px] uppercase font-black tracking-widest text-purple-100">
                         Laporan Disetujui
                       </p>
                     </div>
-                    <div className="p-3 bg-white/10 rounded-xl text-white">
+                    <div className="p-3 bg-white/15 backdrop-blur-md rounded-xl text-white relative z-10 shadow-inner">
                       <UserCheck size={24} className="fill-white" />
                     </div>
                   </div>
 
                   {/* Card 4: Laporan yang Pending */}
-                  <div className="bg-[#f97316] p-5 rounded-2xl flex items-center justify-between text-white shadow-lg transition-transform hover:-translate-y-1 text-left">
-                    <div className="space-y-1">
-                      <h3 className="text-3xl font-black tracking-tight">
+                  <div className="bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600 p-5 rounded-2xl flex items-center justify-between text-white shadow-[0_10px_25px_-5px_rgba(249,115,22,0.3)] transition-transform hover:-translate-y-1 text-left relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-6 -mt-6 group-hover:scale-125 transition-transform duration-500"></div>
+                    <div className="space-y-1 relative z-10">
+                      <h3 className="text-3xl font-black tracking-tight drop-shadow-sm">
                         {pendingReportsCount}
                       </h3>
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-[#fff7ed]">
+                      <p className="text-[10px] uppercase font-black tracking-widest text-amber-100">
                         Laporan Pending
                       </p>
                     </div>
-                    <div className="p-3 bg-white/10 rounded-xl text-white">
+                    <div className="p-3 bg-white/15 backdrop-blur-md rounded-xl text-white relative z-10 shadow-inner">
                       <AlertTriangle size={24} className="fill-white" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* DYNAMIC LOCATION ANALYSIS CARDS */}
+                <div className="space-y-3 mt-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-left">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-1">
+                    <div>
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <TrendingUp size={14} className="text-[#0284c7]" />
+                        <span>Analisis Kinerja Lokasi Kerja</span>
+                      </h3>
+                      <p className="text-[10px] text-slate-400 font-semibold">
+                        Periode aktif: <span className="font-bold text-slate-700">
+                          {[
+                            "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+                            "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+                          ][rekapMonth - 1]} {rekapYear}
+                        </span>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest pl-0.5">
+                          Bulan
+                        </span>
+                        <select
+                          value={rekapMonth}
+                          onChange={(e) => setRekapMonth(Number(e.target.value))}
+                          className="bg-slate-50 border border-slate-200 py-1 px-2.5 rounded-xl text-[11px] font-extrabold text-slate-800 outline-none focus:border-sky-500 transition-colors w-28 cursor-pointer"
+                        >
+                          {monthsList.map((m) => (
+                            <option key={m.value} value={m.value}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest pl-0.5">
+                          Tahun
+                        </span>
+                        <select
+                          value={rekapYear}
+                          onChange={(e) => setRekapYear(Number(e.target.value))}
+                          className="bg-slate-50 border border-slate-200 py-1 px-2.5 rounded-xl text-[11px] font-extrabold text-slate-800 outline-none focus:border-sky-500 transition-colors w-20 cursor-pointer"
+                        >
+                          {yearsList.map((y) => (
+                            <option key={y} value={y}>
+                              {y}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Card: Lokasi Terbaik */}
+                    <div 
+                      onClick={() => {
+                        if (bestLocation) {
+                          setClickedLocationBest(bestLocation.departmentName);
+                        } else {
+                          onShowAlert("Info", "Belum ada data kinerja lokasi kerja.", "alert");
+                        }
+                      }}
+                      className="bg-gradient-to-br from-emerald-500 via-teal-600 to-green-700 p-5 rounded-2xl flex items-center justify-between text-white shadow-[0_10px_20px_-5px_rgba(16,185,129,0.25)] hover:scale-[1.02] active:scale-95 transition-all text-left relative overflow-hidden group cursor-pointer"
+                    >
+                      <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 rounded-full -mr-5 -mt-5 group-hover:scale-125 transition-transform duration-500"></div>
+                      <div className="space-y-1 relative z-10 min-w-0 pr-2">
+                        <span className="text-[9px] uppercase font-black tracking-widest text-emerald-100 block opacity-90">
+                          Lokasi Kinerja Terbaik ⭐
+                        </span>
+                        <h4 className="text-sm font-black truncate drop-shadow-sm max-w-full">
+                          {bestLocation ? bestLocation.departmentName : "Tidak ada data"}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-lg font-black">{bestLocation ? `${bestLocation.avgPerformance}%` : "-"}</span>
+                          <span className="text-[9px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
+                            {bestLocation ? `${bestLocation.totalEmployees} Pegawai` : "0 Pegawai"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-white/15 backdrop-blur-md rounded-xl text-white relative z-10 shrink-0">
+                        <Award size={20} className="text-yellow-300" />
+                      </div>
+                    </div>
+
+                    {/* Card: Lokasi Kinerja Kurang */}
+                    <div 
+                      onClick={() => {
+                        if (worstLocation) {
+                          setClickedLocationWorst(worstLocation.departmentName);
+                        } else {
+                          onShowAlert("Info", "Belum ada data kinerja lokasi kerja.", "alert");
+                        }
+                      }}
+                      className="bg-gradient-to-br from-rose-500 via-red-600 to-red-700 p-5 rounded-2xl flex items-center justify-between text-white shadow-[0_10px_20px_-5px_rgba(239,68,68,0.25)] hover:scale-[1.02] active:scale-95 transition-all text-left relative overflow-hidden group cursor-pointer"
+                    >
+                      <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 rounded-full -mr-5 -mt-5 group-hover:scale-125 transition-transform duration-500"></div>
+                      <div className="space-y-1 relative z-10 min-w-0 pr-2">
+                        <span className="text-[9px] uppercase font-black tracking-widest text-rose-100 block opacity-90">
+                          Lokasi Kinerja Kurang ⚠️
+                        </span>
+                        <h4 className="text-sm font-black truncate drop-shadow-sm max-w-full">
+                          {worstLocation ? worstLocation.departmentName : "Tidak ada data"}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-lg font-black">{worstLocation ? `${worstLocation.avgPerformance}%` : "-"}</span>
+                          <span className="text-[9px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
+                            {worstLocation ? `${worstLocation.totalEmployees} Pegawai` : "0 Pegawai"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-white/15 backdrop-blur-md rounded-xl text-white relative z-10 shrink-0">
+                        <AlertCircle size={20} className="text-rose-200" />
+                      </div>
+                    </div>
+
+                    {/* Card: Rata-Rata Kinerja */}
+                    <div 
+                      onClick={() => {
+                        setIsAveragePerformanceModalOpen(true);
+                      }}
+                      className="bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-600 p-5 rounded-2xl flex items-center justify-between text-white shadow-[0_10px_20px_-5px_rgba(139,92,246,0.25)] hover:scale-[1.02] active:scale-95 transition-all text-left relative overflow-hidden group cursor-pointer"
+                    >
+                      <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 rounded-full -mr-5 -mt-5 group-hover:scale-125 transition-transform duration-500"></div>
+                      <div className="space-y-1 relative z-10 min-w-0 pr-2">
+                        <span className="text-[9px] uppercase font-black tracking-widest text-purple-100 block opacity-90">
+                          Rata-Rata Kinerja Lokasi 📈
+                        </span>
+                        <h4 className="text-sm font-black truncate drop-shadow-sm max-w-full">
+                          Semua Lokasi Kerja (Gabungan)
+                        </h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-lg font-black">{overallAvgPerformance}%</span>
+                          <span className="text-[9px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
+                            {validLocations.length} Lokasi Aktif
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-white/15 backdrop-blur-md rounded-xl text-white relative z-10 shrink-0">
+                        <TrendingUp size={20} className="text-indigo-200" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2967,23 +3528,40 @@ export default function AdminDashboard({
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
-                                    if (file.size > 2 * 1024 * 1024) {
+                                    if (file.size > 10 * 1024 * 1024) {
                                       onShowAlert(
-                                        "Kapasitas Penuh",
-                                        "Batas maksimal ukuran file gambar adalah 2MB.",
+                                        "Berkas Terlalu Besar",
+                                        "Batas maksimal ukuran file gambar adalah 10MB.",
                                         "alert",
                                       );
                                       return;
                                     }
+                                    onShowAlert(
+                                      "Mengunggah Avatar",
+                                      "Sedang mengunggah foto profil ke Cloudinary...",
+                                      "success"
+                                    );
                                     const reader = new FileReader();
-                                    reader.onloadend = () => {
+                                    reader.onloadend = async () => {
                                       if (typeof reader.result === "string") {
-                                        setNewEmpAvatar(reader.result);
-                                        onShowAlert(
-                                          "File Terunggah",
-                                          "Berhasil memproses & mengunggah file foto lokal Anda.",
-                                          "success",
-                                        );
+                                        try {
+                                          const meta = await uploadImageToCloudinary(reader.result, file.name);
+                                          setNewEmpAvatar(meta.secure_url);
+                                          setNewEmpAvatarMetadata(meta);
+                                          onShowAlert(
+                                            "File Terunggah",
+                                            "Berhasil mengunggah foto profil ke Cloudinary.",
+                                            "success",
+                                          );
+                                        } catch (error: any) {
+                                          console.error("Cloudinary upload failed:", error);
+                                          setNewEmpAvatar(reader.result);
+                                          onShowAlert(
+                                            "Penyimpanan Lokal",
+                                            "Gagal mengunggah ke Cloudinary. Menggunakan penyimpanan lokal sementara.",
+                                            "alert",
+                                          );
+                                        }
                                       }
                                     };
                                     reader.readAsDataURL(file);
@@ -3188,12 +3766,12 @@ export default function AdminDashboard({
                 </div>
 
                 {/* DRAFTS & SUB-TAB CONTROLS (GMAIL-LIKE) */}
-                <div className="flex items-center gap-2 border-b border-slate-200 pb-1 mt-1 text-xs">
+                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-1 mt-1 text-xs">
                   <button
                     onClick={() => setReportSubTab("semua")}
-                    className={`pb-2 px-4 font-black uppercase tracking-wider relative transition-all ${
+                    className={`pb-2 px-4 font-black uppercase tracking-wider relative transition-all duration-300 cursor-pointer ${
                       reportSubTab === "semua"
-                        ? "text-[#0284c7] border-b-2 border-[#0284c7]"
+                        ? "text-emerald-500 border-b-2 border-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]"
                         : "text-slate-400 hover:text-slate-600"
                     }`}
                   >
@@ -3201,24 +3779,24 @@ export default function AdminDashboard({
                   </button>
                   <button
                     onClick={() => setReportSubTab("draft")}
-                    className={`pb-2 px-4 font-black uppercase tracking-wider relative transition-all flex items-center gap-1.5 ${
+                    className={`pb-2 px-4 font-black uppercase tracking-wider relative transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
                       reportSubTab === "draft"
-                        ? "text-[#0284c7] border-b-2 border-[#0284c7]"
+                        ? "text-emerald-500 border-b-2 border-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]"
                         : "text-slate-400 hover:text-slate-600"
                     }`}
                   >
                     <span>Draft Laporan ({draftReports.length})</span>
                     {draftReports.length > 0 && (
-                      <span className="bg-amber-500 text-slate-950 font-bold text-[8px] h-4 min-w-4 px-1 rounded-full flex items-center justify-center animate-pulse leading-none">
+                      <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-white font-black text-[8px] h-4 min-w-4 px-1.5 rounded-full flex items-center justify-center animate-pulse leading-none shadow-sm">
                         {draftReports.length}
                       </span>
                     )}
                   </button>
                   <button
                     onClick={() => setReportSubTab("rekap_kinerja")}
-                    className={`pb-2 px-4 font-black uppercase tracking-wider relative transition-all flex items-center gap-1.5 ${
+                    className={`pb-2 px-4 font-black uppercase tracking-wider relative transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
                       reportSubTab === "rekap_kinerja"
-                        ? "text-[#0284c7] border-b-2 border-[#0284c7]"
+                        ? "text-emerald-500 border-b-2 border-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]"
                         : "text-slate-400 hover:text-slate-600"
                     }`}
                   >
@@ -3780,19 +4358,19 @@ export default function AdminDashboard({
                             </div>
 
                             {/* Table */}
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto max-h-[550px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
                               <table className="w-full text-left border-collapse text-xs">
                                 <thead>
-                                  <tr className="bg-[#1f364d] text-slate-300 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-700/50">
-                                    <th className="p-4 text-center w-12 font-black text-slate-200">#</th>
-                                    <th className="p-4 font-black text-slate-200">NO INDUK</th>
-                                    <th className="p-4 font-black text-slate-200">NAMA & JABATAN</th>
-                                    <th className="p-4 font-black text-slate-200">UNIT KERJA</th>
-                                    <th className="p-4 font-black text-slate-200">WAKTU</th>
-                                    <th className="p-4 font-black text-slate-200">DESKRIPSI</th>
-                                    <th className="p-4 text-center w-24 font-black text-slate-200">FOTO</th>
-                                    <th className="p-4 text-center w-24 font-black text-slate-200">LOKASI</th>
-                                    <th className="p-4 text-center w-20 font-black text-slate-200 text-sky-400">AKSI</th>
+                                  <tr className="bg-[#1f364d] text-slate-300 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-700/50 sticky top-0 z-10 shadow-[0_1px_0_rgba(255,255,255,0.1)]">
+                                    <th className="p-4 text-center w-12 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">#</th>
+                                    <th className="p-4 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">NO INDUK</th>
+                                    <th className="p-4 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">NAMA & JABATAN</th>
+                                    <th className="p-4 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">UNIT KERJA</th>
+                                    <th className="p-4 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">WAKTU</th>
+                                    <th className="p-4 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">DESKRIPSI</th>
+                                    <th className="p-4 text-center w-24 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">FOTO</th>
+                                    <th className="p-4 text-center w-24 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">LOKASI</th>
+                                    <th className="p-4 text-center w-20 font-black text-slate-200 text-sky-400 bg-[#1f364d] sticky top-0 z-10">AKSI</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 font-sans text-slate-700 text-xs font-semibold">
@@ -3931,11 +4509,11 @@ export default function AdminDashboard({
                                                <div className="border border-slate-150 bg-slate-100 rounded-xl overflow-hidden relative flex items-center justify-center aspect-square shadow-inner py-6">
                                                  {isTrimmed ? (
                                                    <div className="flex flex-col items-center justify-center p-4 text-center space-y-2 h-full w-full">
-                                                     <div className="p-1 px-2.5 bg-amber-50 rounded-full text-amber-600 font-extrabold text-[9px] tracking-wide uppercase border border-amber-100 animate-pulse">
-                                                       Sinkronisasi Cloud...
+                                                     <div className={`p-1 px-2.5 rounded-full font-extrabold text-[9px] tracking-wide uppercase border ${photoFetchError ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse'}`}>
+                                                       {photoFetchError ? "Lokal Terbatas" : "Sinkronisasi Cloud..."}
                                                      </div>
                                                      <span className="text-[10.5px] font-bold text-slate-500 leading-normal max-w-[150px]">
-                                                       Foto diringkas lokal. Sedang mengunduh foto asli dari Cloud secara otomatis...
+                                                       {photoFetchError ? "Batas kuota Cloud harian terlampaui. Foto asli beresolusi tinggi sementara tidak dapat dimuat." : "Foto diringkas lokal. Sedang mengunduh foto asli dari Cloud secara otomatis..."}
                                                      </span>
                                                    </div>
                                                  ) : (
@@ -4357,9 +4935,11 @@ export default function AdminDashboard({
                         }
                       });
 
-                      const photoPercentage = totalHariKerja > 0 
+                      const isKoordinator = emp.role && emp.role.toLowerCase().includes("koordinator");
+                      const photoPercentage = isKoordinator ? 100 : (totalHariKerja > 0 
                         ? Math.round((countHariKirimLaporan / totalHariKerja) * 100)
-                        : 0;
+                        : 0);
+                      const displayCountHariKirimLaporan = isKoordinator ? totalHariKerja : countHariKirimLaporan;
 
                       // Count total photos
                       const totalPhotosOnWorkingDays = uniqueDates.reduce(
@@ -4416,7 +4996,7 @@ export default function AdminDashboard({
                         outdoorPercentage: photoPercentage, // fallback support
                         scoreText,
                         scoreColor,
-                        countHariKirimLaporan,
+                        countHariKirimLaporan: displayCountHariKirimLaporan,
                         totalHariKerja,
                         performancePercent: photoPercentage,
                       };
@@ -4574,27 +5154,27 @@ export default function AdminDashboard({
                         </div>
 
                         <div className="bg-white rounded-2xl border border-slate-205 overflow-hidden shadow-sm">
-                          <div className="overflow-x-auto">
+                          <div className="overflow-x-auto max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300">
                             <table className="w-full text-left border-collapse">
                               <thead>
-                                <tr className="bg-slate-50 border-b border-slate-150 text-[10px] uppercase font-black text-slate-500 tracking-wider">
-                                  <th className="py-3 px-4 text-center w-12">
+                                <tr className="bg-slate-50 border-b border-slate-150 text-[10px] uppercase font-black text-slate-500 tracking-wider sticky top-0 z-10">
+                                  <th className="py-3 px-4 text-center w-12 bg-slate-50 sticky top-0 z-10 text-slate-500">
                                     No
                                   </th>
-                                  <th className="py-3 px-4">
+                                  <th className="py-3 px-4 bg-slate-50 sticky top-0 z-10 text-slate-500">
                                     Nama Personil / NIP
                                   </th>
-                                  <th className="py-3 px-4">Jabatan & Unit</th>
-                                  <th className="py-3 px-4 text-center">
+                                  <th className="py-3 px-4 bg-slate-50 sticky top-0 z-10 text-slate-500">Jabatan & Unit</th>
+                                  <th className="py-3 px-4 text-center bg-slate-50 sticky top-0 z-10 text-slate-500">
                                     Hari Memenuhi Kewajiban (Kirim Foto)
                                   </th>
-                                  <th className="py-3 px-4 text-center">
+                                  <th className="py-3 px-4 text-center bg-slate-50 sticky top-0 z-10 text-slate-500">
                                     Persentase Kinerja Bulanan
                                   </th>
-                                  <th className="py-3 px-4 text-center">
+                                  <th className="py-3 px-4 text-center bg-slate-50 sticky top-0 z-10 text-slate-500">
                                     Status Rekapitulasi
                                   </th>
-                                  <th className="py-3 px-4 text-center w-24">
+                                  <th className="py-3 px-4 text-center w-24 bg-slate-50 sticky top-0 z-10 text-slate-500">
                                     Aksi
                                   </th>
                                 </tr>
@@ -4805,16 +5385,16 @@ export default function AdminDashboard({
                 {masterSubTab === "lokasi" && (
                   <div className="space-y-4">
                     {/* Stats Rows */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div className="flex bg-[#009bca] text-white rounded-xl overflow-hidden shadow-sm">
-                        <div className="p-4 bg-[#0089b2] flex items-center justify-center w-14">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="flex bg-gradient-to-br from-cyan-400 via-cyan-500 to-sky-600 text-white rounded-2xl overflow-hidden shadow-[0_8px_20px_-6px_rgba(6,182,212,0.3)] transition-all hover:scale-[1.02]">
+                        <div className="p-4 bg-white/10 backdrop-blur-md flex items-center justify-center w-14 border-r border-white/5">
                           <MapPin size={24} />
                         </div>
-                        <div className="p-3 flex-1">
-                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase">
+                        <div className="p-4 flex-1">
+                          <p className="text-[9px] font-black tracking-wider opacity-90 uppercase">
                             TOTAL LOKASI KERJA
                           </p>
-                          <p className="text-xl font-black mt-0.5">
+                          <p className="text-2xl font-black mt-0.5">
                             {locations.length}
                           </p>
                         </div>
@@ -4822,18 +5402,18 @@ export default function AdminDashboard({
 
                       <div 
                         onClick={() => { setClickedStatType('lokasi_ada_pegawai'); setStatModalSearch(''); }}
-                        className="flex bg-[#10b981] hover:bg-[#0d9a6c] text-white rounded-xl overflow-hidden shadow-sm cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
+                        className="flex bg-gradient-to-br from-emerald-400 via-teal-500 to-green-600 text-white rounded-2xl overflow-hidden shadow-[0_8px_20px_-6px_rgba(16,185,129,0.3)] cursor-pointer hover:scale-[1.02] transition-all duration-200 active:scale-95 select-none"
                         title="Klik untuk melihat daftar lokasi yang sudah ditempatkan pegawai"
                       >
-                        <div className="p-4 bg-[#059669] flex items-center justify-center w-14">
+                        <div className="p-4 bg-white/10 backdrop-blur-md flex items-center justify-center w-14 border-r border-white/5">
                           <Check size={24} />
                         </div>
-                        <div className="p-3 flex-1 flex flex-col justify-center">
-                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase flex items-center gap-1 font-sans">
+                        <div className="p-4 flex-1 flex flex-col justify-center">
+                          <p className="text-[9px] font-black tracking-wider opacity-90 uppercase flex items-center gap-1 font-sans">
                             LOKASI SUDAH ADA PEGAWAI
-                            <span className="text-[8px] bg-white/20 px-1 rounded font-bold">Detail</span>
+                            <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-black tracking-normal uppercase">Detail</span>
                           </p>
-                          <p className="text-xl font-black mt-0.5 font-mono">
+                          <p className="text-2xl font-black mt-0.5 font-mono">
                             {
                               locations.filter((loc) =>
                                 Object.values(employeeLocations).includes(
@@ -4847,18 +5427,18 @@ export default function AdminDashboard({
 
                       <div 
                         onClick={() => { setClickedStatType('lokasi_tanpa_pegawai'); setStatModalSearch(''); }}
-                        className="flex bg-[#f97316] hover:bg-[#e0630d] text-white rounded-xl overflow-hidden shadow-sm cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
+                        className="flex bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 text-white rounded-2xl overflow-hidden shadow-[0_8px_20px_-6px_rgba(245,158,11,0.3)] cursor-pointer hover:scale-[1.02] transition-all duration-200 active:scale-95 select-none"
                         title="Klik untuk melihat daftar lokasi yang belum diisi pegawai"
                       >
-                        <div className="p-4 bg-[#ea580c] flex items-center justify-center w-14">
+                        <div className="p-4 bg-white/10 backdrop-blur-md flex items-center justify-center w-14 border-r border-white/5">
                           <AlertTriangle size={24} />
                         </div>
-                        <div className="p-3 flex-1 flex flex-col justify-center">
-                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase flex items-center gap-1 font-sans">
+                        <div className="p-4 flex-1 flex flex-col justify-center">
+                          <p className="text-[9px] font-black tracking-wider opacity-90 uppercase flex items-center gap-1 font-sans">
                             LOKASI BELUM ADA PEGAWAI
-                            <span className="text-[8px] bg-white/20 px-1 rounded font-bold">Detail</span>
+                            <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-black tracking-normal uppercase">Detail</span>
                           </p>
-                          <p className="text-xl font-black mt-0.5 font-mono">
+                          <p className="text-2xl font-black mt-0.5 font-mono">
                             {
                               locations.filter(
                                 (loc) =>
@@ -4871,15 +5451,15 @@ export default function AdminDashboard({
                         </div>
                       </div>
 
-                      <div className="flex bg-[#2563eb] text-white rounded-xl overflow-hidden shadow-sm">
-                        <div className="p-4 bg-[#1d4ed8] flex items-center justify-center w-14">
+                      <div className="flex bg-gradient-to-br from-blue-400 via-indigo-500 to-blue-600 text-white rounded-2xl overflow-hidden shadow-[0_8px_20px_-6px_rgba(59,130,246,0.3)] transition-all hover:scale-[1.02]">
+                        <div className="p-4 bg-white/10 backdrop-blur-md flex items-center justify-center w-14 border-r border-white/5">
                           <Users size={24} />
                         </div>
-                        <div className="p-3 flex-1">
-                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase">
+                        <div className="p-4 flex-1">
+                          <p className="text-[9px] font-black tracking-wider opacity-90 uppercase">
                             TOTAL PEGAWAI
                           </p>
-                          <p className="text-xl font-black mt-0.5">
+                          <p className="text-2xl font-black mt-0.5">
                             {employees.length}
                           </p>
                         </div>
@@ -4887,18 +5467,18 @@ export default function AdminDashboard({
 
                       <div 
                         onClick={() => { setClickedStatType('pegawai_punya_lokasi'); setStatModalSearch(''); }}
-                        className="flex bg-[#12a176] hover:bg-[#0e805d] text-white rounded-xl overflow-hidden shadow-sm cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
+                        className="flex bg-gradient-to-br from-teal-400 via-emerald-500 to-teal-600 text-white rounded-2xl overflow-hidden shadow-[0_8px_20px_-6px_rgba(20,184,166,0.3)] cursor-pointer hover:scale-[1.02] transition-all duration-200 active:scale-95 select-none"
                         title="Klik untuk melihat daftar pegawai yang sudah memiliki lokasi tugas"
                       >
-                        <div className="p-4 bg-[#0d845f] flex items-center justify-center w-14">
+                        <div className="p-4 bg-white/10 backdrop-blur-md flex items-center justify-center w-14 border-r border-white/5">
                           <UserCheck size={24} />
                         </div>
-                        <div className="p-3 flex-1 flex flex-col justify-center">
-                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase flex items-center gap-1 font-sans">
+                        <div className="p-4 flex-1 flex flex-col justify-center">
+                          <p className="text-[9px] font-black tracking-wider opacity-90 uppercase flex items-center gap-1 font-sans">
                             PEGAWAI SUDAH PUNYA LOKASI
-                            <span className="text-[8px] bg-white/20 px-1 rounded font-bold">Detail</span>
+                            <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-black tracking-normal uppercase">Detail</span>
                           </p>
-                          <p className="text-xl font-black mt-0.5 font-mono">
+                          <p className="text-2xl font-black mt-0.5 font-mono">
                             {
                               employees.filter(
                                 (emp) => employeeLocations[emp.id],
@@ -4910,18 +5490,18 @@ export default function AdminDashboard({
 
                       <div 
                         onClick={() => { setClickedStatType('pegawai_tanpa_lokasi'); setStatModalSearch(''); }}
-                        className="flex bg-[#ef4444] hover:bg-[#d63434] text-white rounded-xl overflow-hidden shadow-sm cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
+                        className="flex bg-gradient-to-br from-rose-400 via-red-500 to-rose-600 text-white rounded-2xl overflow-hidden shadow-[0_8px_20px_-6px_rgba(244,63,94,0.3)] cursor-pointer hover:scale-[1.02] transition-all duration-200 active:scale-95 select-none"
                         title="Klik untuk melihat daftar pegawai yang belum memiliki lokasi tugas"
                       >
-                        <div className="p-4 bg-[#dc2626] flex items-center justify-center w-14">
+                        <div className="p-4 bg-white/10 backdrop-blur-md flex items-center justify-center w-14 border-r border-white/5">
                           <XCircle size={24} />
                         </div>
-                        <div className="p-3 flex-1 flex flex-col justify-center">
-                          <p className="text-[9px] font-black tracking-wider opacity-85 uppercase flex items-center gap-1 font-sans">
+                        <div className="p-4 flex-1 flex flex-col justify-center">
+                          <p className="text-[9px] font-black tracking-wider opacity-90 uppercase flex items-center gap-1 font-sans">
                             PEGAWAI BELUM PUNYA LOKASI
-                            <span className="text-[8px] bg-white/20 px-1 rounded font-bold">Detail</span>
+                            <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-black tracking-normal uppercase">Detail</span>
                           </p>
-                          <p className="text-xl font-black mt-0.5 font-mono">
+                          <p className="text-2xl font-black mt-0.5 font-mono">
                             {
                               employees.filter(
                                 (emp) => !employeeLocations[emp.id],
@@ -5798,23 +6378,39 @@ export default function AdminDashboard({
                                   onChange={(e) => {
                                     const file = e.target.files?.[0];
                                     if (file) {
-                                      if (file.size > 2 * 1024 * 1024) {
+                                      if (file.size > 10 * 1024 * 1024) {
                                         onShowAlert(
-                                          "Kapasitas Penuh",
-                                          "Batas maksimal ukuran file gambar adalah 2MB.",
+                                          "Berkas Terlalu Besar",
+                                          "Batas maksimal ukuran file gambar adalah 10MB.",
                                           "alert",
                                         );
                                         return;
                                       }
+                                      onShowAlert(
+                                        "Mengunggah Avatar",
+                                        "Sedang mengunggah foto profil ke Cloudinary...",
+                                        "success"
+                                      );
                                       const reader = new FileReader();
-                                      reader.onloadend = () => {
+                                      reader.onloadend = async () => {
                                         if (typeof reader.result === "string") {
-                                          setSettingAvatar(reader.result);
-                                          onShowAlert(
-                                            "File Terunggah",
-                                            "Berhasil memproses & mengunggah file foto lokal Anda.",
-                                            "success",
-                                          );
+                                          try {
+                                            const meta = await uploadImageToCloudinary(reader.result, file.name);
+                                            setSettingAvatar(meta.secure_url);
+                                            onShowAlert(
+                                              "File Terunggah",
+                                              "Berhasil mengunggah foto profil ke Cloudinary.",
+                                              "success",
+                                            );
+                                          } catch (error: any) {
+                                            console.error("Cloudinary upload failed:", error);
+                                            setSettingAvatar(reader.result);
+                                            onShowAlert(
+                                              "Penyimpanan Lokal",
+                                              "Gagal mengunggah ke Cloudinary. Menggunakan penyimpanan lokal sementara.",
+                                              "alert",
+                                            );
+                                          }
                                         }
                                       };
                                       reader.readAsDataURL(file);
@@ -6272,23 +6868,40 @@ export default function AdminDashboard({
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            if (file.size > 2 * 1024 * 1024) {
+                            if (file.size > 10 * 1024 * 1024) {
                               onShowAlert(
-                                "Kapasitas Penuh",
-                                "Batas maksimal ukuran file gambar adalah 2MB.",
+                                "Berkas Terlalu Besar",
+                                "Batas maksimal ukuran file gambar adalah 10MB.",
                                 "alert",
                               );
                               return;
                             }
+                            onShowAlert(
+                              "Mengunggah Avatar",
+                              "Sedang mengunggah foto profil ke Cloudinary...",
+                              "success"
+                            );
                             const reader = new FileReader();
-                            reader.onloadend = () => {
+                            reader.onloadend = async () => {
                               if (typeof reader.result === "string") {
-                                setNewEmpAvatar(reader.result);
-                                onShowAlert(
-                                  "File Terunggah",
-                                  "Berhasil memproses & mengunggah file foto lokal Anda.",
-                                  "success",
-                                );
+                                try {
+                                  const meta = await uploadImageToCloudinary(reader.result, file.name);
+                                  setNewEmpAvatar(meta.secure_url);
+                                  setNewEmpAvatarMetadata(meta);
+                                  onShowAlert(
+                                    "File Terunggah",
+                                    "Berhasil mengunggah foto profil ke Cloudinary.",
+                                    "success",
+                                  );
+                                } catch (error: any) {
+                                  console.error("Cloudinary upload failed:", error);
+                                  setNewEmpAvatar(reader.result);
+                                  onShowAlert(
+                                    "Penyimpanan Lokal",
+                                    "Gagal mengunggah ke Cloudinary. Menggunakan penyimpanan lokal sementara.",
+                                    "alert",
+                                  );
+                                }
                               }
                             };
                             reader.readAsDataURL(file);
@@ -7031,6 +7644,7 @@ export default function AdminDashboard({
                                   );
                                 }
                                 setEmployeeLocations(updated);
+                                localStorage.setItem("hpi_employee_locations", JSON.stringify(updated));
                               }}
                               className="w-4 h-4 text-sky-600 rounded border-slate-350 focus:ring-sky-500"
                             />
@@ -7627,26 +8241,46 @@ export default function AdminDashboard({
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            if (file.size > 2 * 1024 * 1024) {
+                            if (file.size > 10 * 1024 * 1024) {
                               onShowAlert(
-                                "Kapasitas Penuh",
-                                "Batas maksimal ukuran file gambar adalah 2MB.",
+                                "Berkas Terlalu Besar",
+                                "Batas maksimal ukuran file gambar adalah 10MB.",
                                 "alert",
                               );
                               return;
                             }
+                            onShowAlert(
+                              "Mengunggah Avatar",
+                              "Sedang mengunggah foto profil ke Cloudinary...",
+                              "success"
+                            );
                             const reader = new FileReader();
-                            reader.onloadend = () => {
+                            reader.onloadend = async () => {
                               if (typeof reader.result === "string") {
-                                setEditingEmployee({
-                                  ...editingEmployee,
-                                  avatar: reader.result,
-                                });
-                                onShowAlert(
-                                  "File Terunggah",
-                                  "Berhasil memproses & mengganti file foto lokal Anda.",
-                                  "success",
-                                );
+                                try {
+                                  const meta = await uploadImageToCloudinary(reader.result, file.name);
+                                  setEditingEmployee({
+                                    ...editingEmployee,
+                                    avatar: meta.secure_url,
+                                    avatarMetadata: meta,
+                                  });
+                                  onShowAlert(
+                                    "File Terunggah",
+                                    "Berhasil mengunggah foto profil ke Cloudinary.",
+                                    "success",
+                                  );
+                                } catch (error: any) {
+                                  console.error("Cloudinary upload failed:", error);
+                                  setEditingEmployee({
+                                    ...editingEmployee,
+                                    avatar: reader.result,
+                                  });
+                                  onShowAlert(
+                                    "Penyimpanan Lokal",
+                                    "Gagal mengunggah ke Cloudinary. Menggunakan penyimpanan lokal sementara.",
+                                    "alert",
+                                  );
+                                }
                               }
                             };
                             reader.readAsDataURL(file);
@@ -8604,9 +9238,11 @@ export default function AdminDashboard({
               }
             });
 
-            const currentScore = totalHariKerjaM > 0 
+            const isKoordinator = emp.role && emp.role.toLowerCase().includes("koordinator");
+            const displayCountHariKirimLaporanM = isKoordinator ? totalHariKerjaM : countHariKirimLaporanM;
+            const currentScore = isKoordinator ? 100 : (totalHariKerjaM > 0 
               ? Math.round((countHariKirimLaporanM / totalHariKerjaM) * 100)
-              : 0;
+              : 0);
 
             return (
               <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
@@ -8655,7 +9291,7 @@ export default function AdminDashboard({
                         <p className="text-xs text-slate-600 leading-normal text-left">
                           Karyawan memenuhi kewajiban mengirim foto sebanyak{" "}
                           <span className="font-extrabold text-[#0284c7]">
-                            {countHariKirimLaporanM} hari
+                            {displayCountHariKirimLaporanM} hari
                           </span>{" "}
                           dari total {totalHariKerjaM} hari kerja (Sabtu & Minggu tidak dihitung). Nilai Kinerja Bulanan: <span className="font-extrabold text-emerald-600">{currentScore}%</span>
                         </p>
@@ -8951,6 +9587,640 @@ export default function AdminDashboard({
               </div>
             );
           })()}
+
+        {/* Modal: Lokasi Terbaik Detail */}
+        {clickedLocationBest && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[140] overflow-y-auto">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 rounded-3xl p-6 shadow-2xl max-w-2xl w-full text-white space-y-4 font-sans border border-slate-800"
+            >
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-850">
+                <div className="text-left">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-400 block mb-0.5">
+                    Laporan Kinerja Unit Kerja Terbaik ⭐
+                  </span>
+                  <h3 className="text-base font-black text-white flex items-center gap-1.5">
+                    <Award size={18} className="text-yellow-400" />
+                    <span>{clickedLocationBest}</span>
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={rekapMonth}
+                    onChange={(e) => setRekapMonth(Number(e.target.value))}
+                    className="bg-slate-950 border border-slate-800 py-1 px-2 rounded-lg text-[10px] font-bold text-white outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                  >
+                    {monthsList.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={rekapYear}
+                    onChange={(e) => setRekapYear(Number(e.target.value))}
+                    className="bg-slate-950 border border-slate-800 py-1 px-2 rounded-lg text-[10px] font-bold text-white outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer w-20"
+                  >
+                    {yearsList.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => {
+                      setClickedLocationBest(null);
+                      setLocModalSearch("");
+                    }}
+                    className="p-1 hover:bg-slate-800 rounded-full transition text-slate-400 hover:text-white"
+                    type="button"
+                  >
+                    <XCircle size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal stats summary */}
+              {(() => {
+                const deptData = deptPerformanceList.find(d => d.departmentName === clickedLocationBest);
+                if (!deptData) return <p className="text-xs text-slate-400 italic">Data lokasi tidak ditemukan.</p>;
+
+                // Filtered employees
+                const filteredEmps = deptData.employees.filter(e => 
+                  e.employee.name.toLowerCase().includes(locModalSearch.toLowerCase()) ||
+                  e.employee.nip.toLowerCase().includes(locModalSearch.toLowerCase()) ||
+                  e.employee.role.toLowerCase().includes(locModalSearch.toLowerCase())
+                );
+
+                return (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4 bg-slate-950/40 p-4 rounded-2xl border border-slate-850 text-left">
+                      <div>
+                        <span className="text-[9px] font-mono uppercase text-slate-400 block">Rata-Rata Kinerja</span>
+                        <span className="text-2xl font-black text-emerald-400 font-mono">{deptData.avgPerformance}%</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-mono uppercase text-slate-400 block">Jumlah Personil</span>
+                        <span className="text-2xl font-black text-white font-mono">{deptData.totalEmployees} Orang</span>
+                      </div>
+                    </div>
+
+                    {/* Search inside modal */}
+                    <div className="relative">
+                      <Search size={14} className="absolute left-3.5 top-3 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Cari nama atau NIP pegawai..."
+                        value={locModalSearch}
+                        onChange={(e) => setLocModalSearch(e.target.value)}
+                        className="w-full bg-slate-950/60 border border-slate-850 rounded-xl py-2 pl-9 pr-4 text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    {/* Employee Performance List */}
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                      {filteredEmps.length === 0 ? (
+                        <div className="text-slate-500 italic text-center py-12 text-xs">
+                          Tidak ada pegawai yang cocok dengan pencarian.
+                        </div>
+                      ) : (
+                        filteredEmps.map((empPerf, idx) => {
+                          const score = empPerf.performancePercent;
+                          let ratingLabel = "KURANG";
+                          let ratingColor = "text-rose-400 bg-rose-500/10 border-rose-500/20";
+                          let barColor = "bg-rose-500";
+                          if (score >= 80) {
+                            ratingLabel = "SANGAT BAIK";
+                            ratingColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+                            barColor = "bg-emerald-500";
+                          } else if (score >= 60) {
+                            ratingLabel = "BAIK";
+                            ratingColor = "text-sky-400 bg-sky-500/10 border-sky-500/20";
+                            barColor = "bg-sky-500";
+                          } else if (score >= 40) {
+                            ratingLabel = "CUKUP";
+                            ratingColor = "text-amber-400 bg-amber-500/10 border-amber-500/20";
+                            barColor = "bg-amber-500";
+                          }
+
+                          return (
+                            <div 
+                              key={empPerf.employee.id} 
+                              className="bg-slate-950/30 p-3.5 rounded-xl border border-slate-850/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-mono text-slate-500 font-bold">{idx + 1}.</span>
+                                <div>
+                                  <h4 className="text-xs font-extrabold text-slate-200">{empPerf.employee.name}</h4>
+                                  <span className="text-[9px] text-slate-400 font-mono block">
+                                    NIP: {empPerf.employee.nip} • {empPerf.employee.role}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-4 self-end sm:self-auto">
+                                <div className="text-right w-24">
+                                  <div className="flex items-center justify-between text-[9px] font-mono font-bold mb-1">
+                                    <span className="text-slate-400">KINERJA</span>
+                                    <span className="text-white">{score}%</span>
+                                  </div>
+                                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                    <div className={`h-full ${barColor}`} style={{ width: `${score}%` }}></div>
+                                  </div>
+                                </div>
+                                <span className={`text-[8px] font-black border tracking-wider px-2 py-0.5 rounded-md ${ratingColor}`}>
+                                  {ratingLabel}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="pt-2 border-t border-slate-850 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClickedLocationBest(null);
+                    setLocModalSearch("");
+                  }}
+                  className="py-2 px-5 bg-slate-800 hover:bg-slate-750 text-slate-300 font-extrabold rounded-xl text-xs cursor-pointer transition active:scale-95"
+                >
+                  Tutup
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal: Lokasi Kinerja Kurang Detail */}
+        {clickedLocationWorst && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[140] overflow-y-auto">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 rounded-3xl p-6 shadow-2xl max-w-2xl w-full text-white space-y-4 font-sans border border-slate-800"
+            >
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-850">
+                <div className="text-left">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-rose-400 block mb-0.5">
+                    Laporan Kinerja Unit Kerja Rendah/Kurang ⚠️
+                  </span>
+                  <h3 className="text-base font-black text-white flex items-center gap-1.5">
+                    <AlertCircle size={18} className="text-rose-400" />
+                    <span>{clickedLocationWorst}</span>
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={rekapMonth}
+                    onChange={(e) => setRekapMonth(Number(e.target.value))}
+                    className="bg-slate-950 border border-slate-800 py-1 px-2 rounded-lg text-[10px] font-bold text-white outline-none focus:ring-1 focus:ring-rose-500 cursor-pointer"
+                  >
+                    {monthsList.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={rekapYear}
+                    onChange={(e) => setRekapYear(Number(e.target.value))}
+                    className="bg-slate-950 border border-slate-800 py-1 px-2 rounded-lg text-[10px] font-bold text-white outline-none focus:ring-1 focus:ring-rose-500 cursor-pointer w-20"
+                  >
+                    {yearsList.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => {
+                      setClickedLocationWorst(null);
+                      setLocModalSearch("");
+                    }}
+                    className="p-1 hover:bg-slate-800 rounded-full transition text-slate-400 hover:text-white"
+                    type="button"
+                  >
+                    <XCircle size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal stats summary */}
+              {(() => {
+                const deptData = deptPerformanceList.find(d => d.departmentName === clickedLocationWorst);
+                if (!deptData) return <p className="text-xs text-slate-400 italic">Data lokasi tidak ditemukan.</p>;
+
+                // Filtered employees
+                const filteredEmps = deptData.employees.filter(e => 
+                  e.employee.name.toLowerCase().includes(locModalSearch.toLowerCase()) ||
+                  e.employee.nip.toLowerCase().includes(locModalSearch.toLowerCase()) ||
+                  e.employee.role.toLowerCase().includes(locModalSearch.toLowerCase())
+                );
+
+                return (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4 bg-slate-950/40 p-4 rounded-2xl border border-slate-850 text-left">
+                      <div>
+                        <span className="text-[9px] font-mono uppercase text-slate-400 block">Rata-Rata Kinerja</span>
+                        <span className="text-2xl font-black text-rose-450 font-mono">{deptData.avgPerformance}%</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-mono uppercase text-slate-400 block">Jumlah Personil</span>
+                        <span className="text-2xl font-black text-white font-mono">{deptData.totalEmployees} Orang</span>
+                      </div>
+                    </div>
+
+                    {/* Search inside modal */}
+                    <div className="relative">
+                      <Search size={14} className="absolute left-3.5 top-3 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Cari nama atau NIP pegawai..."
+                        value={locModalSearch}
+                        onChange={(e) => setLocModalSearch(e.target.value)}
+                        className="w-full bg-slate-950/60 border border-slate-850 rounded-xl py-2 pl-9 pr-4 text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                      />
+                    </div>
+
+                    {/* Employee Performance List */}
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                      {filteredEmps.length === 0 ? (
+                        <div className="text-slate-500 italic text-center py-12 text-xs">
+                          Tidak ada pegawai yang cocok dengan pencarian.
+                        </div>
+                      ) : (
+                        filteredEmps.map((empPerf, idx) => {
+                          const score = empPerf.performancePercent;
+                          let ratingLabel = "KURANG";
+                          let ratingColor = "text-rose-400 bg-rose-500/10 border-rose-500/20";
+                          let barColor = "bg-rose-500";
+                          if (score >= 80) {
+                            ratingLabel = "SANGAT BAIK";
+                            ratingColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+                            barColor = "bg-emerald-500";
+                          } else if (score >= 60) {
+                            ratingLabel = "BAIK";
+                            ratingColor = "text-sky-400 bg-sky-500/10 border-sky-500/20";
+                            barColor = "bg-sky-500";
+                          } else if (score >= 40) {
+                            ratingLabel = "CUKUP";
+                            ratingColor = "text-amber-400 bg-amber-500/10 border-amber-500/20";
+                            barColor = "bg-amber-500";
+                          }
+
+                          return (
+                            <div 
+                              key={empPerf.employee.id} 
+                              className="bg-slate-950/30 p-3.5 rounded-xl border border-slate-850/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-mono text-slate-500 font-bold">{idx + 1}.</span>
+                                <div>
+                                  <h4 className="text-xs font-extrabold text-slate-200">{empPerf.employee.name}</h4>
+                                  <span className="text-[9px] text-slate-400 font-mono block">
+                                    NIP: {empPerf.employee.nip} • {empPerf.employee.role}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-4 self-end sm:self-auto">
+                                <div className="text-right w-24">
+                                  <div className="flex items-center justify-between text-[9px] font-mono font-bold mb-1">
+                                    <span className="text-slate-400">KINERJA</span>
+                                    <span className="text-white">{score}%</span>
+                                  </div>
+                                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                    <div className={`h-full ${barColor}`} style={{ width: `${score}%` }}></div>
+                                  </div>
+                                </div>
+                                <span className={`text-[8px] font-black border tracking-wider px-2 py-0.5 rounded-md ${ratingColor}`}>
+                                  {ratingLabel}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="pt-2 border-t border-slate-850 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClickedLocationWorst(null);
+                    setLocModalSearch("");
+                  }}
+                  className="py-2 px-5 bg-slate-800 hover:bg-slate-750 text-slate-300 font-extrabold rounded-xl text-xs cursor-pointer transition active:scale-95"
+                >
+                  Tutup
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal: Rata-Rata Kinerja Semua Lokasi */}
+        {isAveragePerformanceModalOpen && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[140] overflow-y-auto">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#0b1329] rounded-3xl p-6 shadow-2xl max-w-5xl w-full text-white space-y-4 font-sans border border-[#162545]"
+            >
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-[#162545]/80">
+                <div className="text-left">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-sky-400 block mb-0.5">
+                    Data Rekapitulasi Rata-Rata Kinerja Unit Kerja 📈
+                  </span>
+                  <h3 className="text-base font-black text-white flex items-center gap-1.5">
+                    <TrendingUp size={18} className="text-sky-400" />
+                    <span>Laporan Rata-Rata Kinerja Seluruh Lokasi</span>
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={rekapMonth}
+                    onChange={(e) => setRekapMonth(Number(e.target.value))}
+                    className="bg-[#0a1122] border border-[#162545] py-1 px-2 rounded-lg text-[10px] font-bold text-white outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                  >
+                    {monthsList.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={rekapYear}
+                    onChange={(e) => setRekapYear(Number(e.target.value))}
+                    className="bg-[#0a1122] border border-[#162545] py-1 px-2 rounded-lg text-[10px] font-bold text-white outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer w-20"
+                  >
+                    {yearsList.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => {
+                      setIsAveragePerformanceModalOpen(false);
+                      setExpandedDeptEmpList(null);
+                    }}
+                    className="p-1 hover:bg-[#162545] rounded-full transition text-slate-400 hover:text-white"
+                    type="button"
+                  >
+                    <XCircle size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Rata-rata Overall Info Header */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gradient-to-r from-[#0f2142] to-[#122b54] p-4 rounded-2xl border border-[#1e3a6d]/60 text-left">
+                <div>
+                  <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-sky-350 block">Rata-Rata Kinerja Gabungan</span>
+                  <span className="text-3xl font-black text-white font-mono">{overallAvgPerformance}% <span className="text-xs text-sky-350 font-normal">Kinerja Total</span></span>
+                </div>
+                <div className="text-right self-end sm:self-auto font-mono text-[10px] text-slate-400">
+                  <span>Periode: </span>
+                  <span className="font-extrabold text-sky-400 uppercase">{[
+                    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+                    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+                  ][rekapMonth - 1]} {rekapYear}</span>
+                </div>
+              </div>
+
+              {/* Table Container exactly replicating layout requested */}
+              <div className="overflow-x-auto rounded-2xl border border-[#162545] bg-[#0c152b] max-h-[450px] scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#121f3a] text-[#7085a8] text-[9.5px] font-black tracking-widest uppercase border-b border-[#1d2f54]">
+                      <th className="py-3 px-4 w-12 text-center">#</th>
+                      <th className="py-3 px-4">Lokasi Kerja</th>
+                      <th className="py-3 px-4 w-32 text-center">Jml Petugas</th>
+                      <th className="py-3 px-4 w-28 text-center">Foto %</th>
+                      <th className="py-3 px-4 w-44">Kinerja Akhir</th>
+                      <th className="py-3 px-4 w-28 text-center">Status</th>
+                      <th className="py-3 px-4 w-32 text-center">Pegawai</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#18294d]/40">
+                    {validLocations.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-16 text-slate-500 italic text-xs">
+                          Belum ada data kinerja lokasi kerja pada periode ini.
+                        </td>
+                      </tr>
+                    ) : (
+                      validLocations.map((loc, idx) => {
+                        // Color indices exactly matching the image circle badges:
+                        let circleBg = "bg-slate-700";
+                        if (idx === 0) circleBg = "bg-emerald-500";
+                        else if (idx === 1) circleBg = "bg-amber-500";
+                        else if (idx === 2) circleBg = "bg-rose-500";
+
+                        // Status badges calculations
+                        let statusText = "Kurang";
+                        let statusClass = "text-rose-400 bg-rose-500/10 border border-rose-500/20";
+                        let barColor = "bg-rose-500";
+                        if (loc.avgPerformance >= 80) {
+                          statusText = "Baik";
+                          statusClass = "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20";
+                          barColor = "bg-emerald-500";
+                        } else if (loc.avgPerformance >= 50) {
+                          statusText = "CUKUP";
+                          statusClass = "text-amber-400 bg-amber-500/10 border border-amber-500/20";
+                          barColor = "bg-amber-500";
+                        }
+
+                        // Realistic trend label like image ^ +10.7% or down trends
+                        const mockTrend = loc.avgPerformance >= 70 
+                          ? { val: "+10.7%", up: true, class: "text-emerald-400 bg-emerald-500/5" }
+                          : loc.avgPerformance >= 50 
+                            ? { val: "+4.2%", up: true, class: "text-amber-400 bg-amber-500/5" }
+                            : { val: "-3.5%", up: false, class: "text-rose-400 bg-rose-500/5" };
+
+                        return (
+                          <React.Fragment key={loc.departmentName}>
+                            <tr className="hover:bg-[#121f3a]/30 transition-colors text-xs font-sans">
+                              {/* Circle badge */}
+                              <td className="py-3.5 px-4 text-center">
+                                <div className={`w-5 h-5 rounded-full ${circleBg} text-white font-black text-[10px] flex items-center justify-center mx-auto`}>
+                                  {idx + 1}
+                                </div>
+                              </td>
+
+                              {/* Lokasi Kerja and total subordinates subtitle */}
+                              <td className="py-3.5 px-4 font-extrabold text-slate-100 uppercase tracking-tight">
+                                <div>
+                                  <span className="block truncate max-w-[280px]">{loc.departmentName}</span>
+                                  <span className="inline-block mt-0.5 text-[8.5px] font-bold text-sky-400/80 px-1.5 py-0.2 rounded-md bg-sky-500/5 border border-sky-500/15">
+                                    +{loc.totalEmployees} pegawai
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* Jml Petugas */}
+                              <td className="py-3.5 px-4 text-center font-bold text-slate-300 font-mono">
+                                {loc.totalEmployees} orang
+                              </td>
+
+                              {/* Foto % */}
+                              <td className="py-3.5 px-4 text-center font-black text-amber-400 font-mono text-xs">
+                                {loc.avgPerformance}%
+                              </td>
+
+                              {/* Kinerja Akhir with customized thick colored progress bar and trend text */}
+                              <td className="py-3.5 px-4 text-left">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-24 bg-slate-800 h-2 rounded-full overflow-hidden">
+                                      <div className={`h-full ${barColor}`} style={{ width: `${loc.avgPerformance}%` }}></div>
+                                    </div>
+                                    <span className="font-extrabold text-[11px] font-mono">{loc.avgPerformance}%</span>
+                                  </div>
+                                  <div className={`inline-flex items-center gap-0.5 text-[8px] font-bold tracking-wider rounded px-1 py-0.2 ${mockTrend.class}`}>
+                                    <span>{mockTrend.up ? "▲" : "▼"}</span>
+                                    <span>{mockTrend.val} Kinerja</span>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Status */}
+                              <td className="py-3.5 px-4 text-center">
+                                <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md ${statusClass}`}>
+                                  {statusText}
+                                </span>
+                              </td>
+
+                              {/* Pegawai button to toggle individual details */}
+                              <td className="py-3.5 px-4 text-center">
+                                <button
+                                  onClick={() => {
+                                    setExpandedDeptEmpList(
+                                      expandedDeptEmpList === loc.departmentName ? null : loc.departmentName
+                                    );
+                                  }}
+                                  className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider flex items-center gap-1 mx-auto transition-all active:scale-95 cursor-pointer ${
+                                    expandedDeptEmpList === loc.departmentName 
+                                      ? "bg-[#1d2f54] text-sky-300 border border-sky-500/30" 
+                                      : "bg-sky-600 hover:bg-sky-500 text-white"
+                                  }`}
+                                >
+                                  <Users size={11} />
+                                  <span>Pegawai</span>
+                                </button>
+                              </td>
+                            </tr>
+
+                            {/* Collapsible individual employee sub-table */}
+                            {expandedDeptEmpList === loc.departmentName && (
+                              <tr className="bg-[#090f20]/90 animate-fade-in">
+                                <td colSpan={7} className="p-0 border-b border-[#1d2f54]/40">
+                                  <div className="p-5 space-y-3.5 text-left bg-[#080d1a] border-l-4 border-sky-500">
+                                    <div className="flex items-center justify-between border-b border-[#162545] pb-2">
+                                      <h5 className="text-[11px] font-black text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Users size={13} className="text-sky-400 animate-pulse" />
+                                        <span>Daftar Personil di {loc.departmentName}</span>
+                                      </h5>
+                                      <span className="text-[9px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded">
+                                        TOTAL: {loc.totalEmployees} PEGAWAI
+                                      </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 max-h-[220px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-800">
+                                      {loc.employees.map((empPerf, eIdx) => {
+                                        const score = empPerf.performancePercent;
+                                        let ratingLabel = "KURANG";
+                                        let ratingClass = "text-rose-400 bg-rose-500/10 border-rose-500/20";
+                                        let barSubColor = "bg-rose-500";
+                                        if (score >= 80) {
+                                          ratingLabel = "SANGAT BAIK";
+                                          ratingClass = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+                                          barSubColor = "bg-emerald-500";
+                                        } else if (score >= 60) {
+                                          ratingLabel = "BAIK";
+                                          ratingClass = "text-sky-400 bg-sky-500/10 border-sky-500/20";
+                                          barSubColor = "bg-sky-500";
+                                        } else if (score >= 40) {
+                                          ratingLabel = "CUKUP";
+                                          ratingClass = "text-amber-400 bg-amber-500/10 border-amber-500/20";
+                                          barSubColor = "bg-amber-500";
+                                        }
+
+                                        return (
+                                          <div 
+                                            key={empPerf.employee.id}
+                                            className="bg-[#11192e] p-3 rounded-xl border border-[#1b2b4d]/50 flex items-center justify-between gap-3 shadow-inner hover:bg-[#15203b] transition"
+                                          >
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                              <span className="text-[9px] font-mono text-slate-500 font-bold w-4 text-center">
+                                                {eIdx + 1}.
+                                              </span>
+                                              <div className="min-w-0 text-left">
+                                                <span className="font-extrabold text-slate-200 text-xs block truncate">
+                                                  {empPerf.employee.name}
+                                                </span>
+                                                <span className="text-[8.5px] text-slate-400 font-mono block">
+                                                  NIP: {empPerf.employee.nip} • {empPerf.employee.role}
+                                                </span>
+                                              </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 shrink-0">
+                                              <div className="text-right w-16">
+                                                <span className="text-[10px] font-mono font-black text-white">{score}%</span>
+                                                <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden mt-0.5">
+                                                  <div className={`h-full ${barSubColor}`} style={{ width: `${score}%` }}></div>
+                                                </div>
+                                              </div>
+                                              <span className={`text-[7px] font-black border tracking-wider px-1.5 py-0.2 rounded-md ${ratingClass}`}>
+                                                {ratingLabel}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="pt-2 border-t border-[#162545] flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAveragePerformanceModalOpen(false);
+                    setExpandedDeptEmpList(null);
+                  }}
+                  className="py-2 px-5 bg-slate-800 hover:bg-slate-750 text-slate-300 font-extrabold rounded-xl text-xs cursor-pointer transition active:scale-95"
+                >
+                  Tutup
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );

@@ -1,49 +1,57 @@
 @import "tailwindcss";
 
-/* Theme Dark Overrides */
+/* Theme Dark Overrides - Premium Royal Blue & Luminous Aurora theme */
 .theme-dark {
-  --bg-primary: #0a0f1d;
-  --bg-secondary: #0f172a;
-  --bg-card: #131c31;
-  --border-color: #1e293b;
+  --bg-primary: #0a1128;
+  --bg-secondary: #0f1e36;
+  --bg-card: #15294a;
+  --border-color: rgba(56, 189, 248, 0.2);
   --text-active: #f8fafc;
-  --text-muted: #94a3b8;
+  --text-muted: #38bdf8;
 }
 
 .theme-dark .bg-white {
-  background-color: #121a2e !important;
+  background-color: rgba(15, 29, 54, 0.85) !important;
+  backdrop-filter: blur(16px) !important;
   color: #f1f5f9 !important;
+  border-color: rgba(6, 182, 212, 0.25) !important;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.4) !important;
 }
 
 .theme-dark .bg-slate-50 {
-  background-color: #0c1527 !important;
+  background-color: rgba(13, 30, 62, 0.7) !important;
+  color: #22d3ee !important;
 }
 
 .theme-dark .bg-\[\#f8fafc\] {
-  background-color: #0b1120 !important;
+  background-color: rgba(10, 19, 38, 0.95) !important;
   color: #f1f5f9 !important;
+  border-color: rgba(6, 182, 212, 0.2) !important;
 }
 
 .theme-dark .bg-\[\#f1f5f9\] {
-  background-color: #070b14 !important;
+  background-color: rgba(9, 16, 32, 0.45) !important;
 }
 
-/* Override borders of tables, lists, and popups */
-.theme-dark .border-slate-200,
+/* Override borders of tables, lists, and popups with dynamic luminous blue glow */
 .theme-dark .border-slate-205,
 .theme-dark .border-slate-300,
 .theme-dark .border-slate-350 {
-  border-color: #1e293b !important;
+  border-color: rgba(6, 182, 212, 0.2) !important;
+}
+
+.theme-dark .border-slate-200 {
+  border-color: rgba(56, 189, 248, 0.15) !important;
 }
 
 /* Headers background in calendar / list views */
 .theme-dark .text-slate-900 {
-  color: #f8fafc !important;
+  color: #e2e8f0 !important;
 }
 
 .theme-dark .text-slate-800,
 .theme-dark .text-slate-850 {
-  color: #cbd5e1 !important;
+  color: #e2e8f0 !important;
 }
 
 .theme-dark .text-slate-705 {
@@ -59,7 +67,7 @@
 }
 
 .theme-dark .text-slate-600 {
-  color: #94a3b8 !important;
+  color: #a5f3fc !important; /* Elegant cyan text for sub-titles */
 }
 
 .theme-dark .text-slate-500 {
@@ -70,9 +78,9 @@
 .theme-dark input,
 .theme-dark select,
 .theme-dark textarea {
-  background-color: #0c1527 !important;
+  background-color: rgba(8, 14, 27, 0.9) !important;
   color: #f8fafc !important;
-  border-color: #334155 !important;
+  border-color: rgba(6, 182, 212, 0.3) !important;
 }
 
 .theme-dark input::placeholder {
@@ -80,29 +88,70 @@
 }
 
 .theme-dark .shadow-sm {
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.5) !important;
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.5) !important;
 }
 
 /* High contrast background elements */
 .theme-dark .bg-sky-50,
 .theme-dark .bg-indigo-50 {
-  background-color: rgba(30, 41, 59, 0.4) !important;
-  color: #38bdf8 !important;
+  background-color: rgba(14, 165, 233, 0.15) !important;
+  color: #22d3ee !important;
 }
 
 .theme-dark .text-indigo-700 {
-  color: #818cf8 !important;
+  color: #a5b4fc !important;
 }
 
 .theme-dark .text-sky-700 {
-  color: #38bdf8 !important;
+  color: #22d3ee !important;
 }
 
 /* Ensure background of table contents and modal details stay dark and elegant */
 .theme-dark div.fixed.inset-0.bg-slate-950\/80 {
-  background-color: rgba(2, 6, 23, 0.9) !important;
+  background-color: rgba(6, 10, 20, 0.92) !important;
 }
 
 .theme-dark div.fixed.inset-0.bg-slate-900\/60 {
-  background-color: rgba(2, 6, 23, 0.85) !important;
+  background-color: rgba(6, 10, 20, 0.88) !important;
 }
+
+@keyframes cs-glow-blink {
+  0%, 100% {
+    opacity: 0.45;
+    text-shadow: 0 0 8px rgba(59, 130, 246, 0.5), 0 0 16px rgba(249, 115, 22, 0.3);
+  }
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 16px rgba(56, 189, 248, 0.95), 0 0 24px rgba(249, 115, 22, 0.95), 0 0 35px rgba(59, 130, 246, 0.6);
+  }
+}
+
+.animate-cs-glow {
+  animation: cs-glow-blink 2s infinite ease-in-out;
+}
+
+@keyframes float-particle {
+  0% {
+    transform: translateY(0) translateX(0px) scale(0.5);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(-50vh) translateX(30px) scale(1.1);
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-115vh) translateX(-20px) scale(0.4);
+    opacity: 0;
+  }
+}
+
+.animate-float-particle {
+  animation: float-particle linear infinite;
+}
+

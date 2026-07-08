@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, CheckCircle2, Bell, X, Compass, Info,
   LogOut, Lock, User, ShieldAlert, Sun, Moon,
-  ExternalLink, Layers
+  ExternalLink, Layers, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, Report, Attendance, SystemNotification, UserAccount } from './types';
@@ -17,6 +17,7 @@ import {
   collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
+import { uploadImageToCloudinary } from './lib/cloudinary';
 // @ts-ignore
 import hpiLogo from './assets/images/hpi_cs_logo_dark_1781488961865.jpg';
 
@@ -96,6 +97,7 @@ export default function App() {
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -123,11 +125,17 @@ export default function App() {
   };
 
   // Initial default datasets for automatic seeding / recovery
-  const defaultEmployeesList: Employee[] = [];
+  const defaultEmployeesList: Employee[] = INITIAL_EMPLOYEES;
 
-  const defaultReportsList: Report[] = [];
+  const defaultReportsList: Report[] = INITIAL_REPORTS;
 
-  const defaultAttendanceList: Attendance[] = [];
+  const defaultAttendanceList: Attendance[] = INITIAL_ATTENDANCE;
+
+  const defaultUserAccounts: UserAccount[] = [
+    { id: 'ACC_1', userId: '9826003HPI', password: '27111998', createdAt: '2023-01-15' },
+    { id: 'ACC_2', userId: '9826004HPI', password: '27111998', createdAt: '2023-03-20' },
+    { id: 'ACC_3', userId: '9826005HPI', password: '27111998', createdAt: '2023-06-10' }
+  ];
 
   // Global React States
   const [employees, setEmployees] = useState<Employee[]>(() => {
@@ -135,7 +143,7 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object') return parsed;
+        if (parsed && typeof parsed === 'object' && Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
     return defaultEmployeesList;
@@ -146,7 +154,7 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.length > 0) return parsed;
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
     return defaultAttendanceList;
@@ -157,7 +165,7 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.length > 0) return parsed;
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
     return defaultReportsList;
@@ -168,10 +176,10 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && Array.isArray(parsed)) return parsed;
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
-    return [];
+    return defaultUserAccounts;
   });
 
   const [dbError, setDbError] = useState<string | null>(null);
@@ -253,7 +261,12 @@ export default function App() {
         safeSaveToLocalStorage('db_reports', docsList);
       }
     }, (error) => {
-      console.error("Firestore onSnapshot 'dashboard' error:", error);
+      const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
+      if (isQuota) {
+        console.warn("Firestore onSnapshot 'dashboard' quota restriction active, falling back to local database. message:", error.message);
+      } else {
+        console.error("Firestore onSnapshot 'dashboard' error:", error);
+      }
       setDbError(error.message);
       const saved = localStorage.getItem('db_reports');
       if (saved) {
@@ -294,7 +307,12 @@ export default function App() {
           localStorage.setItem('last_sync_employees', Date.now().toString());
         }
       }, (error) => {
-        console.error("Firestore onSnapshot 'employees' error:", error);
+        const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
+        if (isQuota) {
+          console.warn("Firestore onSnapshot 'employees' quota restriction active, falling back to local database. message:", error.message);
+        } else {
+          console.error("Firestore onSnapshot 'employees' error:", error);
+        }
         setDbError(error.message);
         const saved = localStorage.getItem('db_employees');
         if (saved) {
@@ -346,7 +364,12 @@ export default function App() {
           localStorage.setItem('last_sync_attendance', Date.now().toString());
         }
       }, (error) => {
-        console.error("Firestore onSnapshot 'attendance' error:", error);
+        const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
+        if (isQuota) {
+          console.warn("Firestore onSnapshot 'attendance' quota restriction active, falling back to local database. message:", error.message);
+        } else {
+          console.error("Firestore onSnapshot 'attendance' error:", error);
+        }
         setDbError(error.message);
         const saved = localStorage.getItem('db_attendance');
         if (saved) {
@@ -388,7 +411,13 @@ export default function App() {
         localStorage.setItem('db_user_accounts', JSON.stringify(docsList));
         localStorage.setItem('last_sync_user_accounts', Date.now().toString());
       }, (error) => {
-        console.error("Firestore onSnapshot 'hpi_user_accounts' error:", error);
+        const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
+        if (isQuota) {
+          console.warn("Firestore onSnapshot 'hpi_user_accounts' quota restriction active, falling back to local database. message:", error.message);
+        } else {
+          console.error("Firestore onSnapshot 'hpi_user_accounts' error:", error);
+        }
+        setDbError(error.message);
         const saved = localStorage.getItem('db_user_accounts');
         if (saved) {
           try {
@@ -664,10 +693,34 @@ export default function App() {
     
     for (const draft of draftReports) {
       try {
-        await setDoc(doc(db, 'dashboard', draft.id), draft);
+        let updatedDraft = { ...draft };
+        
+        // Upload indoor photo to Cloudinary if it's a base64 string
+        if (draft.photoIndoor && draft.photoIndoor.startsWith('data:image/')) {
+          try {
+            const meta = await uploadImageToCloudinary(draft.photoIndoor, `sync_indoor_${draft.id}.jpg`);
+            updatedDraft.photoIndoor = meta.secure_url;
+            updatedDraft.photoIndoorMetadata = meta;
+          } catch (clErr) {
+            console.error('Gagal upload indoor photo draft ke Cloudinary:', clErr);
+          }
+        }
+        
+        // Upload outdoor photo to Cloudinary if it's a base64 string
+        if (draft.photoOutdoor && draft.photoOutdoor.startsWith('data:image/')) {
+          try {
+            const meta = await uploadImageToCloudinary(draft.photoOutdoor, `sync_outdoor_${draft.id}.jpg`);
+            updatedDraft.photoOutdoor = meta.secure_url;
+            updatedDraft.photoOutdoorMetadata = meta;
+          } catch (clErr) {
+            console.error('Gagal upload outdoor photo draft ke Cloudinary:', clErr);
+          }
+        }
+
+        await setDoc(doc(db, 'dashboard', updatedDraft.id), updatedDraft);
         
         setReports(prev => {
-          const updated = [...prev.filter(r => r.id !== draft.id), draft];
+          const updated = [...prev.filter(r => r.id !== updatedDraft.id), updatedDraft];
           updated.sort((a, b) => {
             const dateA = a.date || "";
             const dateB = b.date || "";
@@ -856,86 +909,170 @@ export default function App() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col justify-center items-center p-4 selection:bg-indigo-600 selection:text-white relative overflow-hidden">
-        {/* Subtle decorative grid background */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-950/40 via-slate-950 to-slate-950 z-0"></div>
-        <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-10 z-0"></div>
+      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col justify-center items-center p-4 selection:bg-cyan-600 selection:text-white relative overflow-hidden">
+        {/* Modern Vibrant Gradient Base (Electrical Waves concept) */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0c1221] via-[#09223c] to-[#041a1c] z-0"></div>
+        
+        {/* High-intensity Ambient Floating Light Blobs */}
+        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-cyan-500/15 rounded-full blur-[120px] mix-blend-screen animate-pulse z-0" style={{ animationDuration: '8s' }}></div>
+        <div className="absolute bottom-[-15%] left-[-10%] w-[600px] h-[600px] bg-indigo-500/15 rounded-full blur-[140px] mix-blend-screen animate-pulse z-0" style={{ animationDuration: '12s' }}></div>
+        <div className="absolute top-1/3 left-1/4 w-[350px] h-[350px] bg-amber-500/5 rounded-full blur-[90px] mix-blend-screen z-0"></div>
+
+        {/* Technical Vector Grid Overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:3.5rem_3.5rem] opacity-20 z-0"></div>
+
+        {/* Floating White Particles */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          {[
+            { left: "8%", size: "4px", delay: "0s", duration: "14s" },
+            { left: "18%", size: "3px", delay: "3s", duration: "11s" },
+            { left: "28%", size: "5px", delay: "1.5s", duration: "16s" },
+            { left: "38%", size: "2px", delay: "5s", duration: "9s" },
+            { left: "48%", size: "4px", delay: "0.5s", duration: "13s" },
+            { left: "58%", size: "3px", delay: "7s", duration: "12s" },
+            { left: "68%", size: "5px", delay: "2.5s", duration: "15s" },
+            { left: "78%", size: "2.5px", delay: "4s", duration: "10s" },
+            { left: "88%", size: "4px", delay: "1s", duration: "14s" },
+            { left: "95%", size: "3px", delay: "8s", duration: "12s" },
+            { left: "13%", size: "4.5px", delay: "6s", duration: "15s" },
+            { left: "23%", size: "2px", delay: "10s", duration: "8s" },
+            { left: "33%", size: "3.5px", delay: "4.5s", duration: "13s" },
+            { left: "43%", size: "5px", delay: "9s", duration: "17s" },
+            { left: "53%", size: "2.5px", delay: "2s", duration: "11s" },
+            { left: "63%", size: "4px", delay: "7.5s", duration: "14s" },
+            { left: "73%", size: "3px", delay: "11s", duration: "10s" },
+            { left: "83%", size: "4.5px", delay: "5.5s", duration: "16s" },
+          ].map((p, i) => (
+            <div
+              key={i}
+              className="absolute bg-white rounded-full animate-float-particle shadow-[0_0_10px_rgba(255,255,255,0.9)]"
+              style={{
+                left: p.left,
+                width: p.size,
+                height: p.size,
+                animationDelay: p.delay,
+                animationDuration: p.duration,
+                bottom: "-5%"
+              }}
+            />
+          ))}
+        </div>
 
         <motion.div 
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.4, ease: "easeOut" }}
-          className="w-full max-w-md bg-[#0e1623]/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 shadow-2xl z-10 relative overflow-hidden"
+          className="w-full max-w-md bg-slate-900/75 backdrop-blur-2xl border border-slate-800/80 rounded-[2.5rem] p-8 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] z-10 relative overflow-hidden"
         >
-          {/* Logo Brand area */}
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center mb-4 active:scale-95 transition-transform max-w-[200px] mx-auto">
+          {/* Top Multi-Color Neon Accent Bar */}
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-cyan-400 via-blue-500 via-indigo-500 to-amber-400"></div>
+
+          {/* Logo & Brand Info Section */}
+          <div className="text-center mb-8 relative">
+            <div className="relative inline-flex items-center justify-center p-1.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 mb-4 shadow-lg hover:scale-[1.02] active:scale-98 transition-all max-w-[210px] mx-auto group">
+              <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/10 to-amber-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity blur duration-500"></div>
               <img 
                 src={hpiLogo} 
                 alt="HPI CS Online Logo" 
-                className="w-full h-auto object-contain rounded-lg" 
+                className="w-full h-auto object-contain rounded-xl relative z-10" 
                 referrerPolicy="no-referrer"
               />
             </div>
-            <h1 className="text-2xl font-black text-white tracking-widest uppercase mt-2">CS online</h1>
-            <p className="text-[10px] text-slate-400 font-bold tracking-tighter mt-1">PT. HALEYORA POWERINDO BANGKA BELITUNG</p>
+            
+            <h1 className="text-2xl font-black tracking-[0.2em] bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-300 bg-clip-text text-transparent uppercase mt-1">
+              CS ONLINE
+            </h1>
+            <p className="text-[9.5px] text-slate-300 font-bold tracking-[0.1em] uppercase mt-1.5 max-w-[280px] mx-auto leading-relaxed">
+              PT Haleyora Powerindo Bangka Belitung
+            </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block pl-1">
+          <form onSubmit={handleLogin} className="space-y-6">
+            {/* ID User Field */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-sky-400 uppercase tracking-[0.15em] block pl-1">
                 ID User
               </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
-                  <User size={15} />
+              <div className="relative group">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-cyan-500 group-focus-within:text-cyan-400 transition-colors">
+                  <User size={16} className="stroke-[2.5]" />
                 </span>
                 <input
                   type="text"
                   required
-                  placeholder="Masukan ID"
+                  placeholder="Masukan NIP / ID"
                   value={userId}
                   onChange={(e) => setUserId(e.target.value)}
-                  className="w-full bg-[#121b2d] border border-slate-800 text-sm text-slate-100 rounded-2xl pl-10 pr-4 py-3 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full bg-slate-950/60 border border-slate-800 text-sm text-slate-100 rounded-2xl pl-11 pr-4 py-3.5 placeholder-slate-600 focus:outline-none focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10 transition-all duration-300"
                 />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block pl-1">
-                Password
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
-                  <Lock size={15} />
+            {/* Password Field */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center px-1">
+                <label className="text-[10px] font-black text-sky-400 uppercase tracking-[0.15em] block">
+                  Password
+                </label>
+              </div>
+              <div className="relative group">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-cyan-500 group-focus-within:text-cyan-400 transition-colors">
+                  <Lock size={16} className="stroke-[2.5]" />
                 </span>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   placeholder="Masukan Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-[#121b2d] border border-slate-800 text-sm text-slate-100 rounded-2xl pl-10 pr-4 py-3 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full bg-slate-950/60 border border-slate-800 text-sm text-slate-100 rounded-2xl pl-11 pr-12 py-3.5 placeholder-slate-600 focus:outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                 />
+                <button
+                  type="button"
+                  id="btn_toggle_login_password_visibility"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-500 hover:text-cyan-400 transition-colors cursor-pointer"
+                  title={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
 
+            {/* Login Error Notification */}
             {loginError && (
               <motion.div 
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-rose-950/30 border border-rose-500/30 text-rose-300 text-xs py-2 px-3.5 rounded-xl text-center font-bold"
+                className="bg-rose-950/35 border border-rose-500/30 text-rose-300 text-xs py-2.5 px-4 rounded-xl text-center font-bold shadow-lg"
               >
                 {loginError}
               </motion.div>
             )}
 
+            {/* Submit Button */}
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-indigo-600 to-sky-500 hover:from-indigo-500 hover:to-sky-400 text-white text-xs font-black py-3 px-4 rounded-2xl transition shadow-lg shadow-indigo-600/25 active:scale-[0.98] uppercase tracking-wider cursor-pointer"
+              className="w-full relative overflow-hidden bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 hover:to-indigo-500 text-white text-xs font-black py-4 px-4 rounded-2xl transition-all duration-300 shadow-[0_4px_20px_rgba(6,182,212,0.25)] hover:shadow-[0_8px_30px_rgba(6,182,212,0.45)] active:scale-[0.98] uppercase tracking-[0.15em] cursor-pointer"
             >
-              LOGIN
+              LOGIN KE SISTEM
             </button>
+
+            {/* PLN/HPI Corporate Sinergi Badges */}
+            <div className="flex items-center justify-center gap-4 pt-4 border-t border-slate-800/60 mt-2 text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+              <span className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                Andal
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                Sinergi
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                Tangguh
+              </span>
+            </div>
           </form>
         </motion.div>
 
@@ -977,18 +1114,46 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#f8fafc] text-slate-800'} font-sans flex flex-col justify-between selection:bg-indigo-600 selection:text-white transition-colors duration-200`}>
+    <div className={`min-h-screen ${isDarkMode ? 'bg-gradient-to-br from-[#0c1322] via-[#09203f] to-[#051a24] text-slate-100' : 'bg-gradient-to-br from-[#f0f9ff] via-[#f1f5f9] to-[#fae8ff] text-slate-800'} font-sans flex flex-col justify-between selection:bg-cyan-600 selection:text-white transition-all duration-300 relative overflow-hidden`}>
+      {/* Dynamic Ambient Colorful Blur Spheres */}
+      {isDarkMode ? (
+        <>
+          <div className="absolute top-10 right-10 w-[450px] h-[450px] bg-blue-500/15 rounded-full blur-[130px] pointer-events-none animate-pulse" style={{ animationDuration: '8s' }} />
+          <div className="absolute bottom-20 left-10 w-[550px] h-[550px] bg-orange-500/15 rounded-full blur-[150px] pointer-events-none animate-pulse" style={{ animationDuration: '12s' }} />
+          <div className="absolute top-1/3 left-1/4 w-[350px] h-[350px] bg-sky-500/10 rounded-full blur-[110px] pointer-events-none" />
+          <div className="absolute bottom-1/3 right-1/4 w-[400px] h-[400px] bg-amber-500/10 rounded-full blur-[125px] pointer-events-none" />
+        </>
+      ) : (
+        <>
+          <div className="absolute top-10 right-10 w-96 h-96 bg-cyan-500/10 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute bottom-20 left-10 w-[450px] h-[450px] bg-indigo-500/10 rounded-full blur-[130px] pointer-events-none" />
+          <div className="absolute top-1/2 left-1/3 w-80 h-80 bg-purple-500/5 rounded-full blur-[90px] pointer-events-none" />
+        </>
+      )}
       
       {/* Upper Navigation Rail */}
-      <header className={`backdrop-blur-md sticky top-0 z-50 border-b px-6 py-4 flex items-center justify-between transition-colors duration-200 ${isDarkMode ? 'bg-slate-950/80 border-indigo-950/50 text-white' : 'bg-white/90 border-slate-200 text-slate-900'}`}>
+      <header className={`backdrop-blur-xl sticky top-0 z-50 border-b px-6 py-4 flex items-center justify-between transition-all duration-300 relative overflow-hidden ${isDarkMode ? 'bg-[#0f172a]/75 border-slate-800/80 text-white shadow-lg shadow-black/15' : 'bg-white/75 border-sky-100/80 text-slate-900 shadow-md shadow-sky-500/5'}`}>
+        {/* Top Multi-Color Neon Accent Line */}
+        <div className={`absolute top-0 left-0 right-0 h-[3.5px] ${isDarkMode ? 'bg-gradient-to-r from-blue-500 via-sky-400 via-orange-400 to-amber-500 shadow-[0_1px_15px_rgba(56,189,248,0.8)]' : 'bg-gradient-to-r from-cyan-400 via-sky-400 via-indigo-500 via-purple-500 to-amber-400'}`} />
+
         <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-tr from-indigo-500 to-sky-400 p-2 rounded-xl text-slate-950 font-extrabold flex items-center justify-center tracking-tighter">
+          <div className={`p-2 rounded-xl text-white font-extrabold flex items-center justify-center tracking-tighter shadow-md transition-all duration-300 ${isDarkMode ? 'bg-gradient-to-tr from-blue-500 via-sky-500 to-orange-500 shadow-[0_0_15px_rgba(59,130,246,0.5),_0_0_15px_rgba(249,115,22,0.4)]' : 'bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-500'}`}>
             HPI
           </div>
           <div>
-            <h3 className={`font-extrabold text-sm tracking-tight leading-none ${isDarkMode ? 'text-sky-400' : 'text-[#0284c7]'}`}>HPI CS System</h3>
+            <h3 className={`font-black text-sm tracking-tight leading-none transition-all duration-300 ${isDarkMode ? 'text-transparent bg-gradient-to-r from-blue-400 via-sky-300 to-orange-400 bg-clip-text drop-shadow-[0_0_12px_rgba(56,189,248,0.8)]' : 'text-[#0284c7]'}`}>HPI CS System</h3>
           </div>
         </div>
+
+        {/* Centered CS ONLINE for Dark Mode */}
+        {isDarkMode && (
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none z-20 flex items-center justify-center">
+            <span className="font-sans font-black tracking-[0.2em] text-[11px] xs:text-xs sm:text-sm uppercase bg-gradient-to-r from-blue-400 via-sky-300 to-orange-400 text-transparent bg-clip-text animate-cs-glow pl-[0.2em]">
+              CS ONLINE
+            </span>
+          </div>
+        )}
+
 
         {/* Theme Toggle & Logout Button */}
         <div className="flex items-center gap-2.5">
@@ -1021,13 +1186,15 @@ export default function App() {
         </div>
       </header>
 
+
+
       {/* Main Container workspace */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6">
+      <main className="flex-1 w-full p-0 flex flex-col">
         
 
 
         {/* Welcome information banner */}
-        <div className={`mb-6 p-4 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-md border ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-205 text-slate-800'}`}>
+        <div className={`p-4 rounded-none border-x-0 border-t-0 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-sm border ${isDarkMode ? 'bg-slate-900/60 border-slate-800 text-slate-100' : 'bg-white border-sky-100/80 text-slate-800'}`}>
           <div className="flex items-center gap-2.5 text-sky-400">
             <Info size={16} className={isDarkMode ? 'text-sky-500' : 'text-[#0284c7]'} />
             <span className={`text-[11px] leading-relaxed text-left ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
@@ -1037,7 +1204,7 @@ export default function App() {
         </div>
 
         {/* Full-width Web Dashboard */}
-        <div className="col-span-12">
+        <div className="w-full flex-1 flex flex-col">
           <AdminDashboard 
             employees={employees}
             attendance={attendance}
@@ -1065,6 +1232,7 @@ export default function App() {
             onAddUserAccount={handleAddUserAccount}
             onDeleteUserAccount={handleDeleteUserAccount}
             dbError={dbError}
+            onDbError={setDbError}
           />
         </div>
       </main>
@@ -1136,12 +1304,18 @@ export default function App() {
       </AnimatePresence>
 
       {/* Styled Footer */}
-      <footer className="bg-slate-950 p-6 border-t border-slate-900/60 flex flex-col md:flex-row items-center justify-between text-[11px] text-slate-500 select-none">
+      <footer className={`${isDarkMode ? 'bg-[#0f172a]/80 border-slate-800/80 text-slate-400' : 'bg-white/80 border-sky-100 text-slate-500'} p-6 border-t flex flex-col md:flex-row items-center justify-between text-[11px] select-none transition-all duration-300 relative z-10`}>
         <p>© 2026 HPI CS System. Semua Hak Cipta Dilindungi.</p>
         <div className="flex items-center gap-4 mt-2 md:mt-0 font-mono">
-          <span>Server: active (200 OK)</span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Server: active (200 OK)
+          </span>
           <span>•</span>
-          <span>Database: Google Firestore (Real-Time)</span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+            Database: Google Firestore (Real-Time)
+          </span>
         </div>
       </footer>
 
