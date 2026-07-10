@@ -91,8 +91,8 @@ const INDONESIA_HOLIDAYS_2026 = new Set([
   "2026-05-25", // Hari Raya Waisak
   "2026-05-26", // Cuti Bersama Waisak
   "2026-06-01", // Hari Lahir Pancasila
+  "2026-06-16", // Tahun Baru Islam 1448 H
   "2026-06-26", // Hari Raya Idul Adha
-  "2026-07-16", // Tahun Baru Islam 1448 H
   "2026-08-17", // Hari Kemerdekaan RI
   "2026-09-25", // Maulid Nabi Muhammad SAW
   "2026-12-25", // Hari Raya Natal
@@ -7114,12 +7114,12 @@ export default function AdminDashboard({
       {/* --- ADD REPORT MANUAL DIALOG (ADMIN OVERRIDE) --- */}
       <AnimatePresence>
         {isAddReportModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
+          <div className="fixed inset-0 z-[100] flex items-start justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-xs overflow-y-auto pt-3 sm:pt-12">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white border border-slate-300 w-full max-w-lg p-6 rounded-3xl space-y-4 shadow-xl text-xs text-slate-800 text-left overflow-y-auto max-h-[90vh]"
+              className="bg-white border border-slate-300 w-full max-w-lg p-4 sm:p-6 rounded-2xl sm:rounded-3xl space-y-3 sm:space-y-4 shadow-xl text-xs text-slate-800 text-left overflow-y-auto max-h-[92vh] mt-0 mb-8"
             >
               <div className="flex justify-between items-center pb-2 border-b border-slate-200">
                 <div className="space-y-0.5">
@@ -7134,14 +7134,14 @@ export default function AdminDashboard({
                 <button
                   id="btn_cls_add_rep_mod"
                   onClick={() => setIsAddReportModalOpen(false)}
-                  className="p-1 rounded-lg text-slate-450 hover:bg-slate-100 cursor-pointer"
+                  className="p-1 rounded-lg text-slate-450 hover:bg-slate-100 cursor-pointer text-sm font-bold"
                 >
                   X
                 </button>
               </div>
 
               {/* Quick Select Employee Dropdown */}
-              <div className="bg-[#f8fafc] p-3 rounded-xl border border-slate-200 space-y-1.5">
+              <div className="bg-[#f8fafc] p-2.5 sm:p-3 rounded-xl border border-slate-200 space-y-1.5">
                 <label className="text-[10px] text-[#0284c7] font-black uppercase tracking-wider block">
                   Cepat Isi dari Database Pegawai:
                 </label>
@@ -7172,10 +7172,10 @@ export default function AdminDashboard({
               <form
                 id="form_tambah_laporan_manual"
                 onSubmit={handleAddReportSubmit}
-                className="space-y-3.5"
+                className="space-y-3"
               >
                 {/* Row 1: Identitas */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">
                       Nama Pegawai *
@@ -7188,7 +7188,7 @@ export default function AdminDashboard({
                       value={addRepName}
                       onChange={(e) => setAddRepName(e.target.value)}
                       disabled={!isAdmin}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700"
+                      className="w-full bg-slate-50 border border-slate-300 p-2 sm:p-2.5 rounded-xl outline-none text-xs disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700"
                     />
                   </div>
 
@@ -7204,13 +7204,13 @@ export default function AdminDashboard({
                       value={addRepNip}
                       onChange={(e) => setAddRepNip(e.target.value)}
                       disabled={!isAdmin}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700"
+                      className="w-full bg-slate-50 border border-slate-300 p-2 sm:p-2.5 rounded-xl outline-none text-xs disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700"
                     />
                   </div>
                 </div>
 
                 {/* Row 2: Jabatan & Unit Kerja */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] text-slate-500 uppercase font-bold pl-0.5">
                       Jabatan (Role) *
@@ -7223,7 +7223,7 @@ export default function AdminDashboard({
                       value={addRepRole}
                       onChange={(e) => setAddRepRole(e.target.value)}
                       disabled={!isAdmin}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700"
+                      className="w-full bg-slate-50 border border-slate-300 p-2 sm:p-2.5 rounded-xl outline-none text-xs disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700"
                     />
                   </div>
 
@@ -7239,31 +7239,31 @@ export default function AdminDashboard({
                       value={addRepDept}
                       onChange={(e) => setAddRepDept(e.target.value)}
                       disabled={!isAdmin}
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl outline-none text-xs text-slate-800 placeholder-slate-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                      className="w-full bg-slate-50 border border-slate-300 p-2 sm:p-2.5 rounded-xl outline-none text-xs text-slate-800 placeholder-slate-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
 
                 {/* Row 3: Deskripsi Pekerjaan */}
-                <div className="space-y-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                <div className="space-y-3 bg-slate-50 p-2.5 sm:p-3.5 rounded-2xl border border-slate-200">
                   <div className="space-y-1">
                     <label className="text-[10px] text-slate-500 uppercase font-black pl-0.5 text-sky-600">
                       Deskripsi Pekerjaan / Aktivitas Detail *
                     </label>
                     <textarea
                       id="input_manual_rep_description"
-                      rows={3.5}
+                      rows={3}
                       required
                       placeholder="Tulis rincian aktivitas pekerjaan lapangan secara detail..."
                       value={addRepDesc}
                       onChange={(e) => setAddRepDesc(e.target.value)}
-                      className="w-full bg-white border border-slate-300 p-2.5 rounded-xl outline-none text-xs"
+                      className="w-full bg-white border border-slate-300 p-2 sm:p-2.5 rounded-xl outline-none text-xs"
                     />
                   </div>
                 </div>
 
                 {/* Photo Upload Fields (Choose File & Camera) */}
-                <div className="bg-[#f8fafc] p-4 rounded-xl border border-slate-200">
+                <div className="bg-[#f8fafc] p-3 sm:p-4 rounded-xl border border-slate-200">
                   <div className="space-y-1.5 text-left">
                     <div className="flex justify-between items-center pl-0.5 mb-1">
                       <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
@@ -7277,10 +7277,10 @@ export default function AdminDashboard({
                       <div className="relative w-24 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center">
                         {addRepIndoor ? (
                           <img
-                            src={addRepIndoor}
-                            alt="Sebelum & Sesudah Preview"
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
+                             src={addRepIndoor}
+                             alt="Sebelum & Sesudah Preview"
+                             className="w-full h-full object-cover"
+                             referrerPolicy="no-referrer"
                           />
                         ) : (
                           <span className="text-[9px] text-slate-400 font-bold bg-slate-100/50 px-2 py-1.5 rounded-md border border-slate-200/40">
@@ -7317,7 +7317,7 @@ export default function AdminDashboard({
                 </div>
 
                 {/* Geotagging & GPS Tag Input */}
-                <div className="bg-sky-500/5 p-4 rounded-2xl border border-sky-500/15 space-y-3">
+                <div className="bg-sky-500/5 p-3 sm:p-4 rounded-2xl border border-sky-500/15 space-y-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5">
                       <MapPin
@@ -7369,29 +7369,29 @@ export default function AdminDashboard({
                 </div>
 
                 {/* Submissions */}
-                <div className="pt-2 flex justify-end gap-2 border-t border-slate-200">
+                <div className="pt-2 flex flex-col sm:flex-row justify-end gap-2 border-t border-slate-200">
                   <button
-                    id="btn_manual_rep_cancel"
-                    type="button"
-                    onClick={() => setIsAddReportModalOpen(false)}
-                    className="p-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-extrabold rounded-xl cursor-pointer text-xs"
+                    id="btn_manual_rep_submit"
+                    type="submit"
+                    className="w-full sm:w-auto p-2.5 px-5 bg-[#0284c7] hover:bg-[#0369a1] text-white font-extrabold rounded-xl cursor-pointer shadow text-xs order-1 sm:order-3 text-center"
                   >
-                    Batal
+                    Kirim & Masukkan Data
                   </button>
                   <button
                     id="btn_manual_rep_draft"
                     type="button"
                     onClick={handleSaveReportAsDraft}
-                    className="p-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-xl cursor-pointer text-xs"
+                    className="w-full sm:w-auto p-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-xl cursor-pointer text-xs order-2 sm:order-2 text-center"
                   >
                     Simpan sebagai Draft
                   </button>
                   <button
-                    id="btn_manual_rep_submit"
-                    type="submit"
-                    className="p-2.5 px-5 bg-[#0284c7] hover:bg-[#0369a1] text-white font-extrabold rounded-xl cursor-pointer shadow text-xs"
+                    id="btn_manual_rep_cancel"
+                    type="button"
+                    onClick={() => setIsAddReportModalOpen(false)}
+                    className="w-full sm:w-auto p-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-extrabold rounded-xl cursor-pointer text-xs order-3 sm:order-1 text-center"
                   >
-                    Kirim & Masukkan Data
+                    Batal
                   </button>
                 </div>
               </form>
