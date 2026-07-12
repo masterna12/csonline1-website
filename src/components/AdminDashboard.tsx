@@ -80,7 +80,7 @@ const INDONESIA_HOLIDAYS_2026 = new Set([
   "2026-01-19", // Isra Mikraj Muhammad SAW
   "2026-02-17", // Tahun Baru Imlek
   "2026-03-19", // Hari Raya Nyepi
-  "2026-03-20", // Idul Fitri Hari 1 / Cuti Bersama
+  "2026-03-20", // Idul Fitri Hari 1
   "2026-03-21", // Idul Fitri Hari 2
   "2026-03-23", // Cuti Bersama Idul Fitri
   "2026-03-24", // Cuti Bersama Idul Fitri
@@ -88,11 +88,11 @@ const INDONESIA_HOLIDAYS_2026 = new Set([
   "2026-04-03", // Wafat Yesus Kristus
   "2026-05-01", // Hari Buruh Internasional
   "2026-05-14", // Kenaikan Yesus Kristus
-  "2026-05-25", // Hari Raya Waisak
-  "2026-05-26", // Cuti Bersama Waisak
-  "2026-06-01", // Hari Lahir Pancasila
-  "2026-06-16", // Tahun Baru Islam 1448 H
-  "2026-06-26", // Hari Raya Idul Adha
+  "2026-05-27", // Hari Raya Idul Adha
+  "2026-05-28", // Cuti Bersama Idul Adha
+  "2026-06-01", // Hari Lahir Pancasila & Hari Raya Waisak
+  "2026-06-02", // Cuti Bersama Waisak
+  "2026-07-16", // Tahun Baru Islam 1448 H
   "2026-08-17", // Hari Kemerdekaan RI
   "2026-09-25", // Maulid Nabi Muhammad SAW
   "2026-12-25", // Hari Raya Natal
@@ -269,11 +269,17 @@ export default function AdminDashboard({
   onDbError,
 }: AdminDashboardProps) {
   const isAdmin = loggedInUserId === "admin" || !loggedInUserId;
+  const hasFullAccess = loggedInUserId === "admin" || loggedInUserId === "9826003HPI" || !loggedInUserId;
+
   // Sidebar tab management
   // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun, 'kelola_akun' = Kelola Akun
   const [activeSubTab, setActiveSubTab] = useState<
     "ringkasan" | "pegawai" | "laporan" | "kehadiran" | "pengaturan" | "kelola_akun"
   >(() => {
+    const isFull = loggedInUserId === "admin" || loggedInUserId === "9826003HPI" || !loggedInUserId;
+    if (!isFull) {
+      return "laporan";
+    }
     const hash = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
     const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun"];
     if (validTabs.includes(hash)) {
@@ -284,18 +290,32 @@ export default function AdminDashboard({
 
   // Listen to hash change to support standard browser links/tabs natively
   React.useEffect(() => {
+    const isFull = loggedInUserId === "admin" || loggedInUserId === "9826003HPI" || !loggedInUserId;
     const handleHashChange = () => {
       const hash = window.location.hash.replace("#", "");
       const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun"];
       if (validTabs.includes(hash)) {
-        setActiveSubTab(hash as any);
+        if (!isFull && hash !== "laporan" && hash !== "pengaturan") {
+          setActiveSubTab("laporan");
+          window.location.hash = "laporan";
+        } else {
+          setActiveSubTab(hash as any);
+        }
       }
     };
 
     handleHashChange();
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
-  }, []);
+  }, [loggedInUserId]);
+
+  // Enforce tab access control reactively
+  React.useEffect(() => {
+    const isFull = loggedInUserId === "admin" || loggedInUserId === "9826003HPI" || !loggedInUserId;
+    if (!isFull && activeSubTab !== "laporan" && activeSubTab !== "pengaturan") {
+      setActiveSubTab("laporan");
+    }
+  }, [loggedInUserId, activeSubTab]);
 
   // Sync hash with active tab state
   React.useEffect(() => {
@@ -543,7 +563,7 @@ export default function AdminDashboard({
   const [isAddReportModalOpen, setIsAddReportModalOpen] = useState(false);
 
   React.useEffect(() => {
-    if (isAddReportModalOpen && !isAdmin && loggedInUserId) {
+    if (isAddReportModalOpen && !hasFullAccess && loggedInUserId) {
       const selfEmp = employees.find(e => e.nip === loggedInUserId);
       if (selfEmp) {
         setAddRepName(selfEmp.name);
@@ -554,7 +574,7 @@ export default function AdminDashboard({
         setAddRepNip(loggedInUserId);
       }
     }
-  }, [isAddReportModalOpen, isAdmin, loggedInUserId, employees]);
+  }, [isAddReportModalOpen, hasFullAccess, loggedInUserId, employees]);
 
   const [addRepName, setAddRepName] = useState("");
   const [addRepNip, setAddRepNip] = useState("");
@@ -2372,11 +2392,9 @@ export default function AdminDashboard({
         const dateObj = new Date(year, month - 1, d);
         const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
         if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-          if (!isTanggalMerah(year, month, d)) {
-            const mmStr = String(month).padStart(2, "0");
-            const ddStr = String(d).padStart(2, "0");
-            list.push(`${year}-${mmStr}-${ddStr}`);
-          }
+          const mmStr = String(month).padStart(2, "0");
+          const ddStr = String(d).padStart(2, "0");
+          list.push(`${year}-${mmStr}-${ddStr}`);
         }
       }
       return list;
@@ -2509,11 +2527,25 @@ export default function AdminDashboard({
     return matchesSearch && matchesFilter;
   });
 
+  const localReports = reports.filter((rep) => {
+    if (!hasFullAccess) {
+      return rep.nip === loggedInUserId;
+    }
+    return true;
+  });
+
+  const localDraftReports = draftReports.filter((rep) => {
+    if (!hasFullAccess) {
+      return rep.nip === loggedInUserId;
+    }
+    return true;
+  });
+
   const uniqueReportDepartments = Array.from(
-    new Set(reports.map((rep) => rep.department).filter(Boolean)),
+    new Set(localReports.map((rep) => rep.department).filter(Boolean)),
   );
 
-  const filteredReports = reports.filter((rep) => {
+  const filteredReports = localReports.filter((rep) => {
     const matchesSearch =
       rep.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (rep.nip && rep.nip.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -2619,69 +2651,71 @@ export default function AdminDashboard({
         {/* Sidebar Navigations */}
         <div className="flex-1 py-4 px-3 space-y-6 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 relative z-10">
           {/* Section: Menu Utama */}
-          <div className="space-y-1">
-            <span
-              className={`px-3 text-[10px] uppercase font-extrabold tracking-wider text-slate-500 block mb-2 ${isSidebarOpen ? "opacity-100" : "opacity-0"}`}
-            >
-              Menu Utama
-            </span>
-            <a
-              id="sidebar_btn_dashboard"
-              href="#ringkasan"
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveSubTab("ringkasan");
-                setSearchQuery("");
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
-                activeSubTab === "ringkasan"
-                  ? "bg-gradient-to-r from-cyan-500/20 via-blue-500/10 to-transparent text-cyan-400 border-l-4 border-cyan-400 shadow-md shadow-cyan-500/5"
-                  : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
-              }`}
-            >
-              <FileText
-                size={15}
-                className={
+          {hasFullAccess && (
+            <div className="space-y-1">
+              <span
+                className={`px-3 text-[10px] uppercase font-extrabold tracking-wider text-slate-500 block mb-2 ${isSidebarOpen ? "opacity-100" : "opacity-0"}`}
+              >
+                Menu Utama
+              </span>
+              <a
+                id="sidebar_btn_dashboard"
+                href="#ringkasan"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveSubTab("ringkasan");
+                  setSearchQuery("");
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
                   activeSubTab === "ringkasan"
-                    ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]"
-                    : "text-slate-400"
-                }
-              />
-              {isSidebarOpen && <span>Dashboard</span>}
-            </a>
+                    ? "bg-gradient-to-r from-cyan-500/20 via-blue-500/10 to-transparent text-cyan-400 border-l-4 border-cyan-400 shadow-md shadow-cyan-500/5"
+                    : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
+                }`}
+              >
+                <FileText
+                  size={15}
+                  className={
+                    activeSubTab === "ringkasan"
+                      ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]"
+                      : "text-slate-400"
+                  }
+                />
+                {isSidebarOpen && <span>Dashboard</span>}
+              </a>
 
-            <a
-              id="sidebar_btn_pegawai"
-              href="#pegawai"
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveSubTab("pegawai");
-                setSearchQuery("");
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
-                activeSubTab === "pegawai"
-                  ? "bg-gradient-to-r from-blue-500/20 via-sky-500/10 to-transparent text-sky-400 border-l-4 border-sky-400 shadow-md shadow-blue-500/5"
-                  : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
-              }`}
-            >
-              <Users
-                size={15}
-                className={
+              <a
+                id="sidebar_btn_pegawai"
+                href="#pegawai"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveSubTab("pegawai");
+                  setSearchQuery("");
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
                   activeSubTab === "pegawai"
-                    ? "text-sky-400 drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]"
-                    : "text-slate-400"
-                }
-              />
-              {isSidebarOpen && (
-                <div className="flex-1 flex items-center justify-between">
-                  <span>Data Pegawai</span>
-                  <span className="bg-sky-500/10 text-sky-400 text-[9px] px-1.5 py-0.5 rounded-md font-mono border border-sky-500/20 font-black">
-                    {employees.length}
-                  </span>
-                </div>
-              )}
-            </a>
-          </div>
+                    ? "bg-gradient-to-r from-blue-500/20 via-sky-500/10 to-transparent text-sky-400 border-l-4 border-sky-400 shadow-md shadow-blue-500/5"
+                    : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
+                }`}
+              >
+                <Users
+                  size={15}
+                  className={
+                    activeSubTab === "pegawai"
+                      ? "text-sky-400 drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]"
+                      : "text-slate-400"
+                  }
+                />
+                {isSidebarOpen && (
+                  <div className="flex-1 flex items-center justify-between">
+                    <span>Data Pegawai</span>
+                    <span className="bg-sky-500/10 text-sky-400 text-[9px] px-1.5 py-0.5 rounded-md font-mono border border-sky-500/20 font-black">
+                      {employees.length}
+                    </span>
+                  </div>
+                )}
+              </a>
+            </div>
+          )}
 
           {/* Section: Pelaporan */}
           <div className="space-y-1">
@@ -2728,42 +2762,44 @@ export default function AdminDashboard({
           </div>
 
           {/* Section: Master & Sistem */}
-          <div className="space-y-1">
-            <span
-              className={`px-3 text-[10px] uppercase font-extrabold tracking-wider text-slate-500 block mb-2 ${isSidebarOpen ? "opacity-100" : "opacity-0"}`}
-            >
-              Sistem Master
-            </span>
-            <a
-              id="sidebar_btn_master"
-              href="#kehadiran"
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveSubTab("kehadiran");
-                setSearchQuery("");
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
-                activeSubTab === "kehadiran"
-                  ? "bg-gradient-to-r from-purple-500/20 via-indigo-500/10 to-transparent text-purple-400 border-l-4 border-purple-400 shadow-md shadow-purple-500/5"
-                  : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
-              }`}
-            >
-              <Layers
-                size={15}
-                className={
+          {hasFullAccess && (
+            <div className="space-y-1">
+              <span
+                className={`px-3 text-[10px] uppercase font-extrabold tracking-wider text-slate-500 block mb-2 ${isSidebarOpen ? "opacity-100" : "opacity-0"}`}
+              >
+                Sistem Master
+              </span>
+              <a
+                id="sidebar_btn_master"
+                href="#kehadiran"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveSubTab("kehadiran");
+                  setSearchQuery("");
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
                   activeSubTab === "kehadiran"
-                    ? "text-purple-400 drop-shadow-[0_0_8px_rgba(192,132,252,0.5)]"
-                    : "text-slate-400"
-                }
-              />
-              {isSidebarOpen && (
-                <div className="flex-1 flex items-center justify-between">
-                  <span>Data Master</span>
-                  <ChevronRight size={12} className="text-slate-500" />
-                </div>
-              )}
-            </a>
-          </div>
+                    ? "bg-gradient-to-r from-purple-500/20 via-indigo-500/10 to-transparent text-purple-400 border-l-4 border-purple-400 shadow-md shadow-purple-500/5"
+                    : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
+                }`}
+              >
+                <Layers
+                  size={15}
+                  className={
+                    activeSubTab === "kehadiran"
+                      ? "text-purple-400 drop-shadow-[0_0_8px_rgba(192,132,252,0.5)]"
+                      : "text-slate-400"
+                  }
+                />
+                {isSidebarOpen && (
+                  <div className="flex-1 flex items-center justify-between">
+                    <span>Data Master</span>
+                    <ChevronRight size={12} className="text-slate-500" />
+                  </div>
+                )}
+              </a>
+            </div>
+          )}
 
           {/* Section: Akun */}
           <div className="space-y-1">
@@ -3775,7 +3811,7 @@ export default function AdminDashboard({
                         : "text-slate-400 hover:text-slate-600"
                     }`}
                   >
-                    Laporan Terkirim ({reports.length})
+                    Laporan Terkirim ({localReports.length})
                   </button>
                   <button
                     onClick={() => setReportSubTab("draft")}
@@ -3785,32 +3821,35 @@ export default function AdminDashboard({
                         : "text-slate-400 hover:text-slate-600"
                     }`}
                   >
-                    <span>Draft Laporan ({draftReports.length})</span>
-                    {draftReports.length > 0 && (
+                    <span>Draft Laporan ({localDraftReports.length})</span>
+                    {localDraftReports.length > 0 && (
                       <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-white font-black text-[8px] h-4 min-w-4 px-1.5 rounded-full flex items-center justify-center animate-pulse leading-none shadow-sm">
-                        {draftReports.length}
+                        {localDraftReports.length}
                       </span>
                     )}
                   </button>
-                  <button
-                    onClick={() => setReportSubTab("rekap_kinerja")}
-                    className={`pb-2 px-4 font-black uppercase tracking-wider relative transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
-                      reportSubTab === "rekap_kinerja"
-                        ? "text-emerald-500 border-b-2 border-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]"
-                        : "text-slate-400 hover:text-slate-600"
-                    }`}
-                  >
-                    <span>Rekap Kinerja Bulanan</span>
-                  </button>
+                  {hasFullAccess && (
+                    <button
+                      onClick={() => setReportSubTab("rekap_kinerja")}
+                      className={`pb-2 px-4 font-black uppercase tracking-wider relative transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
+                        reportSubTab === "rekap_kinerja"
+                          ? "text-emerald-500 border-b-2 border-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]"
+                          : "text-slate-400 hover:text-slate-600"
+                      }`}
+                    >
+                      <span>Rekap Kinerja Bulanan</span>
+                    </button>
+                  )}
                 </div>
 
                 {reportSubTab === "semua" && (
                   <>
                     {/* GOOGLE SHEETS INTEGRATION DASH WIDGET */}
-                    <div
-                      id="google_sheets_sync_card"
-                      className="bg-gradient-to-r from-sky-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-5 border border-sky-500/25 shadow-lg relative overflow-hidden"
-                    >
+                    {hasFullAccess && (
+                      <div
+                        id="google_sheets_sync_card"
+                        className="bg-gradient-to-r from-sky-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-5 border border-sky-500/25 shadow-lg relative overflow-hidden"
+                      >
                       <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/5 -mr-16 -mt-16 rounded-full blur-3xl pointer-events-none"></div>
 
                       <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-3 relative z-10">
@@ -4086,6 +4125,7 @@ export default function AdminDashboard({
                         </div>
                       )}
                     </div>
+                    )}
 
                     {/* Redesigned Patrol Data Controls & Table View */}
                     {(() => {
@@ -4149,7 +4189,8 @@ export default function AdminDashboard({
                       return (
                         <div className="space-y-6">
                           {/* 1. TOP STATS PANEL */}
-                          <div id="patroli_stats_bento" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-3">
+                          {hasFullAccess && (
+                            <div id="patroli_stats_bento" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-3">
                             {/* TOTAL PATROLI */}
                             <div 
                               onClick={() => { setClickedStatType('total'); setStatModalSearch(''); }}
@@ -4217,9 +4258,11 @@ export default function AdminDashboard({
                               </div>
                             </div>
                           </div>
+                          )}
 
                           {/* 2. EXPORT BULK CONTROL ROW */}
-                          <div className="flex flex-wrap items-center gap-2.5">
+                          {hasFullAccess && (
+                            <div className="flex flex-wrap items-center gap-2.5">
                             <button
                               onClick={handleExportExcel}
                               className="bg-[#27ae60] hover:bg-[#219150] text-white p-2.5 px-4 rounded-lg flex items-center justify-center gap-1.5 text-xs font-extrabold transition cursor-pointer active:scale-95 shadow font-sans uppercase tracking-wider border-none"
@@ -4250,6 +4293,7 @@ export default function AdminDashboard({
                               <span>Export Tabel Ini</span>
                             </button>
                           </div>
+                          )}
 
                           {/* 3. DATE & LOCATION FILTERS CARD */}
                           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -4830,7 +4874,7 @@ export default function AdminDashboard({
                   </div>
                 )}
 
-                {reportSubTab === "rekap_kinerja" &&
+                {reportSubTab === "rekap_kinerja" && hasFullAccess &&
                   (() => {
                     const belongsToMonthYear = (
                       dateStr: string,
@@ -4881,11 +4925,9 @@ export default function AdminDashboard({
                         const dateObj = new Date(year, month - 1, d);
                         const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
                         if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                          if (!isTanggalMerah(year, month, d)) {
-                            const mmStr = String(month).padStart(2, "0");
-                            const ddStr = String(d).padStart(2, "0");
-                            list.push(`${year}-${mmStr}-${ddStr}`);
-                          }
+                          const mmStr = String(month).padStart(2, "0");
+                          const ddStr = String(d).padStart(2, "0");
+                          list.push(`${year}-${mmStr}-${ddStr}`);
                         }
                       }
                       return list;
@@ -7147,7 +7189,7 @@ export default function AdminDashboard({
                 </label>
                 <select
                   id="select_quick_fill_employee"
-                  disabled={!isAdmin}
+                  disabled={!hasFullAccess}
                   onChange={(e) => {
                     if (e.target.value) {
                       handleSelectEmployeeForReport(e.target.value);
@@ -7160,7 +7202,7 @@ export default function AdminDashboard({
                     -- Pilih Pegawai Lapangan --
                   </option>
                   {employees
-                    .filter((e) => isAdmin || e.nip === loggedInUserId)
+                    .filter((e) => hasFullAccess || e.nip === loggedInUserId)
                     .map((e) => (
                       <option key={e.id} value={e.id}>
                         {e.name} ({e.role} - {e.department})
@@ -7187,7 +7229,7 @@ export default function AdminDashboard({
                       placeholder="Masukkan nama pegawai"
                       value={addRepName}
                       onChange={(e) => setAddRepName(e.target.value)}
-                      disabled={!isAdmin}
+                      disabled={!hasFullAccess}
                       className="w-full bg-slate-50 border border-slate-300 p-2 sm:p-2.5 rounded-xl outline-none text-xs disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700"
                     />
                   </div>
@@ -7203,7 +7245,7 @@ export default function AdminDashboard({
                       placeholder="Contoh: 199307040102"
                       value={addRepNip}
                       onChange={(e) => setAddRepNip(e.target.value)}
-                      disabled={!isAdmin}
+                      disabled={!hasFullAccess}
                       className="w-full bg-slate-50 border border-slate-300 p-2 sm:p-2.5 rounded-xl outline-none text-xs disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700"
                     />
                   </div>
@@ -7222,7 +7264,7 @@ export default function AdminDashboard({
                       placeholder="Senior Engineer"
                       value={addRepRole}
                       onChange={(e) => setAddRepRole(e.target.value)}
-                      disabled={!isAdmin}
+                      disabled={!hasFullAccess}
                       className="w-full bg-slate-50 border border-slate-300 p-2 sm:p-2.5 rounded-xl outline-none text-xs disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700"
                     />
                   </div>
@@ -7238,7 +7280,7 @@ export default function AdminDashboard({
                       placeholder="PT PLN ( Persero ) UP3 Bangka"
                       value={addRepDept}
                       onChange={(e) => setAddRepDept(e.target.value)}
-                      disabled={!isAdmin}
+                      disabled={!hasFullAccess}
                       className="w-full bg-slate-50 border border-slate-300 p-2 sm:p-2.5 rounded-xl outline-none text-xs text-slate-800 placeholder-slate-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
                     />
                   </div>
@@ -9212,11 +9254,9 @@ export default function AdminDashboard({
                 const dateObj = new Date(year, month - 1, d);
                 const dayOfWeek = dateObj.getDay(); 
                 if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                  if (!isTanggalMerah(year, month, d)) {
-                    const mmStr = String(month).padStart(2, "0");
-                    const ddStr = String(d).padStart(2, "0");
-                    list.push(`${year}-${mmStr}-${ddStr}`);
-                  }
+                  const mmStr = String(month).padStart(2, "0");
+                  const ddStr = String(d).padStart(2, "0");
+                  list.push(`${year}-${mmStr}-${ddStr}`);
                 }
               }
               return list;
@@ -9306,7 +9346,7 @@ export default function AdminDashboard({
 
                         const isHoliday = isTanggalMerah(rekapYear, rekapMonth, day);
 
-                        if (isWeekend || isHoliday) {
+                        if (isWeekend) {
                           return (
                             <div
                               key={day}
@@ -9316,17 +9356,17 @@ export default function AdminDashboard({
                                 <div className="text-slate-500 font-bold text-xs flex items-center gap-1.5">
                                   <span>{day} {monthsNamesIndo[rekapMonth - 1]} {rekapYear}</span>
                                   <span className="text-[10px] text-slate-400">
-                                    ({isWeekend ? (dayOfWeek === 0 ? "Minggu" : "Sabtu") : "Tanggal Merah"})
+                                    ({dayOfWeek === 0 ? "Minggu" : "Sabtu"})
                                   </span>
                                 </div>
                                 <div>
-                                  <span className={`border text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg ${isWeekend ? "bg-slate-200 text-slate-500 border-slate-300" : "bg-rose-50 text-rose-600 border-rose-200"}`}>
-                                    {isWeekend ? "WEEKEND" : "TANGGAL MERAH"}
+                                  <span className="border text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-slate-200 text-slate-500 border-slate-300">
+                                    WEEKEND
                                   </span>
                                 </div>
                               </div>
-                              <div className={`py-8 text-center italic font-black text-[9px] tracking-widest uppercase ${isWeekend ? "text-slate-400" : "text-rose-500"}`}>
-                                {isWeekend ? "HARI LIBUR / TIDAK ADA KEWAJIBAN" : "HARI LIBUR NASIONAL / TIDAK ADA KEWAJIBAN"}
+                              <div className="py-8 text-center italic font-black text-[9px] tracking-widest uppercase text-slate-400">
+                                HARI LIBUR / TIDAK ADA KEWAJIBAN
                               </div>
                             </div>
                           );
@@ -9364,9 +9404,13 @@ export default function AdminDashboard({
                             className="bg-white rounded-2xl p-4 border border-slate-200/80 flex flex-col justify-between gap-3 shadow-xs"
                           >
                             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                              <div className="text-slate-800 font-bold text-xs">
-                                {day} {monthsNamesIndo[rekapMonth - 1]}{" "}
-                                {rekapYear}
+                              <div className="text-slate-800 font-bold text-xs flex flex-wrap items-center gap-1.5">
+                                <span>{day} {monthsNamesIndo[rekapMonth - 1]} {rekapYear}</span>
+                                {isHoliday && (
+                                  <span className="bg-rose-50 text-rose-600 border border-rose-200 text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-md">
+                                    TANGGAL MERAH
+                                  </span>
+                                )}
                               </div>
                               <div className="flex gap-1 animate-pulse">
                                 {reportsOnDay.length > 0 ? (
