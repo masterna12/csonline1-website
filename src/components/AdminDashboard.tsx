@@ -2582,10 +2582,11 @@ export default function AdminDashboard({
 
     let matchesDate = true;
     if (rep.date) {
-      if (reportStartDateFilter && rep.date < reportStartDateFilter) {
+      const repDateOnly = rep.date.substring(0, 10);
+      if (reportStartDateFilter && repDateOnly < reportStartDateFilter) {
         matchesDate = false;
       }
-      if (reportEndDateFilter && rep.date > reportEndDateFilter) {
+      if (reportEndDateFilter && repDateOnly > reportEndDateFilter) {
         matchesDate = false;
       }
     }
