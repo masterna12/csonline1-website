@@ -826,6 +826,7 @@ export default function App() {
           }
         }
 
+        updatedDraft.status = "Disetujui";
         await setDoc(doc(db, 'dashboard', updatedDraft.id), updatedDraft);
         
         setReports(prev => {

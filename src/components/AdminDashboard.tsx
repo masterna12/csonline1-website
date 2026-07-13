@@ -1746,6 +1746,7 @@ export default function AdminDashboard({
       }
     }
 
+    syncedDraft.status = "Disetujui";
     onAddReport(syncedDraft);
     onDeleteDraftReport(syncedDraft.id);
     onShowAlert(
@@ -3141,7 +3142,7 @@ export default function AdminDashboard({
                     <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-6 -mt-6 group-hover:scale-125 transition-transform duration-500"></div>
                     <div className="space-y-1 relative z-10">
                       <h3 className="text-3xl font-black tracking-tight drop-shadow-sm">
-                        {localReports.filter((r) => r.status === "Disetujui").length}
+                        {localReports.length}
                       </h3>
                       <p className="text-[10px] uppercase font-black tracking-widest text-purple-100">
                         Laporan Disetujui
@@ -4286,7 +4287,7 @@ export default function AdminDashboard({
                                   TOTAL LAPORAN
                                   <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-bold">Detail</span>
                                 </span>
-                                <h3 className="text-2xl font-black mt-0.5 font-mono">{localReports.length}</h3>
+                                <h3 className="text-2xl font-black mt-0.5 font-mono">{totalPatroli}</h3>
                               </div>
                             </div>
 
