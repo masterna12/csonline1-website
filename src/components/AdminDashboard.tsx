@@ -4425,23 +4425,6 @@ export default function AdminDashboard({
                                 </select>
                               </div>
 
-                              {/* STATUS VERIFIKASI */}
-                              <div className="space-y-1 text-left">
-                                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                                  STATUS VERIFIKASI
-                                </label>
-                                <select
-                                  value={reportStatusFilter}
-                                  onChange={(e) => setReportStatusFilter(e.target.value)}
-                                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-700 outline-none focus:ring-1 focus:ring-sky-500/50 font-bold font-sans"
-                                >
-                                  <option value="Semua">Semua Status</option>
-                                  <option value="Pending">⏳ Pending (Evaluasi)</option>
-                                  <option value="Disetujui">✅ Disetujui</option>
-                                  <option value="Ditolak">❌ Ditolak</option>
-                                </select>
-                              </div>
-
                               {/* ACTIONS */}
                               <div className="flex gap-2 w-full">
                                 <button
@@ -4511,14 +4494,13 @@ export default function AdminDashboard({
                                     <th className="p-4 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">DESKRIPSI</th>
                                     <th className="p-4 text-center w-24 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">FOTO</th>
                                     <th className="p-4 text-center w-24 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">LOKASI</th>
-                                    <th className="p-4 text-center w-24 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">STATUS</th>
                                     <th className="p-4 text-center w-20 font-black text-slate-200 text-sky-400 bg-[#1f364d] sticky top-0 z-10">AKSI</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 font-sans text-slate-700 text-xs font-semibold">
                                   {filteredReports.length === 0 ? (
                                     <tr>
-                                      <td colSpan={10} className="p-12 text-center text-slate-400 italic">
+                                      <td colSpan={9} className="p-12 text-center text-slate-400 italic">
                                         Tidak ada data laporan harian yang ditemukan.
                                       </td>
                                     </tr>
@@ -4566,51 +4548,7 @@ export default function AdminDashboard({
                                             </button>
                                           </td>
                                           <td className="p-4 text-center">
-                                            {repStatus === "Disetujui" ? (
-                                              <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-black px-2.5 py-1 rounded-full border border-emerald-200">
-                                                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                                                Disetujui
-                                              </span>
-                                            ) : repStatus === "Ditolak" ? (
-                                              <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-[10px] font-black px-2.5 py-1 rounded-full border border-rose-200" title={rep.notes}>
-                                                <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
-                                                Ditolak
-                                              </span>
-                                            ) : (
-                                              <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 text-[10px] font-black px-2.5 py-1 rounded-full border border-amber-200">
-                                                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
-                                                Pending
-                                              </span>
-                                            )}
-                                          </td>
-                                          <td className="p-4 text-center">
                                             <div className="flex items-center justify-center gap-1.5">
-                                              {isAdmin && repStatus === "Pending" && (
-                                                <>
-                                                  <button
-                                                    onClick={() => {
-                                                      setActionType("Approve");
-                                                      setSelectedReportForAction(rep);
-                                                      setAdminFeedbackNotes("");
-                                                    }}
-                                                    className="w-8 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
-                                                    title="Setujui Laporan"
-                                                  >
-                                                    <Check size={12} strokeWidth={3} />
-                                                  </button>
-                                                  <button
-                                                    onClick={() => {
-                                                      setActionType("Reject");
-                                                      setSelectedReportForAction(rep);
-                                                      setAdminFeedbackNotes("");
-                                                    }}
-                                                    className="w-8 h-8 rounded-lg bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
-                                                    title="Tolak Laporan"
-                                                  >
-                                                    <X size={12} strokeWidth={3} />
-                                                  </button>
-                                                </>
-                                              )}
                                               {(isAdmin || rep.nip === loggedInUserId) && (
                                                 <>
                                                   <button
