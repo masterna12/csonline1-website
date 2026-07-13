@@ -1225,9 +1225,12 @@ export default function AdminDashboard({
   const lateTodayCount = attendanceToday.filter(
     (a) => a.status === "Terlambat",
   ).length;
-  const pendingReportsCount = reports.filter(
-    (r) => r.status === "Pending",
-  ).length;
+  const pendingReportsCount = (draftReports || []).filter((rep) => {
+    if (!hasFullAccess) {
+      return rep.nip === loggedInUserId;
+    }
+    return true;
+  }).length;
 
   // Render stats matching the PRISMA screenshot (scaled dynamically based on database state!)
   const scanPatroliCount =
@@ -3122,7 +3125,7 @@ export default function AdminDashboard({
                     <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-6 -mt-6 group-hover:scale-125 transition-transform duration-500"></div>
                     <div className="space-y-1 relative z-10">
                       <h3 className="text-3xl font-black tracking-tight drop-shadow-sm">
-                        {reports.length}
+                        {localReports.length}
                       </h3>
                       <p className="text-[10px] uppercase font-black tracking-widest text-emerald-100">
                         Total Pelaporan
@@ -3138,7 +3141,7 @@ export default function AdminDashboard({
                     <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-6 -mt-6 group-hover:scale-125 transition-transform duration-500"></div>
                     <div className="space-y-1 relative z-10">
                       <h3 className="text-3xl font-black tracking-tight drop-shadow-sm">
-                        {reports.filter((r) => r.status === "Disetujui").length}
+                        {localReports.filter((r) => r.status === "Disetujui").length}
                       </h3>
                       <p className="text-[10px] uppercase font-black tracking-widest text-purple-100">
                         Laporan Disetujui
@@ -3153,8 +3156,7 @@ export default function AdminDashboard({
                   <div
                     onClick={() => {
                       setActiveSubTab("laporan");
-                      setReportSubTab("semua");
-                      setReportStatusFilter("Pending");
+                      setReportSubTab("draft");
                       window.scrollTo({ top: 0, behavior: "smooth" });
                     }}
                     className="bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600 p-5 rounded-2xl flex items-center justify-between text-white shadow-[0_10px_25px_-5px_rgba(249,115,22,0.3)] transition-all duration-300 hover:-translate-y-1 hover:shadow-orange-500/30 cursor-pointer active:scale-95 text-left relative overflow-hidden group"
@@ -3416,12 +3418,12 @@ export default function AdminDashboard({
                     </div>
 
                     <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto pr-1">
-                      {reports.length === 0 ? (
+                      {localReports.length === 0 ? (
                         <div className="text-center py-8 text-xs text-slate-400 font-sans">
                           Belum ada data pelaporan masuk.
                         </div>
                       ) : (
-                        reports.slice(0, 5).map((rep) => (
+                        localReports.slice(0, 5).map((rep) => (
                           <div
                             key={rep.id}
                             className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-slate-50/50 px-1 rounded-lg transition-colors"
@@ -3473,7 +3475,7 @@ export default function AdminDashboard({
                       </p>
                       <span className="text-[10px] text-slate-500 mt-1 block">
                         Data mutakhir: {employees.length} Pegawai,{" "}
-                        {reports.length} Laporan Kerja.
+                        {localReports.length} Laporan Kerja.
                       </span>
                     </div>
                   </div>
@@ -4284,7 +4286,7 @@ export default function AdminDashboard({
                                   TOTAL LAPORAN
                                   <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-bold">Detail</span>
                                 </span>
-                                <h3 className="text-2xl font-black mt-0.5 font-mono">{totalPatroli}</h3>
+                                <h3 className="text-2xl font-black mt-0.5 font-mono">{localReports.length}</h3>
                               </div>
                             </div>
 
@@ -4477,7 +4479,7 @@ export default function AdminDashboard({
                               </div>
 
                               <div className="text-[10px] text-slate-300 tracking-wider font-semibold">
-                                Menampilkan <strong className="text-white">{totalPatroli}</strong> dari <strong className="text-white">{reports.length}</strong> data
+                                Menampilkan <strong className="text-white">{totalPatroli}</strong> dari <strong className="text-white">{localReports.length}</strong> data
                               </div>
                             </div>
 
