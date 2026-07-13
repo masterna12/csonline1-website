@@ -108,7 +108,7 @@ export default function DatabaseMigrationCenter({
 }: DatabaseMigrationCenterProps) {
   // Connection states
   const [activeDbMode, setActiveDbMode] = useState<"old" | "new">(() => {
-    return localStorage.getItem("firebase_migration_completed_to_new") === "true" ? "new" : "old";
+    return localStorage.getItem("firebase_migration_completed_to_new") !== "false" ? "new" : "old";
   });
   const [migrationSource, setMigrationSource] = useState<"cloud" | "local_storage">("cloud");
 
@@ -619,7 +619,7 @@ export default function DatabaseMigrationCenter({
 
   // 5. Revert Connection Flag to Old Project
   const revertToOldFirebase = () => {
-    localStorage.removeItem("firebase_migration_completed_to_new");
+    localStorage.setItem("firebase_migration_completed_to_new", "false");
     setActiveDbMode("old");
     onShowAlert("Firebase Dikembalikan", "Mengembalikan koneksi aplikasi ke Firebase lama PT. HPI...", "alert");
     addLog("=== MENGEMBALIKAN KONEKSI KE FIREBASE LAMA ===");

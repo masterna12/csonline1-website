@@ -22,8 +22,10 @@ export const NEW_FIREBASE_CONFIG = {
   measurementId: "G-733VS90NSR"
 };
 
-// Check if migration has been successfully completed
-const isCompleted = typeof localStorage !== 'undefined' && localStorage.getItem('firebase_migration_completed_to_new') === 'true';
+// Check if migration has been successfully completed (Default to true for new portal-dashboard-cs-online database)
+const isCompleted = typeof localStorage !== 'undefined'
+  ? localStorage.getItem('firebase_migration_completed_to_new') !== 'false'
+  : true;
 
 // Expose active configuration
 export const firebaseConfig = isCompleted ? NEW_FIREBASE_CONFIG : OLD_FIREBASE_CONFIG;
