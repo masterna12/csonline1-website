@@ -40,6 +40,7 @@ import {
   Send,
   Globe,
   Check,
+  X,
   User,
   UserPlus,
   LogOut,
@@ -349,6 +350,12 @@ export default function AdminDashboard({
   );
   const [isLoaderSheets, setIsLoaderSheets] = useState(false);
   const [isSheetsWidgetCollapsed, setIsSheetsWidgetCollapsed] = useState(false);
+  const [hideMigrationFeature, setHideMigrationFeature] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("hide_migration_feature") === "true";
+    }
+    return false;
+  });
 
   React.useEffect(() => {
     const unsubscribe = initSheetsAuth(
@@ -605,6 +612,7 @@ export default function AdminDashboard({
   const [reportStartDateFilter, setReportStartDateFilter] = useState("");
   const [reportEndDateFilter, setReportEndDateFilter] = useState("");
   const [reportLocationFilter, setReportLocationFilter] = useState("Semua");
+  const [reportStatusFilter, setReportStatusFilter] = useState("Semua");
   const [activePhotoModalRow, setActivePhotoModalRow] = useState<Report | null>(null);
   const [photoFetchError, setPhotoFetchError] = useState<boolean>(false);
   const [activeMapModalRow, setActiveMapModalRow] = useState<Report | null>(null);
@@ -2560,6 +2568,8 @@ export default function AdminDashboard({
     const matchesLocation =
       reportLocationFilter === "Semua" ||
       (rep.location && rep.location.name === reportLocationFilter);
+    const matchesStatus =
+      reportStatusFilter === "Semua" || rep.status === reportStatusFilter;
 
     let matchesDate = true;
     if (rep.date) {
@@ -2571,7 +2581,7 @@ export default function AdminDashboard({
       }
     }
 
-    return matchesSearch && matchesFilter && matchesLocation && matchesDate;
+    return matchesSearch && matchesFilter && matchesLocation && matchesStatus && matchesDate;
   });
 
   const filteredAttendance = attendance.filter((att) => {
@@ -2803,35 +2813,37 @@ export default function AdminDashboard({
                 )}
               </a>
 
-              <a
-                id="sidebar_btn_migrasi"
-                href="#migrasi"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setActiveSubTab("migrasi");
-                  setSearchQuery("");
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
-                  activeSubTab === "migrasi"
-                    ? "bg-gradient-to-r from-amber-500/20 via-orange-500/10 to-transparent text-amber-400 border-l-4 border-amber-400 shadow-md shadow-amber-500/5"
-                    : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
-                }`}
-              >
-                <Database
-                  size={15}
-                  className={
+              {!hideMigrationFeature && (
+                <a
+                  id="sidebar_btn_migrasi"
+                  href="#migrasi"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveSubTab("migrasi");
+                    setSearchQuery("");
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
                     activeSubTab === "migrasi"
-                      ? "text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]"
-                      : "text-slate-400"
-                  }
-                />
-                {isSidebarOpen && (
-                  <div className="flex-1 flex items-center justify-between">
-                    <span>Migrasi Firebase</span>
-                    <ChevronRight size={12} className="text-slate-500" />
-                  </div>
-                )}
-              </a>
+                      ? "bg-gradient-to-r from-amber-500/20 via-orange-500/10 to-transparent text-amber-400 border-l-4 border-amber-400 shadow-md shadow-amber-500/5"
+                      : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
+                  }`}
+                >
+                  <Database
+                    size={15}
+                    className={
+                      activeSubTab === "migrasi"
+                        ? "text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                        : "text-slate-400"
+                    }
+                  />
+                  {isSidebarOpen && (
+                    <div className="flex-1 flex items-center justify-between">
+                      <span>Migrasi Firebase</span>
+                      <ChevronRight size={12} className="text-slate-500" />
+                    </div>
+                  )}
+                </a>
+              )}
             </div>
           )}
 
@@ -3128,7 +3140,15 @@ export default function AdminDashboard({
                   </div>
 
                   {/* Card 4: Laporan yang Pending */}
-                  <div className="bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600 p-5 rounded-2xl flex items-center justify-between text-white shadow-[0_10px_25px_-5px_rgba(249,115,22,0.3)] transition-transform hover:-translate-y-1 text-left relative overflow-hidden group">
+                  <div
+                    onClick={() => {
+                      setActiveSubTab("laporan");
+                      setReportSubTab("semua");
+                      setReportStatusFilter("Pending");
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600 p-5 rounded-2xl flex items-center justify-between text-white shadow-[0_10px_25px_-5px_rgba(249,115,22,0.3)] transition-all duration-300 hover:-translate-y-1 hover:shadow-orange-500/30 cursor-pointer active:scale-95 text-left relative overflow-hidden group"
+                  >
                     <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-6 -mt-6 group-hover:scale-125 transition-transform duration-500"></div>
                     <div className="space-y-1 relative z-10">
                       <h3 className="text-3xl font-black tracking-tight drop-shadow-sm">
@@ -4346,7 +4366,7 @@ export default function AdminDashboard({
 
                           {/* 3. DATE & LOCATION FILTERS CARD */}
                           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 items-end">
                               {/* DARI */}
                               <div className="space-y-1 text-left">
                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
@@ -4395,6 +4415,23 @@ export default function AdminDashboard({
                                 </select>
                               </div>
 
+                              {/* STATUS VERIFIKASI */}
+                              <div className="space-y-1 text-left">
+                                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                                  STATUS VERIFIKASI
+                                </label>
+                                <select
+                                  value={reportStatusFilter}
+                                  onChange={(e) => setReportStatusFilter(e.target.value)}
+                                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-700 outline-none focus:ring-1 focus:ring-sky-500/50 font-bold font-sans"
+                                >
+                                  <option value="Semua">Semua Status</option>
+                                  <option value="Pending">⏳ Pending (Evaluasi)</option>
+                                  <option value="Disetujui">✅ Disetujui</option>
+                                  <option value="Ditolak">❌ Ditolak</option>
+                                </select>
+                              </div>
+
                               {/* ACTIONS */}
                               <div className="flex gap-2 w-full">
                                 <button
@@ -4412,6 +4449,7 @@ export default function AdminDashboard({
                                     setReportEndDateFilter("");
                                     setReportLocationFilter("Semua");
                                     setReportDeptFilter("Semua");
+                                    setReportStatusFilter("Semua");
                                     setSearchQuery("");
                                   }}
                                   className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs p-2.5 px-3.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow"
@@ -4463,13 +4501,14 @@ export default function AdminDashboard({
                                     <th className="p-4 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">DESKRIPSI</th>
                                     <th className="p-4 text-center w-24 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">FOTO</th>
                                     <th className="p-4 text-center w-24 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">LOKASI</th>
+                                    <th className="p-4 text-center w-24 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">STATUS</th>
                                     <th className="p-4 text-center w-20 font-black text-slate-200 text-sky-400 bg-[#1f364d] sticky top-0 z-10">AKSI</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 font-sans text-slate-700 text-xs font-semibold">
                                   {filteredReports.length === 0 ? (
                                     <tr>
-                                      <td colSpan={9} className="p-12 text-center text-slate-400 italic">
+                                      <td colSpan={10} className="p-12 text-center text-slate-400 italic">
                                         Tidak ada data laporan harian yang ditemukan.
                                       </td>
                                     </tr>
@@ -4480,6 +4519,7 @@ export default function AdminDashboard({
                                       const dateStr = dateParts[0];
                                       const timeStr = dateParts[1] || '00:04';
                                       const displayNip = rep.nip || "00265074BBL";
+                                      const repStatus = rep.status || "Pending";
 
                                       return (
                                         <tr key={rep.id} className="hover:bg-slate-50/70 transition-colors">
@@ -4516,7 +4556,51 @@ export default function AdminDashboard({
                                             </button>
                                           </td>
                                           <td className="p-4 text-center">
+                                            {repStatus === "Disetujui" ? (
+                                              <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-black px-2.5 py-1 rounded-full border border-emerald-200">
+                                                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                                                Disetujui
+                                              </span>
+                                            ) : repStatus === "Ditolak" ? (
+                                              <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-[10px] font-black px-2.5 py-1 rounded-full border border-rose-200" title={rep.notes}>
+                                                <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+                                                Ditolak
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 text-[10px] font-black px-2.5 py-1 rounded-full border border-amber-200">
+                                                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
+                                                Pending
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="p-4 text-center">
                                             <div className="flex items-center justify-center gap-1.5">
+                                              {isAdmin && repStatus === "Pending" && (
+                                                <>
+                                                  <button
+                                                    onClick={() => {
+                                                      setActionType("Approve");
+                                                      setSelectedReportForAction(rep);
+                                                      setAdminFeedbackNotes("");
+                                                    }}
+                                                    className="w-8 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
+                                                    title="Setujui Laporan"
+                                                  >
+                                                    <Check size={12} strokeWidth={3} />
+                                                  </button>
+                                                  <button
+                                                    onClick={() => {
+                                                      setActionType("Reject");
+                                                      setSelectedReportForAction(rep);
+                                                      setAdminFeedbackNotes("");
+                                                    }}
+                                                    className="w-8 h-8 rounded-lg bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
+                                                    title="Tolak Laporan"
+                                                  >
+                                                    <X size={12} strokeWidth={3} />
+                                                  </button>
+                                                </>
+                                              )}
                                               {(isAdmin || rep.nip === loggedInUserId) && (
                                                 <>
                                                   <button
@@ -4528,7 +4612,7 @@ export default function AdminDashboard({
                                                   </button>
                                                   <button
                                                     onClick={() => setDeletingReportId(rep.id)}
-                                                    className="w-8 h-8 rounded-lg bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
+                                                    className="w-8 h-8 rounded-lg bg-[#b71c1c] hover:bg-rose-700 text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
                                                     title="Hapus Data Laporan"
                                                   >
                                                     <Trash2 size={11} />
@@ -6611,6 +6695,47 @@ export default function AdminDashboard({
                         </div>
                       </div>
 
+                      {/* Section 3: Konfigurasi Tampilan Fitur (Hanya Admin / Full Access) */}
+                      {hasFullAccess && (
+                        <div className="space-y-4 pt-4 border-t border-slate-100">
+                          <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
+                            Konfigurasi Fitur Antarmuka
+                          </h4>
+                          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-4">
+                            <div className="space-y-1 text-left">
+                              <span className="block text-xs font-bold text-slate-800">
+                                Sembunyikan Fitur Migrasi Firebase
+                              </span>
+                              <span className="block text-[10px] text-slate-500 leading-normal">
+                                Aktifkan untuk menyembunyikan menu "Migrasi Firebase" dari bilah samping (sidebar) dan halaman pengaturan ini. Anda dapat memunculkannya kembali kapan saja.
+                              </span>
+                            </div>
+                            <label htmlFor="toggle_hide_migration" className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                id="toggle_hide_migration"
+                                checked={hideMigrationFeature}
+                                onChange={(e) => {
+                                  const newVal = e.target.checked;
+                                  setHideMigrationFeature(newVal);
+                                  localStorage.setItem("hide_migration_feature", String(newVal));
+                                  onShowAlert(
+                                    newVal ? "Fitur Disembunyikan" : "Fitur Ditampilkan",
+                                    newVal 
+                                      ? "Fitur Migrasi Firebase sekarang disembunyikan dari antarmuka." 
+                                      : "Fitur Migrasi Firebase sekarang ditampilkan kembali.",
+                                    "success"
+                                  );
+                                }}
+                                className="sr-only peer"
+                              />
+                              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Action buttons footer */}
                       <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
                         <button
@@ -6645,7 +6770,7 @@ export default function AdminDashboard({
                 </div>
 
                 {/* Database Migration Center */}
-                {hasFullAccess && (
+                {hasFullAccess && !hideMigrationFeature && (
                   <DatabaseMigrationCenter
                     employees={employees}
                     attendance={attendance}
@@ -6861,7 +6986,7 @@ export default function AdminDashboard({
               </motion.div>
             )}
 
-            {activeSubTab === "migrasi" && hasFullAccess && (
+            {activeSubTab === "migrasi" && hasFullAccess && !hideMigrationFeature && (
               <motion.div
                 key="tab_prisma_migrasi"
                 initial={{ opacity: 0, y: 10 }}
