@@ -3,13 +3,13 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 import { getAuth } from 'firebase/auth';
 
 export const OLD_FIREBASE_CONFIG = {
-  projectId: "quick-tract-wh7sp",
-  appId: "1:377436092689:web:84333b6452beee8677f4b0",
-  apiKey: "AIzaSyD4jbOCVSNeSc7O9TYqvFRzGpdPI9or61o",
-  authDomain: "quick-tract-wh7sp.firebaseapp.com",
-  storageBucket: "quick-tract-wh7sp.firebasestorage.app",
-  messagingSenderId: "377436092689",
-  measurementId: ""
+  projectId: "portal-dashboard-cs-online", // Deactivated, set to new to prevent any fallback
+  appId: "1:766714409669:web:7395c3ef113b807ec8f6ac",
+  apiKey: "AIzaSyAw4Oer4GPruu1ZUfBClsMSkrWu-gjlFRg",
+  authDomain: "portal-dashboard-cs-online.firebaseapp.com",
+  storageBucket: "portal-dashboard-cs-online.firebasestorage.app",
+  messagingSenderId: "766714409669",
+  measurementId: "G-733VS90NSR"
 };
 
 export const NEW_FIREBASE_CONFIG = {
@@ -25,38 +25,35 @@ export const NEW_FIREBASE_CONFIG = {
 // Check if migration has been successfully completed (Forced to true to default to new portal-dashboard-cs-online database)
 const isCompleted = true;
 
-// Expose active configuration
-export const firebaseConfig = isCompleted ? NEW_FIREBASE_CONFIG : OLD_FIREBASE_CONFIG;
+// Expose active configuration (Always use the new database)
+export const firebaseConfig = NEW_FIREBASE_CONFIG;
 
 // Initialize standard default Firebase app
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// Initialize Default Firestore with caching for old project, standard for new project
-export const db = isCompleted
-  ? initializeFirestore(app, { ignoreUndefinedProperties: true })
-  : initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-      }),
-      ignoreUndefinedProperties: true
-    }, "ai-studio-87ec3faf-a54d-45d2-9df2-1a7a38bce0dd");
+// Initialize Default Firestore with standard setup for the new project, including offline local cache and forceLongPolling fallback
+export const db = initializeFirestore(app, {
+  ignoreUndefinedProperties: true,
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  }),
+  experimentalForceLongPolling: true
+});
 
 export const auth = getAuth(app);
 
-// Explicit helper functions for the Database Migration Center to connect to both old and new databases concurrently
+// Explicit helper functions for the Database Migration Center to connect only to the new target database
 export function getSourceFirestore() {
-  const existingApp = getApps().find(a => a.name === "source_app_migration");
-  const sourceApp = existingApp || initializeApp(OLD_FIREBASE_CONFIG, "source_app_migration");
-  return initializeFirestore(sourceApp, {
-    ignoreUndefinedProperties: true
-  }, "ai-studio-87ec3faf-a54d-45d2-9df2-1a7a38bce0dd");
+  // Disabled the old database, always return the target firestore to keep operations within the new database only
+  return getTargetFirestore();
 }
 
 export function getTargetFirestore() {
   const existingApp = getApps().find(a => a.name === "target_app_migration");
   const targetApp = existingApp || initializeApp(NEW_FIREBASE_CONFIG, "target_app_migration");
   return initializeFirestore(targetApp, {
-    ignoreUndefinedProperties: true
+    ignoreUndefinedProperties: true,
+    experimentalForceLongPolling: true
   });
 }
 
