@@ -4287,7 +4287,7 @@ export default function AdminDashboard({
                                   TOTAL LAPORAN
                                   <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-bold">Detail</span>
                                 </span>
-                                <h3 className="text-2xl font-black mt-0.5 font-mono">{totalPatroli}</h3>
+                                <h3 className="text-2xl font-black mt-0.5 font-mono">{localReports.length}</h3>
                               </div>
                             </div>
 
