@@ -1570,7 +1570,7 @@ export default function AdminDashboard({
       : `EMP_ADM_${Math.floor(100 + Math.random() * 899)}`;
 
     const newReport: Report = {
-      id: `REP${Math.floor(200 + Math.random() * 800)}`,
+      id: `REP_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`,
       employeeId: matchedEmployeeId,
       nip: addRepNip,
       employeeName: addRepName,
@@ -1601,7 +1601,7 @@ export default function AdminDashboard({
 
     if (!navigator.onLine) {
       // Offline mode auto-save to draft!
-      const draftId = `DRAFT${Math.floor(100 + Math.random() * 900)}`;
+      const draftId = `DRAFT_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
       newReport.id = draftId;
       newReport.status = "Pending";
       onAddDraftReport(newReport);
@@ -1675,7 +1675,7 @@ export default function AdminDashboard({
       "Menyelesaikan aktivitas patroli harian, inspeksi kelayakan instrumen, dan sinkronisasi laporan koordinat lapangan PT Haleyora Powerindo.";
 
     const draftReport: Report = {
-      id: `DRAFT${Math.floor(100 + Math.random() * 900)}`,
+      id: `DRAFT_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`,
       employeeId: `EMP_DFT_${Math.floor(100 + Math.random() * 899)}`,
       nip: addRepNip,
       employeeName: addRepName,
