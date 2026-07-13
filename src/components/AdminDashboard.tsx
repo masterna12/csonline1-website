@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Employee, Report, Attendance, UserAccount } from "../types";
+import DatabaseMigrationCenter from "./DatabaseMigrationCenter";
 import { uploadImageToCloudinary } from "../lib/cloudinary";
 import {
   INITIAL_EMPLOYEES,
@@ -274,14 +275,14 @@ export default function AdminDashboard({
   // Sidebar tab management
   // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun, 'kelola_akun' = Kelola Akun
   const [activeSubTab, setActiveSubTab] = useState<
-    "ringkasan" | "pegawai" | "laporan" | "kehadiran" | "pengaturan" | "kelola_akun"
+    "ringkasan" | "pegawai" | "laporan" | "kehadiran" | "pengaturan" | "kelola_akun" | "migrasi"
   >(() => {
     const isFull = loggedInUserId === "admin" || loggedInUserId === "9826003HPI" || !loggedInUserId;
     if (!isFull) {
       return "laporan";
     }
     const hash = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
-    const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun"];
+    const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun", "migrasi"];
     if (validTabs.includes(hash)) {
       return hash as any;
     }
@@ -293,7 +294,7 @@ export default function AdminDashboard({
     const isFull = loggedInUserId === "admin" || loggedInUserId === "9826003HPI" || !loggedInUserId;
     const handleHashChange = () => {
       const hash = window.location.hash.replace("#", "");
-      const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun"];
+      const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun", "migrasi"];
       if (validTabs.includes(hash)) {
         if (!isFull && hash !== "laporan" && hash !== "pengaturan") {
           setActiveSubTab("laporan");
@@ -2797,6 +2798,36 @@ export default function AdminDashboard({
                 {isSidebarOpen && (
                   <div className="flex-1 flex items-center justify-between">
                     <span>Data Master</span>
+                    <ChevronRight size={12} className="text-slate-500" />
+                  </div>
+                )}
+              </a>
+
+              <a
+                id="sidebar_btn_migrasi"
+                href="#migrasi"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveSubTab("migrasi");
+                  setSearchQuery("");
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
+                  activeSubTab === "migrasi"
+                    ? "bg-gradient-to-r from-amber-500/20 via-orange-500/10 to-transparent text-amber-400 border-l-4 border-amber-400 shadow-md shadow-amber-500/5"
+                    : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
+                }`}
+              >
+                <Database
+                  size={15}
+                  className={
+                    activeSubTab === "migrasi"
+                      ? "text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                      : "text-slate-400"
+                  }
+                />
+                {isSidebarOpen && (
+                  <div className="flex-1 flex items-center justify-between">
+                    <span>Migrasi Firebase</span>
                     <ChevronRight size={12} className="text-slate-500" />
                   </div>
                 )}
@@ -6612,6 +6643,26 @@ export default function AdminDashboard({
                     </form>
                   </div>
                 </div>
+
+                {/* Database Migration Center */}
+                {hasFullAccess && (
+                  <DatabaseMigrationCenter
+                    employees={employees}
+                    attendance={attendance}
+                    reports={reports}
+                    userAccounts={userAccounts}
+                    googleToken={googleToken}
+                    sheetsSpreadsheetId={sheetsSpreadsheetId}
+                    onShowAlert={onShowAlert}
+                    onRefreshAllData={() => {
+                      if (typeof window !== "undefined") {
+                        setTimeout(() => {
+                          window.location.reload();
+                        }, 1500);
+                      }
+                    }}
+                  />
+                )}
               </motion.div>
             )}
 
@@ -6807,6 +6858,42 @@ export default function AdminDashboard({
                     </div>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {activeSubTab === "migrasi" && hasFullAccess && (
+              <motion.div
+                key="tab_prisma_migrasi"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6 text-left font-sans"
+              >
+                <div className="pb-2 border-b border-slate-300">
+                  <h1 className="text-xl md:text-2xl font-black text-slate-900 font-sans">
+                    Migrasi Firebase & Database
+                  </h1>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Lakukan pemindahan data lengkap dari Firebase AI Studio Starter ke Firebase portal-dashboard-cs-online milik Anda sendiri.
+                  </p>
+                </div>
+
+                <DatabaseMigrationCenter
+                  employees={employees}
+                  attendance={attendance}
+                  reports={reports}
+                  userAccounts={userAccounts}
+                  googleToken={googleToken}
+                  sheetsSpreadsheetId={sheetsSpreadsheetId}
+                  onShowAlert={onShowAlert}
+                  onRefreshAllData={() => {
+                    if (typeof window !== "undefined") {
+                      setTimeout(() => {
+                        window.location.reload();
+                      }, 1500);
+                    }
+                  }}
+                />
               </motion.div>
             )}
           </AnimatePresence>
