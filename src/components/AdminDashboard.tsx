@@ -988,10 +988,17 @@ export default function AdminDashboard({
             );
           })
           .catch((error) => {
-            console.warn("Camera upload to Cloudinary failed, keeping local base64:", error);
+            console.warn("Camera upload to Cloudinary failed:", error);
+            if (target === "indoor") {
+              setAddRepIndoor("");
+              setAddRepIndoorMetadata(null);
+            } else if (target === "outdoor") {
+              setAddRepOutdoor("");
+              setAddRepOutdoorMetadata(null);
+            }
             onShowAlert(
-              "Penyimpanan Lokal",
-              "Gagal mengunggah ke Cloudinary. Menggunakan penyimpanan lokal sementara.",
+              "Unggahan Gagal",
+              "Gagal mengunggah foto hasil potret ke Cloudinary. Harap ulangi pemotretan.",
               "alert"
             );
           })
@@ -1459,10 +1466,11 @@ export default function AdminDashboard({
           );
         } catch (error: any) {
           console.error("Cloudinary upload failed:", error);
-          setAddRepIndoor(base64);
+          setAddRepIndoor("");
+          setAddRepIndoorMetadata(null);
           onShowAlert(
-            "Penyimpanan Lokal",
-            "Gagal mengunggah ke Cloudinary. Menggunakan penyimpanan lokal sementara.",
+            "Unggahan Gagal",
+            "Gagal mengunggah foto ke Cloudinary. Harap coba lagi.",
             "alert"
           );
         } finally {
@@ -1507,10 +1515,11 @@ export default function AdminDashboard({
           );
         } catch (error: any) {
           console.error("Cloudinary upload failed:", error);
-          setAddRepOutdoor(base64);
+          setAddRepOutdoor("");
+          setAddRepOutdoorMetadata(null);
           onShowAlert(
-            "Penyimpanan Lokal",
-            "Gagal mengunggah ke Cloudinary. Menggunakan penyimpanan lokal sementara.",
+            "Unggahan Gagal",
+            "Gagal mengunggah foto ke Cloudinary. Harap coba lagi.",
             "alert"
           );
         } finally {

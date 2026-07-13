@@ -140,6 +140,21 @@ export const createNewReportsSpreadsheet = async (
   return { spreadsheetId, spreadsheetUrl };
 };
 
+const formatPhotoCell = (url: string | undefined): string => {
+  if (url && url.startsWith('http')) {
+    return `=IMAGE("${url}")`;
+  }
+  return '-';
+};
+
+const cleanPhotoUrl = (val: string | undefined): string | undefined => {
+  if (!val || val === '-') return undefined;
+  if (val.startsWith('=IMAGE("') && val.endsWith('")')) {
+    return val.substring(8, val.length - 2);
+  }
+  return val;
+};
+
 /**
  * Write reports list into an existing spreadsheet ID
  */
@@ -176,8 +191,8 @@ export const writeReportsToSpreadsheet = async (
     rep.title || '-',
     rep.description || '-',
     rep.status || 'Pending',
-    rep.photoIndoor || '-',
-    rep.photoOutdoor || '-'
+    formatPhotoCell(rep.photoIndoor),
+    formatPhotoCell(rep.photoOutdoor)
   ]);
 
   const values = [headerRow, ...valueRows];
@@ -240,8 +255,8 @@ export const parseSpreadsheetToReports = async (
     const title = row[8] || 'Aktivitas Sektor';
     const description = row[9] || 'Laporan disinkronisasi dari Google Sheet';
     const statusStr = row[10] || 'Disetujui';
-    const photoIndoor = row[11] && row[11] !== '-' ? row[11] : undefined;
-    const photoOutdoor = row[12] && row[12] !== '-' ? row[12] : undefined;
+    const photoIndoor = cleanPhotoUrl(row[11]);
+    const photoOutdoor = cleanPhotoUrl(row[12]);
 
     // Type casting safeguard
     const type = ['Operasional', 'Teknis', 'Penjualan', 'Administrasi', 'Lainnya'].includes(typeStr)
@@ -293,8 +308,8 @@ export const appendReportToSpreadsheet = async (
     rep.title || '-',
     rep.description || '-',
     rep.status || 'Pending',
-    rep.photoIndoor || '-',
-    rep.photoOutdoor || '-'
+    formatPhotoCell(rep.photoIndoor),
+    formatPhotoCell(rep.photoOutdoor)
   ];
 
   // We append to 'Data Pelaporan' sheet. It will automatically insert after the last row in range A:M.

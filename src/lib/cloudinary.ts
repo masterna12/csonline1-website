@@ -13,8 +13,8 @@ export async function uploadImageToCloudinary(
   fileOrBase64: string | File | Blob,
   fileName: string = 'image.jpg'
 ): Promise<CloudinaryMetadata> {
-  const cloudName = (import.meta as any).env.VITE_CLOUDINARY_CLOUD_NAME || 'dzulfikar';
-  const uploadPreset = (import.meta as any).env.VITE_CLOUDINARY_UPLOAD_PRESET || 'hpi_unsigned';
+  const cloudName = (import.meta as any).env.VITE_CLOUDINARY_CLOUD_NAME || 'dbh7qopzf';
+  const uploadPreset = (import.meta as any).env.VITE_CLOUDINARY_UPLOAD_PRESET || 'dashboad_CS_ONLINE';
 
   const formData = new FormData();
   
