@@ -420,8 +420,31 @@ export default function DatabaseMigrationCenter({
           try {
             const targetDocRef = doc(targetDb, col, docId);
             const targetSnap = await getDoc(targetDocRef);
+            let shouldOverwrite = !isResumeRun;
 
-            if (targetSnap.exists()) {
+            if (targetSnap.exists() && isResumeRun) {
+              const targetData = targetSnap.data();
+              if (targetData) {
+                const targetHasTrimmed = 
+                  (targetData.photoIndoor && targetData.photoIndoor.includes("placeholder_trimmed")) ||
+                  (targetData.photoOutdoor && targetData.photoOutdoor.includes("placeholder_trimmed")) ||
+                  (targetData.photo && targetData.photo.includes("placeholder_trimmed")) ||
+                  (targetData.imagePath && targetData.imagePath.includes("placeholder_trimmed"));
+                
+                const sourceHasFull = docData && (
+                  (docData.photoIndoor && !docData.photoIndoor.includes("placeholder_trimmed") && docData.photoIndoor.length > 500) ||
+                  (docData.photoOutdoor && !docData.photoOutdoor.includes("placeholder_trimmed") && docData.photoOutdoor.length > 500) ||
+                  (docData.photo && !docData.photo.includes("placeholder_trimmed") && docData.photo.length > 500) ||
+                  (docData.imagePath && !docData.imagePath.includes("placeholder_trimmed") && docData.imagePath.length > 500)
+                );
+
+                if (targetHasTrimmed && sourceHasFull) {
+                  shouldOverwrite = true;
+                }
+              }
+            }
+
+            if (targetSnap.exists() && !shouldOverwrite) {
               // Exists - Skip and count as skipped to prevent duplicates
               skipped++;
               setProgress(prev => ({
@@ -436,7 +459,7 @@ export default function DatabaseMigrationCenter({
                 addLog(`  [SKIP] Dokumen '${docId}' sudah ada di target. Melewati...`);
               }
             } else {
-              // Write new document
+              // Write new or updated document
               await setDoc(targetDocRef, docData);
               success++;
               setProgress(prev => ({
@@ -447,7 +470,9 @@ export default function DatabaseMigrationCenter({
                 }
               }));
               
-              if (i % 5 === 0 || totalDocs < 10) {
+              if (shouldOverwrite && targetSnap.exists()) {
+                addLog(`  [OVERWRITE] Sukses memperbarui & memulihkan foto dokumen '${docId}'.`);
+              } else if (i % 5 === 0 || totalDocs < 10) {
                 addLog(`  [WRITE] Sukses memindahkan dokumen '${docId}'.`);
               }
             }

@@ -591,7 +591,6 @@ export default function App() {
       sessionStorage.setItem('step_logged_in_user_id', 'admin');
       localStorage.setItem('step_is_logged_in', 'true');
       localStorage.setItem('step_logged_in_user_id', 'admin');
-      localStorage.setItem('hide_migration_feature', 'true');
       setLoginError('');
       handleShowAlert('Login Berhasil', `Selamat datang kembali, ${adminName}.`, 'success');
     } else if (cleanUserId === '9826003HPI') {
@@ -603,7 +602,6 @@ export default function App() {
         sessionStorage.setItem('step_logged_in_user_id', '9826003HPI');
         localStorage.setItem('step_is_logged_in', 'true');
         localStorage.setItem('step_logged_in_user_id', '9826003HPI');
-        localStorage.setItem('hide_migration_feature', 'true');
         setLoginError('');
         handleShowAlert('Login Berhasil', 'Selamat datang. Anda masuk sebagai petugas lapangan.', 'success');
       } else {
@@ -621,7 +619,6 @@ export default function App() {
           sessionStorage.setItem('step_logged_in_user_id', matchedAccount.userId);
           localStorage.setItem('step_is_logged_in', 'true');
           localStorage.setItem('step_logged_in_user_id', matchedAccount.userId);
-          localStorage.setItem('hide_migration_feature', 'true');
           setLoginError('');
           handleShowAlert('Login Berhasil', `Selamat datang kembali, ${matchedAccount.userId}.`, 'success');
         } else {

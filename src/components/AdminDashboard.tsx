@@ -4277,7 +4277,7 @@ export default function AdminDashboard({
                             <div 
                               onClick={() => { setClickedStatType('total'); setStatModalSearch(''); }}
                               className="bg-[#2980b9] hover:bg-[#206390] rounded-xl shadow-sm text-white overflow-hidden flex items-stretch cursor-pointer hover:scale-[1.03] transition-all duration-200 active:scale-95 select-none"
-                              title="Klik untuk melihat daftar semua pegawai dikoordinasikan"
+                              title="Klik untuk melihat detail seluruh laporan kerja terkirim"
                             >
                               <div className="bg-black/15 p-4 px-6 flex items-center justify-center">
                                 <Shield size={34} className="text-white" />
@@ -4287,7 +4287,7 @@ export default function AdminDashboard({
                                   TOTAL LAPORAN
                                   <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-bold">Detail</span>
                                 </span>
-                                <h3 className="text-2xl font-black mt-0.5 font-mono">{localReports.length}</h3>
+                                <h3 className="text-2xl font-black mt-0.5 font-mono">{filteredReports.length}</h3>
                               </div>
                             </div>
 
@@ -8881,8 +8881,8 @@ export default function AdminDashboard({
                 let headerIcon = <Shield size={18} />;
 
                 if (clickedStatType === 'total') {
-                  modalTitle = 'Data Pegawai (Semua Pegawai)';
-                  modalSubtitle = 'Daftar semua pegawai dikoordinasikan';
+                  modalTitle = 'Data Detail Laporan Kerja';
+                  modalSubtitle = 'Daftar seluruh laporan kerja yang terkirim ke dalam sistem';
                   headerBg = 'bg-[#2980b9]';
                   headerIcon = <Shield size={18} />;
                 } else if (clickedStatType === 'sudah') {
@@ -9042,7 +9042,89 @@ export default function AdminDashboard({
                     });
                   }
 
-                  // --- RENDER FOR EMPLOYEES (total | sudah | belum | pegawai_punya_lokasi | pegawai_tanpa_lokasi) ---
+                  // --- RENDER FOR TOTAL REPORTS ---
+                  if (clickedStatType === 'total') {
+                    const matchingReports = localReports.filter(rep => {
+                      if (!statModalSearch.trim()) return true;
+                      const searchLower = statModalSearch.toLowerCase();
+                      return (
+                        rep.employeeName.toLowerCase().includes(searchLower) ||
+                        (rep.nip && rep.nip.toLowerCase().includes(searchLower)) ||
+                        rep.title.toLowerCase().includes(searchLower) ||
+                        rep.description.toLowerCase().includes(searchLower)
+                      );
+                    });
+
+                    if (matchingReports.length === 0) {
+                      return (
+                        <div className="p-8 text-center text-slate-400 italic text-xs font-sans">
+                          Tidak ada laporan yang cocok dengan kriteria pencarian.
+                        </div>
+                      );
+                    }
+
+                    return matchingReports.map((rep) => (
+                      <div 
+                        key={rep.id} 
+                        className="p-4 bg-slate-50/50 hover:bg-slate-50 rounded-2xl border border-slate-150 transition text-left space-y-2.5 font-sans"
+                      >
+                        <div className="flex justify-between items-start gap-2 flex-wrap">
+                          <div className="space-y-0.5">
+                            <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-1.5 uppercase">
+                              <span>{rep.employeeName}</span>
+                              <span className="text-[9px] font-mono font-bold bg-slate-200 text-slate-600 px-1.5 py-0.2 rounded">
+                                {rep.nip}
+                              </span>
+                            </h4>
+                            <p className="text-[10px] text-slate-500 font-medium">
+                              {rep.role || "Petugas Lapangan"} • <strong className="text-slate-600 font-bold">{rep.department || "PT. HPI"}</strong>
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-[10px] font-mono font-bold text-slate-400 block">{rep.date}</span>
+                            <span className="text-[9px] font-mono font-bold text-sky-600 block mt-0.5">{rep.id}</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-100 space-y-1">
+                          <p className="text-[10px] font-black text-slate-700 uppercase">{rep.title}</p>
+                          <p className="text-[10px] text-slate-500 leading-relaxed font-medium">{rep.description}</p>
+                        </div>
+
+                        {/* Photo Previews */}
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          {rep.photoIndoor && (
+                            <div className="space-y-1">
+                              <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block pl-0.5">● Foto Masuk (Indoor)</span>
+                              <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-150 bg-slate-100">
+                                <img 
+                                  src={rep.photoIndoor} 
+                                  alt="Indoor" 
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {rep.photoOutdoor && (
+                            <div className="space-y-1">
+                              <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block pl-0.5">● Foto Pulang (Outdoor)</span>
+                              <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-150 bg-slate-100">
+                                <img 
+                                  src={rep.photoOutdoor} 
+                                  alt="Outdoor" 
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ));
+                  }
+
+                  // --- RENDER FOR EMPLOYEES (sudah | belum | pegawai_punya_lokasi | pegawai_tanpa_lokasi) ---
                   const nowE = new Date();
                   const yearE = nowE.getFullYear();
                   const monthE = String(nowE.getMonth() + 1).padStart(2, '0');
@@ -9056,9 +9138,7 @@ export default function AdminDashboard({
                     const reportsSubmittedToday = todayReportsE.filter(r => r.employeeId === emp.id || r.nip === emp.nip);
                     const hasLoc = !!employeeLocations[emp.id];
 
-                    if (clickedStatType === 'total') {
-                      isMatch = true;
-                    } else if (clickedStatType === 'sudah') {
+                    if (clickedStatType === 'sudah') {
                       isMatch = reportsSubmittedToday.length > 0;
                     } else if (clickedStatType === 'belum') {
                       isMatch = reportsSubmittedToday.length === 0;
