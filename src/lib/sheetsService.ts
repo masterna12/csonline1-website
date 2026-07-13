@@ -18,8 +18,12 @@ provider.addScope('https://www.googleapis.com/auth/spreadsheets');
 provider.addScope('https://www.googleapis.com/auth/drive.file');
 
 // Internal Memory cache for OAuth state
-let cachedAccessToken: string | null = null;
+let cachedAccessToken: string | null = typeof window !== 'undefined' ? localStorage.getItem("google_sheets_token") : null;
 let isSigningIn = false;
+
+export const getCachedSheetsToken = (): string | null => {
+  return cachedAccessToken || (typeof window !== 'undefined' ? localStorage.getItem("google_sheets_token") : null);
+};
 
 // Initialize observer
 export const initSheetsAuth = (
@@ -28,17 +32,16 @@ export const initSheetsAuth = (
 ) => {
   return onAuthStateChanged(auth, async (user) => {
     if (user) {
-      // Since Firebase onAuthStateChanged doesn't directly reissue the google accessToken,
-      // we check our memory cache. If it is empty, they will need to prompt Google Sign-in 
-      // or we can request a token refresh if available.
-      if (cachedAccessToken) {
-        onSuccess(user, cachedAccessToken);
+      // Check memory or localStorage cache
+      const activeToken = getCachedSheetsToken();
+      if (activeToken) {
+        onSuccess(user, activeToken);
       } else {
-        // If no cached token but they are signed into firebase, we prompt silent/fast login or let them click
         onFailure();
       }
     } else {
       cachedAccessToken = null;
+      if (typeof window !== 'undefined') localStorage.removeItem("google_sheets_token");
       onFailure();
     }
   });
@@ -57,6 +60,9 @@ export const signInGoogleSheets = async (): Promise<{ user: User; accessToken: s
       throw new Error('Access token Google Sheets tidak ditemukan dari hasil autentikasi.');
     }
     cachedAccessToken = token;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem("google_sheets_token", token);
+    }
     return { user: result.user, accessToken: token };
   } catch (err) {
     console.error('SignIn Google Sheets Error:', err);
@@ -72,6 +78,9 @@ export const signInGoogleSheets = async (): Promise<{ user: User; accessToken: s
 export const signOutGoogleSheets = async (): Promise<void> => {
   await signOut(auth);
   cachedAccessToken = null;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem("google_sheets_token");
+  }
 };
 
 /**
@@ -261,4 +270,37 @@ export const parseSpreadsheetToReports = async (
   }
 
   return importedReports;
+};
+
+/**
+ * Append a single report as a new row to the Google Spreadsheet
+ */
+export const appendReportToSpreadsheet = async (
+  token: string,
+  spreadsheetId: string,
+  rep: Report,
+  index?: number
+): Promise<void> => {
+  const row = [
+    index !== undefined ? index : '=ROW()-1',
+    rep.id,
+    rep.nip || '-',
+    rep.employeeName || '-',
+    rep.role || '-',
+    rep.department || '-',
+    rep.date || '-',
+    rep.type || '-',
+    rep.title || '-',
+    rep.description || '-',
+    rep.status || 'Pending',
+    rep.photoIndoor || '-',
+    rep.photoOutdoor || '-'
+  ];
+
+  // We append to 'Data Pelaporan' sheet. It will automatically insert after the last row in range A:M.
+  await sheetsApiCall(`/${spreadsheetId}/values/Data Pelaporan!A:M:append?valueInputOption=USER_ENTERED`, 'POST', token, {
+    range: 'Data Pelaporan!A:M',
+    majorDimension: 'ROWS',
+    values: [row]
+  });
 };

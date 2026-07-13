@@ -195,6 +195,74 @@ export default function App() {
     return [];
   });
 
+  const [sheetReports, setSheetReports] = useState<Report[]>([]);
+
+  // Memoize and merge Firestore/local reports with Google Sheets reports to avoid duplicates
+  const mergedReports = React.useMemo(() => {
+    const mergedMap = new Map<string, Report>();
+    // 1. Add all local/Firestore reports
+    reports.forEach(r => {
+      if (r && r.id) mergedMap.set(r.id, r);
+    });
+    // 2. Add/overwrite with Google Sheets reports
+    sheetReports.forEach(r => {
+      if (r && r.id) mergedMap.set(r.id, r);
+    });
+
+    const list = Array.from(mergedMap.values());
+    // Sort reports by date (latest first), then by id to ensure deterministic sorting
+    list.sort((a, b) => {
+      const dateA = a.date || "";
+      const dateB = b.date || "";
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
+      return b.id.localeCompare(a.id);
+    });
+    return list;
+  }, [reports, sheetReports]);
+
+  // Synchronize Google Sheets reports on load and on custom connection events
+  useEffect(() => {
+    const loadGoogleSheetsReports = async () => {
+      const spreadsheetId = localStorage.getItem("step_sheets_spreadsheet_id");
+      const googleToken = localStorage.getItem("google_sheets_token");
+
+      if (spreadsheetId && googleToken) {
+        try {
+          console.log("Loading backup/merged reports from Google Sheets...", spreadsheetId);
+          const { parseSpreadsheetToReports } = await import('./lib/sheetsService');
+          const sheetData = await parseSpreadsheetToReports(googleToken, spreadsheetId);
+          if (sheetData && sheetData.length > 0) {
+            setSheetReports(sheetData);
+            console.log("Successfully loaded", sheetData.length, "reports from Google Sheets.");
+          }
+        } catch (error) {
+          console.warn("Failed to load Google Sheets background reports:", error);
+        }
+      }
+    };
+
+    // Load reports initially
+    loadGoogleSheetsReports();
+
+    // Custom event listeners to listen to connection / disconnection of Sheets
+    const handleSheetsConnected = () => {
+      console.log("Event google-sheets-connected received. Syncing Sheets reports...");
+      loadGoogleSheetsReports();
+    };
+
+    const handleSheetsDisconnected = () => {
+      console.log("Event google-sheets-disconnected received. Clearing Sheets reports.");
+      setSheetReports([]);
+    };
+
+    window.addEventListener('google-sheets-connected', handleSheetsConnected);
+    window.addEventListener('google-sheets-disconnected', handleSheetsDisconnected);
+    return () => {
+      window.removeEventListener('google-sheets-connected', handleSheetsConnected);
+      window.removeEventListener('google-sheets-disconnected', handleSheetsDisconnected);
+    };
+  }, []);
+
   // Real-time synchronization and automatic seeding with Firestore
   React.useEffect(() => {
     // Cache configuration: 10 minutes cache validity for secondary metadata collections
@@ -657,10 +725,48 @@ export default function App() {
     });
 
     // 2. Sync with Firestore in background
+    let firestoreFailed = false;
     try {
       await setDoc(doc(db, 'dashboard', newRep.id), newRep);
     } catch (error: any) {
+      firestoreFailed = true;
       console.warn("Firestore save report failed, stored locally instead:", error);
+      const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
+      if (isQuota && !dbError) {
+        setDbError(error.message);
+      }
+    }
+
+    // 3. Backup to Google Spreadsheet if Firestore fails/limited and Sheets is connected
+    const spreadsheetId = localStorage.getItem("step_sheets_spreadsheet_id");
+    const googleToken = localStorage.getItem("google_sheets_token");
+    const isQuotaError = dbError && (
+      dbError.toLowerCase().includes('quota') || 
+      dbError.toLowerCase().includes('exceeded') || 
+      dbError.toLowerCase().includes('limit')
+    );
+
+    if ((firestoreFailed || isQuotaError) && spreadsheetId && googleToken) {
+      try {
+        console.log("Database limit/offline mode active. Saving report to Google Spreadsheet as backup database...");
+        const { appendReportToSpreadsheet } = await import('./lib/sheetsService');
+        await appendReportToSpreadsheet(googleToken, spreadsheetId, newRep);
+        console.log("Successfully saved report to Google Spreadsheet backup!");
+        
+        // Update sheetReports state immediately so it's merged and visible in the UI
+        setSheetReports(prev => {
+          const updated = [...prev.filter(r => r.id !== newRep.id), newRep];
+          return updated;
+        });
+
+        handleShowAlert(
+          "Backup Google Sheets Aktif",
+          "Firestore quota limit terdeteksi! Laporan berhasil disimpan ke Google Spreadsheet cadangan secara otomatis.",
+          "success"
+        );
+      } catch (sheetsError: any) {
+        console.error("Gagal menyimpan laporan ke backup Google Sheets:", sheetsError);
+      }
     }
   };
 
@@ -1208,7 +1314,7 @@ export default function App() {
           <AdminDashboard 
             employees={employees}
             attendance={attendance}
-            reports={reports}
+            reports={mergedReports}
             onAddEmployee={handleAddEmployee}
             onUpdateReportStatus={handleUpdateReportStatus}
             onUpdateReport={handleUpdateReport}

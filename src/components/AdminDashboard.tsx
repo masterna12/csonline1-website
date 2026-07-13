@@ -354,6 +354,7 @@ export default function AdminDashboard({
       (user, token) => {
         setGoogleUser(user);
         setGoogleToken(token);
+        window.dispatchEvent(new CustomEvent('google-sheets-connected'));
       },
       () => {
         setGoogleUser(null);
@@ -370,6 +371,7 @@ export default function AdminDashboard({
       if (res) {
         setGoogleUser(res.user);
         setGoogleToken(res.accessToken);
+        window.dispatchEvent(new CustomEvent('google-sheets-connected'));
         onShowAlert(
           "Koneksi Google Sukses",
           "Sistem berhasil terhubung dengan akun Google Workspace Anda.",
@@ -394,6 +396,7 @@ export default function AdminDashboard({
       await signOutGoogleSheets();
       setGoogleUser(null);
       setGoogleToken(null);
+      window.dispatchEvent(new CustomEvent('google-sheets-disconnected'));
       onShowAlert(
         "Google Terputus",
         "Akun Google berhasil diputuskan secara aman.",
@@ -2999,11 +3002,21 @@ export default function AdminDashboard({
                       SISTEM INTEGRASI PENMAPILAN DATA UTAMA
                     </p>
                      {dbError && (dbError.toLowerCase().includes('quota') || dbError.toLowerCase().includes('exceeded') || dbError.toLowerCase().includes('limit')) ? (
-                      <div className="inline-flex items-center gap-1 bg-red-500/10 border border-red-500/30 px-2.5 py-0.5 rounded-full align-middle animate-fade-in">
-                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                        <span className="text-[8.5px] font-black tracking-wide text-red-500 uppercase">
-                          MODE OFFLINE
-                        </span>
+                      <div className="inline-flex flex-wrap items-center gap-1.5 align-middle animate-fade-in">
+                        <div className="inline-flex items-center gap-1 bg-red-500/10 border border-red-500/30 px-2.5 py-0.5 rounded-full">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                          <span className="text-[8.5px] font-black tracking-wide text-red-500 uppercase">
+                            MODE OFFLINE (FIRESTORE LIMIT)
+                          </span>
+                        </div>
+                        {sheetsSpreadsheetId && googleToken && (
+                          <div className="inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-[8.5px] font-black tracking-wide text-emerald-600 uppercase">
+                              CADANGAN GOOGLE SHEETS AKTIF
+                            </span>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="inline-flex items-center gap-1 bg-[#e6f4ea] border border-emerald-200/50 px-2.5 py-0.5 rounded-full align-middle animate-fade-in">
@@ -3011,6 +3024,11 @@ export default function AdminDashboard({
                         <span className="text-[8.5px] font-black tracking-wide text-[#137333] uppercase">
                           CLOUD REAL-TIME LISTENER ACTIVE (FIREBASE)
                         </span>
+                        {sheetsSpreadsheetId && googleToken && (
+                          <span className="text-[8.5px] text-emerald-600 font-extrabold ml-1 border-l border-emerald-200 pl-1.5 uppercase">
+                            + SHEETS SYNC
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
