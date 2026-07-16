@@ -74,6 +74,7 @@ import {
 } from "../lib/sheetsService";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import { validateDeviceTime, formatDateToString } from "../lib/timeService";
 // @ts-ignore
 import hpiLogo from "../assets/images/hpi_cs_logo_dark_1781488961865.jpg";
 
@@ -1532,7 +1533,7 @@ export default function AdminDashboard({
     }
   };
 
-  const handleAddReportSubmit = (e: React.FormEvent) => {
+  const handleAddReportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addRepName.trim()) {
       onShowAlert("Validasi Gagal", "Harap isi Nama Pegawai!", "alert");
@@ -1549,6 +1550,30 @@ export default function AdminDashboard({
     if (!addRepDept.trim()) {
       onShowAlert("Validasi Gagal", "Harap isi Unit Kerja / Divisi!", "alert");
       return;
+    }
+
+    // Server-side Time Verification
+    let finalReportDateStr = "";
+    if (navigator.onLine) {
+      try {
+        const timeCheck = await validateDeviceTime();
+        if (!timeCheck.isValid) {
+          onShowAlert(
+            "Ubah Tanggal Otomatis",
+            "Waktu perangkat Anda tidak sinkron dengan Server. Silakan ubah pengaturan tanggal & waktu di perangkat Anda ke otomatis (Automatic Date & Time) sebelum mengirim laporan!",
+            "alert"
+          );
+          return;
+        }
+        // Use authentic server date
+        finalReportDateStr = formatDateToString(timeCheck.serverDate);
+      } catch (err) {
+        console.error("Gagal memvalidasi waktu dengan server:", err);
+        finalReportDateStr = formatDateToString(new Date());
+      }
+    } else {
+      // Offline fallback
+      finalReportDateStr = formatDateToString(new Date());
     }
 
     const finalTitle = addRepTitle.trim() || `Laporan - ${addRepDept}`;
@@ -1576,15 +1601,7 @@ export default function AdminDashboard({
       employeeName: addRepName,
       role: addRepRole,
       department: addRepDept,
-      date: (() => {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        return `${year}-${month}-${day} ${hours}:${minutes}`;
-      })(),
+      date: finalReportDateStr,
       type: addRepType,
       title: finalTitle,
       description: finalDesc,
@@ -1723,6 +1740,23 @@ export default function AdminDashboard({
   };
 
   const handleQuickUploadDraft = async (draft: Report) => {
+    // Validate device time before uploading draft
+    if (navigator.onLine) {
+      try {
+        const timeCheck = await validateDeviceTime();
+        if (!timeCheck.isValid) {
+          onShowAlert(
+            "Ubah Tanggal Otomatis",
+            "Waktu perangkat Anda tidak sinkron dengan Server. Silakan ubah pengaturan tanggal & waktu di perangkat Anda ke otomatis (Automatic Date & Time) sebelum menyinkronkan draft!",
+            "alert"
+          );
+          return;
+        }
+      } catch (err) {
+        console.error("Gagal memvalidasi waktu saat sinkronisasi draft:", err);
+      }
+    }
+
     onShowAlert("Mengunggah Draft", "Sedang menyinkronkan foto draft ke Cloudinary...", "success");
     const syncedDraft = { ...draft };
     
