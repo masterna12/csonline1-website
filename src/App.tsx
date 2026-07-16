@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { uploadImageToCloudinary } from './lib/cloudinary';
+import { validateDeviceTime } from './lib/timeService';
 // @ts-ignore
 import hpiLogo from './assets/images/hpi_cs_logo_dark_1781488961865.jpg';
 
@@ -792,6 +793,23 @@ export default function App() {
     if (draftReports.length === 0) {
       handleShowAlert('Tidak ada Draft', 'Tidak ada laporan draft yang perlu disinkronkan.', 'alert');
       return;
+    }
+    
+    // Validate device time before performing bulk synchronization
+    if (navigator.onLine) {
+      try {
+        const timeCheck = await validateDeviceTime();
+        if (!timeCheck.isValid) {
+          handleShowAlert(
+            'Ubah Tanggal Otomatis',
+            'Waktu perangkat Anda tidak sinkron dengan Server. Silakan ubah pengaturan tanggal & waktu di perangkat Anda ke otomatis (Automatic Date & Time) sebelum menyinkronkan draft!',
+            'alert'
+          );
+          return;
+        }
+      } catch (err) {
+        console.error('Gagal memvalidasi waktu saat bulk sinkronisasi draft:', err);
+      }
     }
     
     let successCount = 0;
