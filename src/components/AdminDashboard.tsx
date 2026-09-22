@@ -1686,7 +1686,7 @@ export default function AdminDashboard({
       status: "Disetujui", // Admin generated reports are directly set as approved
       photoIndoor: addRepIndoor,
       photoIndoorMetadata: addRepIndoorMetadata || undefined,
-      photoOutdoor: addRepOutdoor || addRepIndoor,
+      photoOutdoor: addRepOutdoor,
       photoOutdoorMetadata: addRepOutdoorMetadata || undefined,
       location: {
         name: addRepLocName,
@@ -1791,7 +1791,7 @@ export default function AdminDashboard({
       status: "Pending",
       photoIndoor: addRepIndoor,
       photoIndoorMetadata: addRepIndoorMetadata || undefined,
-      photoOutdoor: addRepOutdoor || addRepIndoor,
+      photoOutdoor: addRepOutdoor,
       photoOutdoorMetadata: addRepOutdoorMetadata || undefined,
       location: {
         name: addRepLocName,
@@ -4607,7 +4607,7 @@ export default function AdminDashboard({
                                     <th className="p-4 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">UNIT KERJA</th>
                                     <th className="p-4 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">WAKTU</th>
                                     <th className="p-4 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">DESKRIPSI</th>
-                                    <th className="p-4 text-center w-24 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">FOTO</th>
+                                    <th className="p-4 text-center min-w-[130px] font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">FOTO SEBELUM &amp; SESUDAH</th>
                                     <th className="p-4 text-center w-24 font-black text-slate-200 bg-[#1f364d] sticky top-0 z-10">LOKASI</th>
                                     <th className="p-4 text-center w-20 font-black text-slate-200 text-sky-400 bg-[#1f364d] sticky top-0 z-10">AKSI</th>
                                   </tr>
@@ -4644,14 +4644,56 @@ export default function AdminDashboard({
                                           <td className="p-4 text-slate-500 max-w-xs truncate" title={rep.description}>
                                             {rep.description || `Laporan patroli dari ${rep.location?.name}`}
                                           </td>
-                                          <td className="p-4 text-center">
-                                            <button
-                                              onClick={() => setActivePhotoModalRow(rep)}
-                                              className="mx-auto w-8 h-8 rounded-lg bg-[#4fc3f7] hover:bg-[#29b6f6] text-white flex items-center justify-center transition active:scale-95 shadow-sm cursor-pointer border-none"
-                                              title="Lihat Foto Kerja"
-                                            >
-                                              <Camera size={14} />
-                                            </button>
+                                          <td className="p-3 text-center">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                              {/* Foto Sebelum */}
+                                              <button
+                                                type="button"
+                                                onClick={() => setActivePhotoModalRow(rep)}
+                                                className="group relative flex flex-col items-center bg-slate-50 hover:bg-amber-50/70 p-1 rounded-lg border border-slate-200 hover:border-amber-300 transition shadow-xs cursor-pointer"
+                                                title="Lihat Foto Sebelum"
+                                              >
+                                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-md overflow-hidden bg-slate-100 flex items-center justify-center relative">
+                                                  {rep.photoIndoor ? (
+                                                    <img
+                                                      src={rep.photoIndoor}
+                                                      alt="Sebelum"
+                                                      className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                                                      referrerPolicy="no-referrer"
+                                                    />
+                                                  ) : (
+                                                    <CameraOff size={13} className="text-slate-300" />
+                                                  )}
+                                                </div>
+                                                <span className="text-[7.5px] font-black uppercase text-amber-700 bg-amber-100/90 px-1 rounded mt-1 border border-amber-200">
+                                                  Sebelum
+                                                </span>
+                                              </button>
+
+                                              {/* Foto Sesudah */}
+                                              <button
+                                                type="button"
+                                                onClick={() => setActivePhotoModalRow(rep)}
+                                                className="group relative flex flex-col items-center bg-slate-50 hover:bg-sky-50/70 p-1 rounded-lg border border-slate-200 hover:border-sky-300 transition shadow-xs cursor-pointer"
+                                                title="Lihat Foto Sesudah"
+                                              >
+                                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-md overflow-hidden bg-slate-100 flex items-center justify-center relative">
+                                                  {rep.photoOutdoor || (rep.imagePath && !rep.photoIndoor) ? (
+                                                    <img
+                                                      src={rep.photoOutdoor || rep.imagePath}
+                                                      alt="Sesudah"
+                                                      className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                                                      referrerPolicy="no-referrer"
+                                                    />
+                                                  ) : (
+                                                    <CameraOff size={13} className="text-slate-300" />
+                                                  )}
+                                                </div>
+                                                <span className="text-[7.5px] font-black uppercase text-sky-700 bg-sky-100/90 px-1 rounded mt-1 border border-sky-200">
+                                                  Sesudah
+                                                </span>
+                                              </button>
+                                            </div>
                                           </td>
                                           <td className="p-4 text-center">
                                             <button
@@ -4714,121 +4756,150 @@ export default function AdminDashboard({
                                 {/* Body */}
                                 <div className="p-5 flex flex-col items-center justify-center bg-slate-50 min-h-[300px]">
                                   {(() => {
-                                    const photos: { label: string; url: string }[] = [];
-                                    if (activePhotoModalRow.photoIndoor) {
-                                      photos.push({ label: "SEBELUM KERJA", url: activePhotoModalRow.photoIndoor });
-                                    }
-                                    if (activePhotoModalRow.photoOutdoor && activePhotoModalRow.photoOutdoor !== activePhotoModalRow.photoIndoor) {
-                                      photos.push({ label: "SETELAH KERJA", url: activePhotoModalRow.photoOutdoor });
-                                    }
-                                    if (photos.length === 0 && activePhotoModalRow.imagePath) {
-                                      photos.push({ label: "DOKUMENTASI LAPANGAN", url: activePhotoModalRow.imagePath });
-                                    }
+                                    const photoBefore = activePhotoModalRow.photoIndoor;
+                                    const photoAfter = activePhotoModalRow.photoOutdoor || (!photoBefore ? activePhotoModalRow.imagePath : "");
+                                    const hasAnyPhoto = Boolean(photoBefore || photoAfter || activePhotoModalRow.imagePath);
 
-                                    if (photos.length === 0) {
+                                    if (!hasAnyPhoto) {
                                       return (
                                         <div className="flex flex-col items-center space-y-2 text-slate-400 py-10">
-                                          <CameraOff size={24} className="text-slate-300" />
-                                          <span className="text-slate-450 italic text-xs">
+                                          <CameraOff size={28} className="text-slate-300" />
+                                          <span className="text-slate-450 italic text-xs font-semibold">
                                             Tidak ada dokumentasi foto kerja yang tersedia.
                                           </span>
                                         </div>
                                       );
                                     }
 
-                                     return (
-                                       <div className={`grid ${photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} gap-4 w-full`}>
-                                         {photos.map((item, idx) => {
-                                           const isTrimmed = item.url && item.url.includes("placeholder_trimmed");
+                                    const photoSlots = [
+                                      {
+                                        key: "sebelum",
+                                        title: "FOTO SEBELUM",
+                                        subTitle: "SEBELUM PENGERJAAN",
+                                        badge: "SEBELUM KERJA",
+                                        badgeClass: "bg-amber-50 text-amber-700 border-amber-200",
+                                        url: photoBefore,
+                                      },
+                                      {
+                                        key: "sesudah",
+                                        title: "FOTO SESUDAH",
+                                        subTitle: "SESUDAH PENGERJAAN",
+                                        badge: "SESUDAH KERJA",
+                                        badgeClass: "bg-sky-50 text-sky-700 border-sky-200",
+                                        url: photoAfter,
+                                      },
+                                    ];
 
-                                           return (
-                                             <div key={idx} className="flex flex-col items-stretch space-y-2 bg-white border border-slate-200 p-2.5 rounded-2xl shadow-xs">
-                                               <span className="text-[10px] font-black tracking-wider uppercase text-slate-400 text-center block pt-1">
-                                                 {item.label}
-                                               </span>
-                                               <div className="border border-slate-150 bg-slate-100 rounded-xl overflow-hidden relative flex items-center justify-center aspect-square shadow-inner py-6">
-                                                 {isTrimmed ? (
-                                                   <div className="flex flex-col items-center justify-center p-4 text-center space-y-2 h-full w-full">
-                                                     <div className={`p-1 px-2.5 rounded-full font-extrabold text-[9px] tracking-wide uppercase border ${photoFetchError ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse'}`}>
-                                                       {photoFetchError ? "Lokal Terbatas" : "Sinkronisasi Cloud..."}
-                                                     </div>
-                                                     <span className="text-[10.5px] font-bold text-slate-500 leading-normal max-w-[150px]">
-                                                       {photoFetchError ? "Batas kuota Cloud harian terlampaui. Foto asli beresolusi tinggi sementara tidak dapat dimuat." : "Foto diringkas lokal. Sedang mengunduh foto asli dari Cloud secara otomatis..."}
-                                                     </span>
-                                                   </div>
-                                                 ) : (
-                                                   <img
-                                                     src={item.url}
-                                                     alt={item.label}
-                                                     className="w-full h-full object-cover rounded-xl"
-                                                     referrerPolicy="no-referrer"
-                                                   />
-                                                 )}
-                                               </div>
+                                    return (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+                                        {photoSlots.map((slot) => {
+                                          const isTrimmed = slot.url && slot.url.includes("placeholder_trimmed");
 
-                                               {/* Per-photo download action button */}
-                                               <button
-                                                 type="button"
-                                                 disabled={isTrimmed}
-                                                 onClick={() => {
-                                                   handleDownloadImage(item.url, `HPI_${item.label.replace(/\s+/g, '_')}_${activePhotoModalRow.employeeName.replace(/\s+/g, '_')}_${activePhotoModalRow.date.replace(/[\s:]+/g, '_')}.jpg`);
-                                                 }}
-                                                 className={`mt-1 w-full text-xs font-black py-2.5 px-3 rounded-xl transition duration-150 border-none flex items-center justify-center gap-1.5 shadow-xs ${
-                                                   isTrimmed 
-                                                     ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
-                                                     : "bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-850 cursor-pointer"
-                                                 }`}
-                                               >
-                                                 <Download size={11} />
-                                                 <span>{isTrimmed ? "Mengunduh Foto..." : "Unduh Foto"}</span>
-                                               </button>
-                                             </div>
-                                           );
-                                         })}
-                                       </div>
-                                     );
-                                   })()}
-                                 </div>
+                                          return (
+                                            <div key={slot.key} className="flex flex-col items-stretch space-y-2 bg-white border border-slate-200 p-3 rounded-2xl shadow-xs">
+                                              <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                                                <div>
+                                                  <span className="text-[10px] font-black tracking-wider uppercase text-slate-700 block">
+                                                    {slot.title}
+                                                  </span>
+                                                  <span className="text-[8.5px] font-semibold text-slate-400 block">
+                                                    {slot.subTitle}
+                                                  </span>
+                                                </div>
+                                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${slot.badgeClass}`}>
+                                                  {slot.badge}
+                                                </span>
+                                              </div>
 
-                                 {/* Footer */}
-                                 <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50">
-                                   <div className="text-[10px] text-slate-400 font-bold max-w-[200px]">
-                                     Format: JPEG • Resolusi Terkompresi Pintar
-                                   </div>
-                                   <div className="flex items-center gap-2">
-                                     <button
-                                       onClick={() => {
-                                         const photosToDownload: { label: string; url: string }[] = [];
-                                         if (activePhotoModalRow.photoIndoor) {
-                                           photosToDownload.push({ label: "SEBELUM", url: activePhotoModalRow.photoIndoor });
-                                         }
-                                         if (activePhotoModalRow.photoOutdoor && activePhotoModalRow.photoOutdoor !== activePhotoModalRow.photoIndoor) {
-                                           photosToDownload.push({ label: "SETELAH", url: activePhotoModalRow.photoOutdoor });
-                                         }
-                                         if (photosToDownload.length === 0 && activePhotoModalRow.imagePath) {
-                                           photosToDownload.push({ label: "DOKUMENTASI", url: activePhotoModalRow.imagePath });
-                                         }
+                                              <div className="border border-slate-150 bg-slate-100 rounded-xl overflow-hidden relative flex items-center justify-center aspect-square shadow-inner py-4">
+                                                {!slot.url ? (
+                                                  <div className="flex flex-col items-center justify-center p-4 text-center space-y-1">
+                                                    <CameraOff size={24} className="text-slate-300" />
+                                                    <span className="text-[10px] text-slate-400 font-semibold italic">Foto belum diunggah</span>
+                                                  </div>
+                                                ) : isTrimmed ? (
+                                                  <div className="flex flex-col items-center justify-center p-4 text-center space-y-2 h-full w-full">
+                                                    <div className={`p-1 px-2.5 rounded-full font-extrabold text-[9px] tracking-wide uppercase border ${photoFetchError ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse'}`}>
+                                                      {photoFetchError ? "Lokal Terbatas" : "Sinkronisasi Cloud..."}
+                                                    </div>
+                                                    <span className="text-[10.5px] font-bold text-slate-500 leading-normal max-w-[150px]">
+                                                      {photoFetchError ? "Batas kuota Cloud harian terlampaui. Foto asli beresolusi tinggi sementara tidak dapat dimuat." : "Foto diringkas lokal. Sedang mengunduh foto asli dari Cloud secara otomatis..."}
+                                                    </span>
+                                                  </div>
+                                                ) : (
+                                                  <img
+                                                    src={slot.url}
+                                                    alt={slot.title}
+                                                    className="w-full h-full object-cover rounded-xl"
+                                                    referrerPolicy="no-referrer"
+                                                  />
+                                                )}
+                                              </div>
 
-                                         const validPhotos = photosToDownload.filter(p => p.url && !p.url.includes("placeholder_trimmed"));
+                                              {/* Per-photo download action button */}
+                                              {slot.url && (
+                                                <button
+                                                  type="button"
+                                                  disabled={isTrimmed}
+                                                  onClick={() => {
+                                                    handleDownloadImage(slot.url!, `HPI_${slot.badge.replace(/\s+/g, '_')}_${activePhotoModalRow.employeeName.replace(/\s+/g, '_')}_${activePhotoModalRow.date.replace(/[\s:]+/g, '_')}.jpg`);
+                                                  }}
+                                                  className={`mt-1 w-full text-xs font-black py-2.5 px-3 rounded-xl transition duration-150 border-none flex items-center justify-center gap-1.5 shadow-xs ${
+                                                    isTrimmed 
+                                                      ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                                                      : "bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-850 cursor-pointer"
+                                                  }`}
+                                                >
+                                                  <Download size={11} />
+                                                  <span>{isTrimmed ? "Mengunduh Foto..." : "Unduh Foto"}</span>
+                                                </button>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
 
-                                         if (validPhotos.length === 0) {
-                                           onShowAlert("Foto Sedang Dimuat", "Silakan tunggu sampai seluruh lampiran foto selesai diunduh dari Cloud Database.", "alert");
-                                           return;
-                                         }
+                                {/* Footer */}
+                                <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50">
+                                  <div className="text-[10px] text-slate-400 font-bold max-w-[200px]">
+                                    Format: JPEG • Resolusi Terkompresi Pintar
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => {
+                                        const photosToDownload: { label: string; url: string }[] = [];
+                                        if (activePhotoModalRow.photoIndoor) {
+                                          photosToDownload.push({ label: "SEBELUM", url: activePhotoModalRow.photoIndoor });
+                                        }
+                                        if (activePhotoModalRow.photoOutdoor) {
+                                          photosToDownload.push({ label: "SESUDAH", url: activePhotoModalRow.photoOutdoor });
+                                        } else if (activePhotoModalRow.imagePath && !activePhotoModalRow.photoIndoor) {
+                                          photosToDownload.push({ label: "DOKUMENTASI", url: activePhotoModalRow.imagePath });
+                                        }
 
-                                        validPhotos.forEach((item, index) => {
-                                          setTimeout(() => {
-                                            handleDownloadImage(item.url, `HPI_${item.label}_${activePhotoModalRow.employeeName.replace(/\s+/g, '_')}_${activePhotoModalRow.date.replace(/[\s:]+/g, '_')}.jpg`);
-                                          }, index * 400); // delay to prevent popups from getting blocked
-                                        });
+                                        const validPhotos = photosToDownload.filter(p => p.url && !p.url.includes("placeholder_trimmed"));
 
-                                        onShowAlert("Unduhan Dimulai", `Memproses ${validPhotos.length} foto kegiatan untuk diunduh ke perangkat Anda.`, "success");
-                                      }}
-                                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black py-2.5 px-4 rounded-xl shadow-md flex items-center gap-1.5 transition active:scale-95 cursor-pointer border-none"
-                                    >
-                                      <Download size={13} />
-                                      <span>Download Semua</span>
-                                    </button>
+                                        if (validPhotos.length === 0) {
+                                          onShowAlert("Foto Sedang Dimuat", "Silakan tunggu sampai seluruh lampiran foto selesai diunduh dari Cloud Database.", "alert");
+                                          return;
+                                        }
+
+                                       validPhotos.forEach((item, index) => {
+                                         setTimeout(() => {
+                                           handleDownloadImage(item.url, `HPI_${item.label}_${activePhotoModalRow.employeeName.replace(/\s+/g, '_')}_${activePhotoModalRow.date.replace(/[\s:]+/g, '_')}.jpg`);
+                                         }, index * 400); // delay to prevent popups from getting blocked
+                                       });
+
+                                       onShowAlert("Unduhan Dimulai", `Memproses ${validPhotos.length} foto kegiatan untuk diunduh ke perangkat Anda.`, "success");
+                                     }}
+                                     className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black py-2.5 px-4 rounded-xl shadow-md flex items-center gap-1.5 transition active:scale-95 cursor-pointer border-none"
+                                   >
+                                     <Download size={13} />
+                                     <span>Download Semua</span>
+                                   </button>
                                     <button
                                       onClick={() => setActivePhotoModalRow(null)}
                                       className="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-black py-2.5 px-4 rounded-xl transition active:scale-95 cursor-pointer border border-slate-300"
@@ -7662,52 +7733,161 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
-                {/* Photo Upload Fields (Choose File & Camera) */}
-                <div className="bg-[#f8fafc] p-3 sm:p-4 rounded-xl border border-slate-200">
-                  <div className="space-y-1.5 text-left">
-                    <div className="flex justify-between items-center pl-0.5 mb-1">
-                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
-                        ● FOTO SEBELUM & SESUDAH *
-                      </span>
-                      <span className="text-[8.5px] font-black text-[#0284c7] bg-sky-50 px-1.5 py-0.5 rounded border border-sky-150">
-                        MAKS 10 MB
+                {/* Photo Upload Fields (Foto Sebelum & Foto Sesudah) */}
+                <div className="bg-[#f8fafc] p-3 sm:p-4 rounded-2xl border border-slate-200/90 space-y-3 text-left">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
+                    <div className="flex items-center gap-1.5">
+                      <Camera size={13} className="text-[#0284c7]" />
+                      <span className="text-[10.5px] font-black text-slate-700 uppercase tracking-wider">
+                        DOKUMENTASI FOTO SEBELUM &amp; SESUDAH *
                       </span>
                     </div>
-                    <div className="flex flex-col gap-2 p-2 bg-white rounded-xl border border-dashed border-slate-300 items-center justify-center">
-                      <div className="relative w-24 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center">
-                        {addRepIndoor ? (
-                          <img
-                             src={addRepIndoor}
-                             alt="Sebelum & Sesudah Preview"
-                             className="w-full h-full object-cover"
-                             referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <span className="text-[9px] text-slate-400 font-bold bg-slate-100/50 px-2 py-1.5 rounded-md border border-slate-200/40">
-                            Belum Ada Foto
+                    <span className="text-[8.5px] font-black text-[#0284c7] bg-sky-50 px-2 py-0.5 rounded border border-sky-150 uppercase">
+                      MAKS 10 MB / FOTO
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* 1. INPUT FOTO SEBELUM */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-200/80 shadow-xs flex flex-col justify-between space-y-2">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                          <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider">
+                            FOTO SEBELUM
                           </span>
+                        </div>
+                        {addRepIndoor && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddRepIndoor("");
+                              setAddRepIndoorMetadata(null);
+                            }}
+                            className="text-[8px] bg-rose-100 text-rose-700 hover:bg-rose-200 px-1.5 py-0.5 rounded font-black transition cursor-pointer border-none uppercase"
+                            title="Hapus Foto Sebelum"
+                          >
+                            Hapus
+                          </button>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 gap-1.5 w-full mt-1">
-                        {/* Live Camera Button */}
+
+                      {/* Preview Box */}
+                      <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center">
+                        {isUploadingIndoor ? (
+                          <div className="flex flex-col items-center justify-center text-slate-500 space-y-1 p-2">
+                            <RefreshCw size={16} className="animate-spin text-amber-500" />
+                            <span className="text-[9px] font-bold text-slate-500">Mengunggah...</span>
+                          </div>
+                        ) : addRepIndoor ? (
+                          <img
+                            src={addRepIndoor}
+                            alt="Foto Sebelum Preview"
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-slate-400 p-2 text-center">
+                            <CameraOff size={18} className="text-slate-300 mb-1" />
+                            <span className="text-[9px] text-slate-400 font-bold">
+                              Belum Ada Foto Sebelum
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Buttons: Camera & Galeri */}
+                      <div className="grid grid-cols-2 gap-1.5 w-full pt-1">
                         <button
                           id="btn_live_camera_indoor"
                           type="button"
                           onClick={() => handleOpenLiveCamera("indoor")}
-                          className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] text-center py-2 px-1 rounded-lg transition shadow-sm active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1 cursor-pointer"
+                          className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-[9px] text-center py-2 px-1 rounded-lg transition shadow-xs active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1 cursor-pointer border-none"
                         >
-                          <Camera size={10} /> Camera
+                          <Camera size={11} /> Camera
                         </button>
-                        {/* Gallery File Input Button */}
                         <label className="cursor-pointer">
-                          <span className="w-full block bg-slate-800 hover:bg-slate-900 text-white font-bold text-[9px] text-center py-2 px-1 rounded-lg transition shadow-sm active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1">
-                            <Plus size={10} /> File Galeri
+                          <span className="w-full block bg-slate-800 hover:bg-slate-900 text-white font-bold text-[9px] text-center py-2 px-1 rounded-lg transition shadow-xs active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1">
+                            <Plus size={11} /> File Galeri
                           </span>
                           <input
                             id="file_input_indoor"
                             type="file"
                             accept="image/*"
                             onChange={handleIndoorFileChange}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* 2. INPUT FOTO SESUDAH */}
+                    <div className="bg-white p-3 rounded-xl border border-sky-200/80 shadow-xs flex flex-col justify-between space-y-2">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
+                          <span className="text-[10px] font-black text-sky-800 uppercase tracking-wider">
+                            FOTO SESUDAH
+                          </span>
+                        </div>
+                        {addRepOutdoor && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddRepOutdoor("");
+                              setAddRepOutdoorMetadata(null);
+                            }}
+                            className="text-[8px] bg-rose-100 text-rose-700 hover:bg-rose-200 px-1.5 py-0.5 rounded font-black transition cursor-pointer border-none uppercase"
+                            title="Hapus Foto Sesudah"
+                          >
+                            Hapus
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Preview Box */}
+                      <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center">
+                        {isUploadingOutdoor ? (
+                          <div className="flex flex-col items-center justify-center text-slate-500 space-y-1 p-2">
+                            <RefreshCw size={16} className="animate-spin text-sky-500" />
+                            <span className="text-[9px] font-bold text-slate-500">Mengunggah...</span>
+                          </div>
+                        ) : addRepOutdoor ? (
+                          <img
+                            src={addRepOutdoor}
+                            alt="Foto Sesudah Preview"
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-slate-400 p-2 text-center">
+                            <CameraOff size={18} className="text-slate-300 mb-1" />
+                            <span className="text-[9px] text-slate-400 font-bold">
+                              Belum Ada Foto Sesudah
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Buttons: Camera & Galeri */}
+                      <div className="grid grid-cols-2 gap-1.5 w-full pt-1">
+                        <button
+                          id="btn_live_camera_outdoor"
+                          type="button"
+                          onClick={() => handleOpenLiveCamera("outdoor")}
+                          className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] text-center py-2 px-1 rounded-lg transition shadow-xs active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1 cursor-pointer border-none"
+                        >
+                          <Camera size={11} /> Camera
+                        </button>
+                        <label className="cursor-pointer">
+                          <span className="w-full block bg-slate-800 hover:bg-slate-900 text-white font-bold text-[9px] text-center py-2 px-1 rounded-lg transition shadow-xs active:scale-95 uppercase tracking-tight flex items-center justify-center gap-1">
+                            <Plus size={11} /> File Galeri
+                          </span>
+                          <input
+                            id="file_input_outdoor"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleOutdoorFileChange}
                             className="hidden"
                           />
                         </label>
