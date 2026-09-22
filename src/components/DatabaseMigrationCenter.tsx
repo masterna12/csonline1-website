@@ -632,8 +632,8 @@ export default function DatabaseMigrationCenter({
   const activateNewFirebase = () => {
     localStorage.setItem("firebase_migration_completed_to_new", "true");
     setActiveDbMode("new");
-    onShowAlert("Firebase Diaktifkan", "Menghubungkan aplikasi ke Firebase portal-dashboard-cs-online baru...", "success");
-    addLog("=== MENGAKTIFKAN KONEKSI PORTAL-DASHBOARD-CS-ONLINE SECARA PERMANEN ===");
+    onShowAlert("Firebase Diaktifkan", `Menghubungkan aplikasi ke Firebase ${NEW_FIREBASE_CONFIG.projectId} baru...`, "success");
+    addLog(`=== MENGAKTIFKAN KONEKSI ${NEW_FIREBASE_CONFIG.projectId.toUpperCase()} SECARA PERMANEN ===`);
     
     if (onRefreshAllData) {
       setTimeout(() => {
@@ -646,8 +646,8 @@ export default function DatabaseMigrationCenter({
   const revertToOldFirebase = () => {
     localStorage.setItem("firebase_migration_completed_to_new", "false");
     setActiveDbMode("old");
-    onShowAlert("Firebase Dikembalikan", "Mengembalikan koneksi aplikasi ke Firebase lama PT. HPI...", "alert");
-    addLog("=== MENGEMBALIKAN KONEKSI KE FIREBASE LAMA ===");
+    onShowAlert("Firebase Dikembalikan", `Mengembalikan koneksi aplikasi ke Firebase ${OLD_FIREBASE_CONFIG.projectId} lama...`, "alert");
+    addLog(`=== MENGEMBALIKAN KONEKSI KE FIREBASE LAMA ${OLD_FIREBASE_CONFIG.projectId.toUpperCase()} ===`);
     
     if (onRefreshAllData) {
       setTimeout(() => {
@@ -686,13 +686,13 @@ export default function DatabaseMigrationCenter({
             <h2 className="text-lg md:text-xl font-black text-white">
               Aplikasi Terhubung ke:{" "}
               <span className={activeDbMode === "new" ? "text-emerald-400" : "text-amber-400"}>
-                {activeDbMode === "new" ? "portal-dashboard-cs-online (Baru)" : "quick-tract-wh7sp (Lama)"}
+                {activeDbMode === "new" ? `${NEW_FIREBASE_CONFIG.projectId} (Workspace Baru)` : `${OLD_FIREBASE_CONFIG.projectId} (Production Lama)`}
               </span>
             </h2>
             <p className="text-xs text-slate-400 leading-relaxed max-w-2xl">
               {activeDbMode === "new"
-                ? "Selamat! Aplikasi Anda sekarang 100% menggunakan server Firebase mandiri Anda tanpa batasan kuota AI Studio. Login Google tetap berfungsi penuh."
-                : "Aplikasi saat ini masih berjalan di database Firebase Starter (AI Studio Shared Quota). Silakan selesaikan proses migrasi di bawah ini sebelum mengaktifkan database baru."}
+                ? `Selamat! Aplikasi Anda sekarang 100% menggunakan server Firebase workspace (${NEW_FIREBASE_CONFIG.projectId}) baru Anda. Login Google tetap berfungsi penuh.`
+                : `Aplikasi saat ini berjalan di database produksi lama (${OLD_FIREBASE_CONFIG.projectId}). Anda dapat menjalankan migrasi di bawah ini untuk menyalin seluruh data ke workspace baru.`}
             </p>
           </div>
           

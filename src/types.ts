@@ -65,5 +65,7 @@ export interface UserAccount {
   userId: string;
   password: string;
   createdAt: string;
+  region?: 'babel' | 'jatim' | 'all';
+  department?: string;
 }
 

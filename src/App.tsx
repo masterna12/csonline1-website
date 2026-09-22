@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   AlertCircle, CheckCircle2, Bell, X, Compass, Info,
   LogOut, Lock, User, ShieldAlert, Sun, Moon,
@@ -19,6 +19,7 @@ import {
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { uploadImageToCloudinary } from './lib/cloudinary';
 import { validateDeviceTime } from './lib/timeService';
+import { getAdminScope, isItemInScope, AdminScope } from './lib/regionFilter';
 // @ts-ignore
 import hpiLogo from './assets/images/hpi_cs_logo_dark_1781488961865.jpg';
 
@@ -105,24 +106,76 @@ export default function App() {
     return localStorage.getItem('theme_dark') !== 'false';
   });
 
+  // Administrator Configurations per region/role
+  const ADMIN_CONFIGS: Record<string, { name: string; avatar: string; defaultPass: string; region: string }> = {
+    admin: {
+      name: 'Admin Bangka Belitung',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+      defaultPass: 'admin',
+      region: 'Bangka Belitung (Termasuk Pangkalpinang)'
+    },
+    adminJatim: {
+      name: 'Admin Jawa Timur',
+      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
+      defaultPass: 'adminJatim',
+      region: 'Jawa Timur'
+    },
+    adminUtama: {
+      name: 'Admin Utama (Super Admin)',
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200',
+      defaultPass: 'adminUtama',
+      region: 'Semua Wilayah (Nasional)'
+    }
+  };
+
+  const getAdminAccountInfo = (uId: string) => {
+    const clean = (uId || '').trim();
+    const config = ADMIN_CONFIGS[clean] || ADMIN_CONFIGS.admin;
+    const savedName = localStorage.getItem(`step_admin_name_${clean}`) || (clean === 'admin' ? localStorage.getItem('step_admin_name') : null) || config.name;
+    const savedAvatar = localStorage.getItem(`step_admin_avatar_${clean}`) || (clean === 'admin' ? localStorage.getItem('step_admin_avatar') : null) || config.avatar;
+    const savedPass = localStorage.getItem(`step_admin_password_${clean}`) || (clean === 'admin' ? localStorage.getItem('step_admin_password') : null) || config.defaultPass;
+    return {
+      name: savedName,
+      avatar: savedAvatar,
+      password: savedPass,
+      region: config.region
+    };
+  };
+
   // Administrator Profile states
   const [adminName, setAdminName] = useState<string>(() => {
-    return localStorage.getItem('step_admin_name') || 'Bangka Belitung';
+    const currentId = sessionStorage.getItem('step_logged_in_user_id') || localStorage.getItem('step_logged_in_user_id') || 'admin';
+    return getAdminAccountInfo(currentId).name;
   });
   const [adminAvatar, setAdminAvatar] = useState<string>(() => {
-    return localStorage.getItem('step_admin_avatar') || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
+    const currentId = sessionStorage.getItem('step_logged_in_user_id') || localStorage.getItem('step_logged_in_user_id') || 'admin';
+    return getAdminAccountInfo(currentId).avatar;
   });
   const [adminPassword, setAdminPassword] = useState<string>(() => {
-    return localStorage.getItem('step_admin_password') || 'admin';
+    const currentId = sessionStorage.getItem('step_logged_in_user_id') || localStorage.getItem('step_logged_in_user_id') || 'admin';
+    return getAdminAccountInfo(currentId).password;
   });
 
   const handleUpdateAdminProfile = (newName: string, newAvatar: string, newPass: string) => {
+    const targetUser = loggedInUserId || 'admin';
+    localStorage.setItem(`step_admin_name_${targetUser}`, newName);
+    localStorage.setItem(`step_admin_avatar_${targetUser}`, newAvatar);
+    localStorage.setItem(`step_admin_password_${targetUser}`, newPass);
+    if (targetUser === 'admin') {
+      localStorage.setItem('step_admin_name', newName);
+      localStorage.setItem('step_admin_avatar', newAvatar);
+      localStorage.setItem('step_admin_password', newPass);
+    }
     setAdminName(newName);
     setAdminAvatar(newAvatar);
     setAdminPassword(newPass);
-    localStorage.setItem('step_admin_name', newName);
-    localStorage.setItem('step_admin_avatar', newAvatar);
-    localStorage.setItem('step_admin_password', newPass);
+  };
+
+  // Helper to merge missing items by ID so both Bangka Belitung and Jawa Timur initial data are guaranteed
+  const mergeMissingById = <T extends { id: string }>(currentList: T[], initialList: T[]): T[] => {
+    const currentIds = new Set(currentList.map(item => item.id));
+    const missing = initialList.filter(item => !currentIds.has(item.id));
+    return missing.length > 0 ? [...currentList, ...missing] : currentList;
   };
 
   // Initial default datasets for automatic seeding / recovery
@@ -133,9 +186,13 @@ export default function App() {
   const defaultAttendanceList: Attendance[] = INITIAL_ATTENDANCE;
 
   const defaultUserAccounts: UserAccount[] = [
-    { id: 'ACC_1', userId: '9826003HPI', password: '27111998', createdAt: '2023-01-15' },
-    { id: 'ACC_2', userId: '9826004HPI', password: '27111998', createdAt: '2023-03-20' },
-    { id: 'ACC_3', userId: '9826005HPI', password: '27111998', createdAt: '2023-06-10' }
+    { id: 'ACC_1', userId: '9826003HPI', password: '27111998', createdAt: '2023-01-15', region: 'babel' },
+    { id: 'ACC_2', userId: '9826004HPI', password: '27111998', createdAt: '2023-03-20', region: 'babel' },
+    { id: 'ACC_3', userId: '9826005HPI', password: '27111998', createdAt: '2023-06-10', region: 'babel' },
+    { id: 'ACC_4', userId: '9826010HPI', password: '27111998', createdAt: '2023-02-10', region: 'jatim' },
+    { id: 'ACC_5', userId: '9826011HPI', password: '27111998', createdAt: '2023-04-12', region: 'jatim' },
+    { id: 'ACC_6', userId: '9826012HPI', password: '27111998', createdAt: '2023-05-18', region: 'jatim' },
+    { id: 'ACC_7', userId: '9826013HPI', password: '27111998', createdAt: '2023-07-22', region: 'jatim' }
   ];
 
   // Global React States
@@ -144,7 +201,9 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object' && Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (parsed && typeof parsed === 'object' && Array.isArray(parsed) && parsed.length > 0) {
+          return mergeMissingById(parsed, INITIAL_EMPLOYEES);
+        }
       } catch (e) {}
     }
     return defaultEmployeesList;
@@ -155,7 +214,9 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+          return mergeMissingById(parsed, INITIAL_ATTENDANCE);
+        }
       } catch (e) {}
     }
     return defaultAttendanceList;
@@ -166,7 +227,9 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+          return mergeMissingById(parsed, INITIAL_REPORTS);
+        }
       } catch (e) {}
     }
     return defaultReportsList;
@@ -177,7 +240,15 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+          const merged = mergeMissingById(parsed, defaultUserAccounts);
+          // Ensure default accounts have region tagged
+          return merged.map(acc => {
+            if (acc.region) return acc;
+            const def = defaultUserAccounts.find(d => d.userId === acc.userId);
+            return def?.region ? { ...acc, region: def.region } : acc;
+          });
+        }
       } catch (e) {}
     }
     return defaultUserAccounts;
@@ -220,6 +291,26 @@ export default function App() {
     });
     return list;
   }, [reports, sheetReports]);
+
+  // Multi-tenant administrative scope calculation
+  const adminScope = useMemo<AdminScope>(() => getAdminScope(loggedInUserId), [loggedInUserId]);
+
+  // Regional data isolation
+  const scopedEmployees = useMemo(() => {
+    return employees.filter(emp => isItemInScope(adminScope, emp.department, undefined, emp.name));
+  }, [employees, adminScope]);
+
+  const scopedAttendance = useMemo(() => {
+    return attendance.filter(att => isItemInScope(adminScope, att.department, undefined, att.employeeName));
+  }, [attendance, adminScope]);
+
+  const scopedReports = useMemo(() => {
+    return mergedReports.filter(rep => isItemInScope(adminScope, rep.department, rep.location?.name, rep.title));
+  }, [mergedReports, adminScope]);
+
+  const scopedDraftReports = useMemo(() => {
+    return draftReports.filter(d => isItemInScope(adminScope, d.department, d.location?.name, d.title));
+  }, [draftReports, adminScope]);
 
   // Synchronize Google Sheets reports on load and on custom connection events
   useEffect(() => {
@@ -582,19 +673,82 @@ export default function App() {
     }, 4500);
   };
 
+  // Keep admin profile info synced when logged in user changes
+  useEffect(() => {
+    if (loggedInUserId) {
+      const info = getAdminAccountInfo(loggedInUserId);
+      setAdminName(info.name);
+      setAdminAvatar(info.avatar);
+      setAdminPassword(info.password);
+    }
+  }, [loggedInUserId]);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUserId = userId.trim();
-    if (cleanUserId.toLowerCase() === 'admin' && password === adminPassword) {
-      setIsLoggedIn(true);
-      setLoggedInUserId('admin');
-      sessionStorage.setItem('step_is_logged_in', 'true');
-      sessionStorage.setItem('step_logged_in_user_id', 'admin');
-      localStorage.setItem('step_is_logged_in', 'true');
-      localStorage.setItem('step_logged_in_user_id', 'admin');
-      setLoginError('');
-      handleShowAlert('Login Berhasil', `Selamat datang kembali, ${adminName}.`, 'success');
-    } else if (cleanUserId === '9826003HPI') {
+
+    // 1. Akun admin (Khusus Bangka Belitung & Pangkalpinang)
+    if (cleanUserId.toLowerCase() === 'admin') {
+      const adminInfo = getAdminAccountInfo('admin');
+      if (password === adminInfo.password) {
+        setIsLoggedIn(true);
+        setLoggedInUserId('admin');
+        sessionStorage.setItem('step_is_logged_in', 'true');
+        sessionStorage.setItem('step_logged_in_user_id', 'admin');
+        localStorage.setItem('step_is_logged_in', 'true');
+        localStorage.setItem('step_logged_in_user_id', 'admin');
+        setLoginError('');
+        handleShowAlert('Login Berhasil', `Selamat datang, ${adminInfo.name}. Anda masuk ke sistem khusus wilayah Bangka Belitung (Pangkalpinang termasuk).`, 'success');
+        return;
+      } else {
+        setLoginError('ID User atau Password salah!');
+        handleShowAlert('Login Gagal', 'Password admin Bangka Belitung tidak sesuai.', 'alert');
+        return;
+      }
+    }
+
+    // 2. Akun adminJatim (Khusus Jawa Timur, Bangka Belitung tidak masuk)
+    if (cleanUserId === 'adminJatim' || cleanUserId.toLowerCase() === 'adminjatim') {
+      const jatimInfo = getAdminAccountInfo('adminJatim');
+      if (password === jatimInfo.password) {
+        setIsLoggedIn(true);
+        setLoggedInUserId('adminJatim');
+        sessionStorage.setItem('step_is_logged_in', 'true');
+        sessionStorage.setItem('step_logged_in_user_id', 'adminJatim');
+        localStorage.setItem('step_is_logged_in', 'true');
+        localStorage.setItem('step_logged_in_user_id', 'adminJatim');
+        setLoginError('');
+        handleShowAlert('Login Berhasil', `Selamat datang, ${jatimInfo.name}. Anda masuk ke sistem khusus wilayah Jawa Timur.`, 'success');
+        return;
+      } else {
+        setLoginError('ID User atau Password salah!');
+        handleShowAlert('Login Gagal', 'Password admin Jawa Timur tidak sesuai.', 'alert');
+        return;
+      }
+    }
+
+    // 3. Akun adminUtama (Akun Utama - Memantau Semua Data)
+    if (cleanUserId === 'adminUtama' || cleanUserId.toLowerCase() === 'adminutama') {
+      const utamaInfo = getAdminAccountInfo('adminUtama');
+      if (password === utamaInfo.password) {
+        setIsLoggedIn(true);
+        setLoggedInUserId('adminUtama');
+        sessionStorage.setItem('step_is_logged_in', 'true');
+        sessionStorage.setItem('step_logged_in_user_id', 'adminUtama');
+        localStorage.setItem('step_is_logged_in', 'true');
+        localStorage.setItem('step_logged_in_user_id', 'adminUtama');
+        setLoginError('');
+        handleShowAlert('Login Berhasil', `Selamat datang, ${utamaInfo.name}. Anda memantau seluruh data wilayah (Nasional).`, 'success');
+        return;
+      } else {
+        setLoginError('ID User atau Password salah!');
+        handleShowAlert('Login Gagal', 'Password Admin Utama tidak sesuai.', 'alert');
+        return;
+      }
+    }
+
+    // 4. Default petugas lapangan / 9826003HPI
+    if (cleanUserId === '9826003HPI') {
       const savedUserPass = localStorage.getItem('step_user_password_' + cleanUserId) || '27111998';
       if (password === savedUserPass) {
         setIsLoggedIn(true);
@@ -605,31 +759,33 @@ export default function App() {
         localStorage.setItem('step_logged_in_user_id', '9826003HPI');
         setLoginError('');
         handleShowAlert('Login Berhasil', 'Selamat datang. Anda masuk sebagai petugas lapangan.', 'success');
+        return;
+      } else {
+        setLoginError('ID User atau Password salah!');
+        handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
+        return;
+      }
+    }
+
+    // Check dynamic user accounts
+    const matchedAccount = userAccounts.find(acc => acc.userId === cleanUserId);
+    if (matchedAccount) {
+      if (matchedAccount.password === password) {
+        setIsLoggedIn(true);
+        setLoggedInUserId(matchedAccount.userId);
+        sessionStorage.setItem('step_is_logged_in', 'true');
+        sessionStorage.setItem('step_logged_in_user_id', matchedAccount.userId);
+        localStorage.setItem('step_is_logged_in', 'true');
+        localStorage.setItem('step_logged_in_user_id', matchedAccount.userId);
+        setLoginError('');
+        handleShowAlert('Login Berhasil', `Selamat datang kembali, ${matchedAccount.userId}.`, 'success');
       } else {
         setLoginError('ID User atau Password salah!');
         handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
       }
     } else {
-      // Check dynamic user accounts
-      const matchedAccount = userAccounts.find(acc => acc.userId === cleanUserId);
-      if (matchedAccount) {
-        if (matchedAccount.password === password) {
-          setIsLoggedIn(true);
-          setLoggedInUserId(matchedAccount.userId);
-          sessionStorage.setItem('step_is_logged_in', 'true');
-          sessionStorage.setItem('step_logged_in_user_id', matchedAccount.userId);
-          localStorage.setItem('step_is_logged_in', 'true');
-          localStorage.setItem('step_logged_in_user_id', matchedAccount.userId);
-          setLoginError('');
-          handleShowAlert('Login Berhasil', `Selamat datang kembali, ${matchedAccount.userId}.`, 'success');
-        } else {
-          setLoginError('ID User atau Password salah!');
-          handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
-        }
-      } else {
-        setLoginError('ID User atau Password salah!');
-        handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
-      }
+      setLoginError('ID User atau Password salah!');
+      handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
     }
   };
 
@@ -1315,15 +1471,12 @@ export default function App() {
 
       {/* Main Container workspace */}
       <main className="flex-1 w-full p-0 flex flex-col">
-        
-
-
         {/* Welcome information banner */}
         <div className={`p-4 rounded-none border-x-0 border-t-0 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-sm border ${isDarkMode ? 'bg-slate-900/60 border-slate-800 text-slate-100' : 'bg-white border-sky-100/80 text-slate-800'}`}>
           <div className="flex items-center gap-2.5 text-sky-400">
             <Info size={16} className={isDarkMode ? 'text-sky-500' : 'text-[#0284c7]'} />
             <span className={`text-[11px] leading-relaxed text-left ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-              <strong>Konsol Administrasi Web:</strong> Selamat datang di portal Cleaning Service PT Haleyora Powerindo Cabang Bangka Belitung. Di sini Anda dapat memantau data pegawai, serta Data Lapoan secara real-time.
+              <strong>Konsol Administrasi:</strong> Selamat datang di portal Cleaning Service PT Haleyora Powerindo. Di sini Anda dapat memantau data pegawai, presensi, dan pelaporan secara real-time.
             </span>
           </div>
         </div>
@@ -1331,9 +1484,9 @@ export default function App() {
         {/* Full-width Web Dashboard */}
         <div className="w-full flex-1 flex flex-col">
           <AdminDashboard 
-            employees={employees}
-            attendance={attendance}
-            reports={mergedReports}
+            employees={scopedEmployees}
+            attendance={scopedAttendance}
+            reports={scopedReports}
             onAddEmployee={handleAddEmployee}
             onUpdateReportStatus={handleUpdateReportStatus}
             onUpdateReport={handleUpdateReport}
@@ -1347,7 +1500,7 @@ export default function App() {
             adminAvatar={adminAvatar}
             adminPassword={adminPassword}
             onUpdateAdminProfile={handleUpdateAdminProfile}
-            draftReports={draftReports}
+            draftReports={scopedDraftReports}
             onAddDraftReport={handleAddDraftReport}
             onDeleteDraftReport={handleDeleteDraftReport}
             onSyncDrafts={handleSyncDrafts}

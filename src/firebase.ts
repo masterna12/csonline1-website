@@ -1,18 +1,9 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import firebaseAppletConfig from '../firebase-applet-config.json';
 
 export const OLD_FIREBASE_CONFIG = {
-  projectId: "portal-dashboard-cs-online", // Deactivated, set to new to prevent any fallback
-  appId: "1:766714409669:web:7395c3ef113b807ec8f6ac",
-  apiKey: "AIzaSyAw4Oer4GPruu1ZUfBClsMSkrWu-gjlFRg",
-  authDomain: "portal-dashboard-cs-online.firebaseapp.com",
-  storageBucket: "portal-dashboard-cs-online.firebasestorage.app",
-  messagingSenderId: "766714409669",
-  measurementId: "G-733VS90NSR"
-};
-
-export const NEW_FIREBASE_CONFIG = {
   apiKey: "AIzaSyAw4Oer4GPruu1ZUfBClsMSkrWu-gjlFRg",
   authDomain: "portal-dashboard-cs-online.firebaseapp.com",
   projectId: "portal-dashboard-cs-online",
@@ -22,11 +13,23 @@ export const NEW_FIREBASE_CONFIG = {
   measurementId: "G-733VS90NSR"
 };
 
-// Check if migration has been successfully completed (Forced to true to default to new portal-dashboard-cs-online database)
+export const NEW_FIREBASE_CONFIG = {
+  apiKey: firebaseAppletConfig.apiKey,
+  authDomain: firebaseAppletConfig.authDomain,
+  projectId: firebaseAppletConfig.projectId,
+  storageBucket: firebaseAppletConfig.storageBucket,
+  messagingSenderId: firebaseAppletConfig.messagingSenderId,
+  appId: firebaseAppletConfig.appId,
+  measurementId: firebaseAppletConfig.measurementId || ""
+};
+
+// Check if migration has been successfully completed
 const isCompleted = true;
 
-// Expose active configuration (Always use the new database)
-export const firebaseConfig = NEW_FIREBASE_CONFIG;
+// Expose active configuration (default to the workspace target database, but allow fallback if explicitly toggled)
+export const firebaseConfig = (typeof window !== 'undefined' && localStorage.getItem("firebase_migration_completed_to_new") === "false")
+  ? OLD_FIREBASE_CONFIG
+  : NEW_FIREBASE_CONFIG;
 
 // Initialize standard default Firebase app
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -42,10 +45,14 @@ export const db = initializeFirestore(app, {
 
 export const auth = getAuth(app);
 
-// Explicit helper functions for the Database Migration Center to connect only to the new target database
+// Explicit helper functions for the Database Migration Center to connect to both old and new databases
 export function getSourceFirestore() {
-  // Disabled the old database, always return the target firestore to keep operations within the new database only
-  return getTargetFirestore();
+  const existingApp = getApps().find(a => a.name === "source_app_migration");
+  const sourceApp = existingApp || initializeApp(OLD_FIREBASE_CONFIG, "source_app_migration");
+  return initializeFirestore(sourceApp, {
+    ignoreUndefinedProperties: true,
+    experimentalForceLongPolling: true
+  });
 }
 
 export function getTargetFirestore() {

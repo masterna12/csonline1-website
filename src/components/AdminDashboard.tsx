@@ -1,4 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import { 
+  getAdminScope, 
+  isItemInScope, 
+  isUserAccountInScope,
+  getUserAccountScope,
+  getScopeTitle, 
+  getScopeBadge, 
+  getScopeDefaults, 
+  AdminScope 
+} from "../lib/regionFilter";
 import {
   Users,
   FileText,
@@ -271,15 +281,29 @@ export default function AdminDashboard({
   dbError = null,
   onDbError,
 }: AdminDashboardProps) {
-  const isAdmin = loggedInUserId === "admin" || !loggedInUserId;
-  const hasFullAccess = loggedInUserId === "admin" || loggedInUserId === "9826003HPI" || !loggedInUserId;
+  // Multi-tenant administrative scope calculation
+  const adminScope = useMemo<AdminScope>(() => getAdminScope(loggedInUserId), [loggedInUserId]);
+  const scopeDefaults = useMemo(() => getScopeDefaults(adminScope), [adminScope]);
+  const scopeBadge = useMemo(() => getScopeBadge(adminScope), [adminScope]);
+  const scopeTitle = useMemo(() => getScopeTitle(adminScope), [adminScope]);
+
+  // Scoped user accounts according to user intent:
+  // - adminUtama: All accounts (Semua Akun)
+  // - admin: Only Bangka Belitung accounts (termasuk Pangkalpinang)
+  // - adminJatim: Only Jawa Timur accounts
+  const scopedUserAccounts = useMemo(() => {
+    return userAccounts.filter((acc) => isUserAccountInScope(adminScope, acc, employees));
+  }, [userAccounts, adminScope, employees]);
+
+  const isAdmin = loggedInUserId === "admin" || loggedInUserId === "adminJatim" || loggedInUserId === "adminUtama" || !loggedInUserId;
+  const hasFullAccess = isAdmin || loggedInUserId === "9826003HPI";
 
   // Sidebar tab management
   // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun, 'kelola_akun' = Kelola Akun
   const [activeSubTab, setActiveSubTab] = useState<
     "ringkasan" | "pegawai" | "laporan" | "kehadiran" | "pengaturan" | "kelola_akun" | "migrasi"
   >(() => {
-    const isFull = loggedInUserId === "admin" || loggedInUserId === "9826003HPI" || !loggedInUserId;
+    const isFull = hasFullAccess;
     if (!isFull) {
       return "laporan";
     }
@@ -293,7 +317,7 @@ export default function AdminDashboard({
 
   // Listen to hash change to support standard browser links/tabs natively
   React.useEffect(() => {
-    const isFull = loggedInUserId === "admin" || loggedInUserId === "9826003HPI" || !loggedInUserId;
+    const isFull = hasFullAccess;
     const handleHashChange = () => {
       const hash = window.location.hash.replace("#", "");
       const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun", "migrasi"];
@@ -310,15 +334,15 @@ export default function AdminDashboard({
     handleHashChange();
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
-  }, [loggedInUserId]);
+  }, [hasFullAccess]);
 
   // Enforce tab access control reactively
   React.useEffect(() => {
-    const isFull = loggedInUserId === "admin" || loggedInUserId === "9826003HPI" || !loggedInUserId;
+    const isFull = hasFullAccess;
     if (!isFull && activeSubTab !== "laporan" && activeSubTab !== "pengaturan") {
       setActiveSubTab("laporan");
     }
-  }, [loggedInUserId, activeSubTab]);
+  }, [hasFullAccess, activeSubTab]);
 
   // Sync hash with active tab state
   React.useEffect(() => {
@@ -575,18 +599,33 @@ export default function AdminDashboard({
   const [isAddReportModalOpen, setIsAddReportModalOpen] = useState(false);
 
   React.useEffect(() => {
-    if (isAddReportModalOpen && !hasFullAccess && loggedInUserId) {
-      const selfEmp = employees.find(e => e.nip === loggedInUserId);
-      if (selfEmp) {
-        setAddRepName(selfEmp.name);
-        setAddRepNip(selfEmp.nip);
-        setAddRepRole(selfEmp.role);
-        setAddRepDept(selfEmp.department);
+    if (isAddReportModalOpen) {
+      if (!hasFullAccess && loggedInUserId) {
+        const selfEmp = employees.find(e => e.nip === loggedInUserId);
+        if (selfEmp) {
+          setAddRepName(selfEmp.name);
+          setAddRepNip(selfEmp.nip);
+          setAddRepRole(selfEmp.role);
+          setAddRepDept(selfEmp.department);
+        } else {
+          setAddRepNip(loggedInUserId);
+        }
       } else {
-        setAddRepNip(loggedInUserId);
+        // Set default department & location based on regional scope
+        if (!addRepDept) {
+          setAddRepDept(scopeDefaults.department);
+        }
+        setAddRepLocName(scopeDefaults.locationName);
+        setAddRepCoord(scopeDefaults.coordinates);
       }
     }
-  }, [isAddReportModalOpen, hasFullAccess, loggedInUserId, employees]);
+  }, [isAddReportModalOpen, hasFullAccess, loggedInUserId, employees, scopeDefaults]);
+
+  React.useEffect(() => {
+    if (isAddModalOpen && !newEmpDept) {
+      setNewEmpDept(scopeDefaults.department);
+    }
+  }, [isAddModalOpen, scopeDefaults]);
 
   const [addRepName, setAddRepName] = useState("");
   const [addRepNip, setAddRepNip] = useState("");
@@ -629,18 +668,24 @@ export default function AdminDashboard({
 
   // Active logged-in user details determination
   const activeEmpInfo = React.useMemo(() => {
-    if (loggedInUserId && loggedInUserId !== "admin") {
+    if (loggedInUserId && !isAdmin) {
       return employees.find((e) => e.nip === loggedInUserId) || null;
     }
     return null;
-  }, [employees, loggedInUserId]);
+  }, [employees, loggedInUserId, isAdmin]);
 
-  const currentUserName = activeEmpInfo ? activeEmpInfo.name : (loggedInUserId === "admin" ? adminName : "Petugas Lapangan");
-  const currentUserAvatar = activeEmpInfo ? activeEmpInfo.avatar : (loggedInUserId === "admin" ? adminAvatar : "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200");
-  const currentUserPassword = loggedInUserId && loggedInUserId !== "admin"
+  const currentUserName = activeEmpInfo ? activeEmpInfo.name : (isAdmin ? adminName : "Petugas Lapangan");
+  const currentUserAvatar = activeEmpInfo ? activeEmpInfo.avatar : (isAdmin ? adminAvatar : "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200");
+  const currentUserPassword = loggedInUserId && !isAdmin
     ? (localStorage.getItem("step_user_password_" + loggedInUserId) || "27111998")
     : adminPassword;
-  const currentUserRole = activeEmpInfo ? activeEmpInfo.role : (loggedInUserId === "admin" ? "Administrator" : "Petugas Lapangan");
+  const currentUserRole = activeEmpInfo 
+    ? activeEmpInfo.role 
+    : (loggedInUserId === "adminJatim" 
+        ? "Admin Wilayah Jawa Timur" 
+        : (loggedInUserId === "adminUtama" 
+            ? "Admin Utama (Nasional)" 
+            : (isAdmin ? "Admin Bangka Belitung" : "Petugas Lapangan")));
 
   // Settings Form State
   const [settingName, setSettingName] = useState(currentUserName);
@@ -680,11 +725,19 @@ export default function AdminDashboard({
       const saved = localStorage.getItem("hpi_locations");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+          const curIds = new Set(parsed.map((x: any) => x.id));
+          const missing = INITIAL_LOCATIONS.filter((x) => !curIds.has(x.id));
+          return missing.length > 0 ? [...parsed, ...missing] : parsed;
+        }
       }
     } catch {}
     return INITIAL_LOCATIONS;
   });
+
+  const scopedLocations = useMemo(() => {
+    return locations.filter((loc) => isItemInScope(adminScope, loc.name));
+  }, [locations, adminScope]);
 
   const [employeeLocations, setEmployeeLocations] = useState<{
     [employeeId: string]: string;
@@ -2926,7 +2979,7 @@ export default function AdminDashboard({
               />
               {isSidebarOpen && <span>Pengaturan Akun</span>}
             </a>
-            {loggedInUserId === "admin" && (
+            {isAdmin && (
               <a
                 id="sidebar_btn_kelola_akun"
                 href="#kelola_akun"
@@ -3005,7 +3058,7 @@ export default function AdminDashboard({
             <div className="flex items-center gap-2 pl-3 ml-1 border-l border-slate-800/80">
               <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>
               <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-extrabold hidden sm:inline">
-                ● Posko Bangka Belitung Online
+                ● Posko {scopeBadge.text} Online
               </span>
             </div>
           </div>
@@ -3369,7 +3422,7 @@ export default function AdminDashboard({
                           RINGKASAN DATA PEGAWAI
                         </h4>
                         <p className="text-[10px] text-slate-400">
-                          Daftar Personil aktif Bangka Belitung.
+                          Daftar Personil aktif {scopeBadge.text}.
                         </p>
                       </div>
                       <button
@@ -3506,7 +3559,7 @@ export default function AdminDashboard({
                     <Building2 className="text-[#0284c7]" size={18} />
                     <div>
                       <p className="font-extrabold leading-none">
-                        Database Bangka Belitung Terverifikasi
+                        Database {scopeBadge.text} Terverifikasi
                       </p>
                       <span className="text-[10px] text-slate-500 mt-1 block">
                         Data mutakhir: {employees.length} Pegawai,{" "}
@@ -3542,7 +3595,7 @@ export default function AdminDashboard({
                     </h1>
                     <p className="text-xs text-slate-500 mt-0.5">
                       Seluruh informasi data pokok pegawai PT. Haleyora
-                      Powerindo Bangka Belitung
+                      Powerindo ({scopeBadge.text})
                     </p>
                   </div>
 
@@ -5555,7 +5608,7 @@ export default function AdminDashboard({
                             TOTAL LOKASI KERJA
                           </p>
                           <p className="text-2xl font-black mt-0.5">
-                            {locations.length}
+                            {scopedLocations.length}
                           </p>
                         </div>
                       </div>
@@ -5575,7 +5628,7 @@ export default function AdminDashboard({
                           </p>
                           <p className="text-2xl font-black mt-0.5 font-mono">
                             {
-                              locations.filter((loc) =>
+                              scopedLocations.filter((loc) =>
                                 Object.values(employeeLocations).includes(
                                   loc.id,
                                 ),
@@ -5600,7 +5653,7 @@ export default function AdminDashboard({
                           </p>
                           <p className="text-2xl font-black mt-0.5 font-mono">
                             {
-                              locations.filter(
+                              scopedLocations.filter(
                                 (loc) =>
                                   !Object.values(employeeLocations).includes(
                                     loc.id,
@@ -5702,7 +5755,7 @@ export default function AdminDashboard({
                           className="bg-slate-50 border border-slate-300 rounded-xl py-2 px-3 text-slate-705 text-xs outline-none font-bold"
                         >
                           <option value="Semua">-- Semua Parent --</option>
-                          {locations
+                          {scopedLocations
                             .filter((l) => l.level === 1)
                             .map((l) => (
                               <option key={l.id} value={l.id}>
@@ -5754,14 +5807,14 @@ export default function AdminDashboard({
                       </div>
 
                       <div className="p-4 bg-slate-50 text-slate-800 divide-y divide-slate-100">
-                        {locations.length === 0 ? (
+                        {scopedLocations.length === 0 ? (
                           <div className="text-center py-10 text-slate-400 italic">
-                            Belum ada lokasi kerja. Silakan klik "Tambah Lokasi"
+                            Belum ada lokasi kerja untuk wilayah ini. Silakan klik "Tambah Lokasi"
                             untuk mendaftarkan wilayah tugas satgas baru.
                           </div>
                         ) : (
                           (() => {
-                            const filtered = locations.filter((loc) => {
+                            const filtered = scopedLocations.filter((loc) => {
                               const matchSearch = masterSearchQuery
                                 ? loc.name
                                     .toLowerCase()
@@ -6776,7 +6829,7 @@ export default function AdminDashboard({
               </motion.div>
             )}
 
-            {activeSubTab === "kelola_akun" && loggedInUserId === "admin" && (
+            {activeSubTab === "kelola_akun" && isAdmin && (
               <motion.div
                 key="tab_prisma_kelola_akun"
                 initial={{ opacity: 0, y: 10 }}
@@ -6787,14 +6840,18 @@ export default function AdminDashboard({
                 <div className="pb-2 border-b border-slate-300 flex items-center justify-between">
                   <div>
                     <h1 className="text-xl md:text-2xl font-black text-slate-900 font-sans">
-                      Kelola Akun Pengguna CS Online
+                      Kelola Akun Pengguna CS Online {adminScope === 'all' ? '(Semua Wilayah)' : adminScope === 'jatim' ? '(Jawa Timur)' : '(Bangka Belitung)'}
                     </h1>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Tambahkan dan kelola hak akses log masuk (ID User & Password) untuk petugas lapangan/pengguna tambahan.
+                      {adminScope === 'all' 
+                        ? 'Akses penuh seluruh akun administrator dan petugas lapangan dari semua wilayah kerja (Nasional).' 
+                        : adminScope === 'jatim'
+                        ? 'Menampilkan dan mengelola khusus akun pengguna wilayah Jawa Timur.'
+                        : 'Menampilkan dan mengelola khusus akun pengguna wilayah Bangka Belitung (termasuk Pangkalpinang).'}
                     </p>
                   </div>
                   <div className="bg-sky-500/10 text-sky-600 border border-sky-500/20 px-3 py-1 rounded-xl text-xs font-bold font-mono">
-                    Akun: {userAccounts.length + 2} Terdaftar
+                    Akun: {(adminScope === 'all' ? 3 : 1) + scopedUserAccounts.length} Terdaftar {adminScope === 'all' ? '(Semua)' : adminScope === 'jatim' ? '(Jatim)' : '(Babel)'}
                   </div>
                 </div>
 
@@ -6813,6 +6870,7 @@ export default function AdminDashboard({
                         const fd = new FormData(target);
                         const userIdVal = (fd.get("new_user_id") as string || "").trim();
                         const passwordVal = (fd.get("new_password") as string || "").trim();
+                        const selectedRegion = (fd.get("account_region") as string) || (adminScope === 'jatim' ? 'jatim' : adminScope === 'babel' ? 'babel' : 'all');
 
                         if (!userIdVal || !passwordVal) {
                           onShowAlert("Error", "ID User dan Password harus diisi!", "alert");
@@ -6820,7 +6878,7 @@ export default function AdminDashboard({
                         }
 
                         // Prevent duplicate usernames
-                        if (userIdVal.toLowerCase() === "admin" || userIdVal === "9826003HPI") {
+                        if (["admin", "adminjatim", "adminutama"].includes(userIdVal.toLowerCase()) || userIdVal === "9826003HPI") {
                           onShowAlert("Gagal", "ID User ini adalah akun default sistem!", "alert");
                           return;
                         }
@@ -6835,7 +6893,8 @@ export default function AdminDashboard({
                           id: newAccId,
                           userId: userIdVal,
                           password: passwordVal,
-                          createdAt: new Date().toLocaleDateString("id-ID")
+                          createdAt: new Date().toLocaleDateString("id-ID"),
+                          region: selectedRegion as any
                         });
 
                         onShowAlert(
@@ -6873,6 +6932,25 @@ export default function AdminDashboard({
                         />
                       </div>
 
+                      {adminScope === 'all' ? (
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
+                            Wilayah Penugasan Akun
+                          </label>
+                          <select
+                            name="account_region"
+                            defaultValue="babel"
+                            className="w-full bg-slate-50 border border-slate-350 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner cursor-pointer"
+                          >
+                            <option value="babel">Bangka Belitung & Pangkalpinang</option>
+                            <option value="jatim">Wilayah Jawa Timur</option>
+                            <option value="all">Semua Wilayah (Nasional)</option>
+                          </select>
+                        </div>
+                      ) : (
+                        <input type="hidden" name="account_region" value={adminScope} />
+                      )}
+
                       <button
                         type="submit"
                         className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs text-center"
@@ -6902,66 +6980,106 @@ export default function AdminDashboard({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {/* Default admin account row */}
-                          <tr className="hover:bg-slate-50/50">
-                            <td className="p-3 font-semibold text-slate-900">admin</td>
-                            <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">****** (Admin Profile)</td>
-                            <td className="p-3 text-slate-400">Default</td>
-                            <td className="p-3">
-                              <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase">
-                                Administrator
-                              </span>
-                            </td>
-                            <td className="p-3 text-center text-slate-400 italic text-[10px]">System Lock</td>
-                          </tr>
+                          {/* Admin Bangka Belitung - Only for adminUtama or admin (Babel) */}
+                          {(adminScope === 'all' || adminScope === 'babel') && (
+                            <tr className="hover:bg-slate-50/50">
+                              <td className="p-3 font-semibold text-slate-900">admin</td>
+                              <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">admin (Bangka Belitung)</td>
+                              <td className="p-3 text-slate-400">Wilayah Khusus</td>
+                              <td className="p-3">
+                                <span className="bg-sky-50 text-sky-700 border border-sky-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase">
+                                  Admin Bangka Belitung & Pangkalpinang
+                                </span>
+                              </td>
+                              <td className="p-3 text-center text-slate-400 italic text-[10px]">System Lock</td>
+                            </tr>
+                          )}
 
-                          {/* Default 9826003HPI account row */}
-                          <tr className="hover:bg-slate-50/50">
-                            <td className="p-3 font-semibold text-slate-900">9826003HPI</td>
-                            <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">****** (Kunci Pengaturan)</td>
-                            <td className="p-3 text-slate-400">Default</td>
-                            <td className="p-3">
-                              <span className="bg-sky-50 text-sky-700 border border-sky-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase">
-                                Petugas Utama
-                              </span>
-                            </td>
-                            <td className="p-3 text-center text-slate-400 italic text-[10px]">System Lock</td>
-                          </tr>
+                          {/* Admin Jawa Timur - Only for adminUtama or adminJatim */}
+                          {(adminScope === 'all' || adminScope === 'jatim') && (
+                            <tr className="hover:bg-slate-50/50">
+                              <td className="p-3 font-semibold text-slate-900">adminJatim</td>
+                              <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">adminJatim (Jawa Timur)</td>
+                              <td className="p-3 text-slate-400">Wilayah Khusus</td>
+                              <td className="p-3">
+                                <span className="bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase">
+                                  Admin Khusus Jawa Timur
+                                </span>
+                              </td>
+                              <td className="p-3 text-center text-slate-400 italic text-[10px]">System Lock</td>
+                            </tr>
+                          )}
 
-                          {/* Dynamic user accounts */}
-                          {userAccounts.length === 0 ? (
+                          {/* Admin Utama - Only for adminUtama */}
+                          {adminScope === 'all' && (
+                            <tr className="hover:bg-slate-50/50">
+                              <td className="p-3 font-semibold text-slate-900">adminUtama</td>
+                              <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">adminUtama (Nasional)</td>
+                              <td className="p-3 text-slate-400">Semua Wilayah</td>
+                              <td className="p-3">
+                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase">
+                                  Admin Utama (Semua Data)
+                                </span>
+                              </td>
+                              <td className="p-3 text-center text-slate-400 italic text-[10px]">System Lock</td>
+                            </tr>
+                          )}
+
+                          {/* Scoped Dynamic User Accounts */}
+                          {scopedUserAccounts.length === 0 ? (
                             <tr>
                               <td colSpan={5} className="p-8 text-center text-slate-400 font-semibold italic">
-                                Belum ada akun tambahan yang ditambahkan. Silakan gunakan panel di sebelah kiri untuk menambah akun.
+                                Belum ada akun petugas lapangan untuk wilayah ini. Silakan gunakan panel di sebelah kiri untuk menambah akun.
                               </td>
                             </tr>
                           ) : (
-                            userAccounts.map((acc) => (
-                              <tr key={acc.id} className="hover:bg-slate-50/50">
-                                <td className="p-3 font-semibold text-slate-900">{acc.userId}</td>
-                                <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">{acc.password}</td>
-                                <td className="p-3 text-slate-500">{acc.createdAt}</td>
-                                <td className="p-3">
-                                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase">
-                                    Operator Lapangan
-                                  </span>
-                                </td>
-                                <td className="p-3 text-center">
-                                  <button
-                                    onClick={() => {
-                                      if (confirm(`Apakah Anda yakin ingin menghapus akun "${acc.userId}"? Pengguna tidak akan bisa log masuk lagi.`)) {
-                                        onDeleteUserAccount(acc.id);
-                                        onShowAlert("Sukses", `User ID "${acc.userId}" berhasil dihapus secara permanen.`, "success");
-                                      }
-                                    }}
-                                    className="mx-auto flex items-center justify-center p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition active:scale-95 cursor-pointer border-none"
-                                    title="Hapus Akun Pengguna"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))
+                            scopedUserAccounts.map((acc) => {
+                              const accScope = getUserAccountScope(acc, employees);
+                              const isJatimAcc = accScope === 'jatim';
+                              const isBabelAcc = accScope === 'babel';
+                              const isDefaultSysAcc = acc.userId === "9826003HPI";
+                              const emp = employees.find(e => (e.nip && e.nip.toLowerCase() === acc.userId.toLowerCase()) || (e.id && e.id.toLowerCase() === acc.userId.toLowerCase()));
+
+                              return (
+                                <tr key={acc.id} className="hover:bg-slate-50/50">
+                                  <td className="p-3">
+                                    <div className="font-semibold text-slate-900">{acc.userId}</div>
+                                    {emp && <div className="text-[10px] text-slate-400 font-medium">{emp.name} &bull; {emp.department}</div>}
+                                  </td>
+                                  <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">{acc.password}</td>
+                                  <td className="p-3 text-slate-500">{acc.createdAt}</td>
+                                  <td className="p-3">
+                                    <span className={`border px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                                      isJatimAcc
+                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                        : isBabelAcc
+                                        ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    }`}>
+                                      {isJatimAcc ? 'Operator (Jawa Timur)' : isBabelAcc ? 'Operator (Bangka Belitung)' : 'Operator Lapangan'}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    {isDefaultSysAcc ? (
+                                      <span className="text-slate-400 italic text-[10px]">System Lock</span>
+                                    ) : (
+                                      <button
+                                        onClick={() => {
+                                          if (confirm(`Apakah Anda yakin ingin menghapus akun "${acc.userId}"? Pengguna tidak akan bisa log masuk lagi.`)) {
+                                            onDeleteUserAccount(acc.id);
+                                            onShowAlert("Sukses", `User ID "${acc.userId}" berhasil dihapus secara permanen.`, "success");
+                                          }
+                                        }}
+                                        className="mx-auto flex items-center justify-center p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition active:scale-95 cursor-pointer border-none"
+                                        title="Hapus Akun Pengguna"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
                           )}
                         </tbody>
                       </table>
