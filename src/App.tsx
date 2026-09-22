@@ -19,7 +19,7 @@ import {
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { uploadImageToCloudinary } from './lib/cloudinary';
 import { validateDeviceTime } from './lib/timeService';
-import { getAdminScope, isItemInScope, AdminScope } from './lib/regionFilter';
+import { getAdminScope, isItemInScope, resolveEntityRegion, AdminScope } from './lib/regionFilter';
 // @ts-ignore
 import hpiLogo from './assets/images/hpi_cs_logo_dark_1781488961865.jpg';
 
@@ -293,24 +293,75 @@ export default function App() {
   }, [reports, sheetReports]);
 
   // Multi-tenant administrative scope calculation
-  const adminScope = useMemo<AdminScope>(() => getAdminScope(loggedInUserId), [loggedInUserId]);
+  const adminScope = useMemo<AdminScope>(
+    () => getAdminScope(loggedInUserId, userAccounts, employees),
+    [loggedInUserId, userAccounts, employees]
+  );
 
   // Regional data isolation
   const scopedEmployees = useMemo(() => {
-    return employees.filter(emp => isItemInScope(adminScope, emp.department, undefined, emp.name, emp.createdBy, emp.region));
-  }, [employees, adminScope]);
+    return employees.filter(emp => isItemInScope(
+      adminScope,
+      emp.department,
+      undefined,
+      emp.name,
+      emp.createdBy,
+      emp.region,
+      emp.nip,
+      employees,
+      userAccounts,
+      emp.id,
+      emp.name
+    ));
+  }, [employees, adminScope, userAccounts]);
 
   const scopedAttendance = useMemo(() => {
-    return attendance.filter(att => isItemInScope(adminScope, att.department, undefined, att.employeeName, att.createdBy, att.region));
-  }, [attendance, adminScope]);
+    return attendance.filter(att => isItemInScope(
+      adminScope,
+      att.department,
+      undefined,
+      att.employeeName,
+      att.createdBy,
+      att.region,
+      undefined,
+      employees,
+      userAccounts,
+      att.employeeId,
+      att.employeeName
+    ));
+  }, [attendance, adminScope, employees, userAccounts]);
 
   const scopedReports = useMemo(() => {
-    return mergedReports.filter(rep => isItemInScope(adminScope, rep.department, rep.location?.name, rep.title, rep.createdBy, rep.region));
-  }, [mergedReports, adminScope]);
+    return mergedReports.filter(rep => isItemInScope(
+      adminScope,
+      rep.department,
+      rep.location?.name,
+      rep.title,
+      rep.createdBy,
+      rep.region,
+      rep.nip,
+      employees,
+      userAccounts,
+      rep.employeeId,
+      rep.employeeName
+    ));
+  }, [mergedReports, adminScope, employees, userAccounts]);
 
   const scopedDraftReports = useMemo(() => {
-    return draftReports.filter(d => isItemInScope(adminScope, d.department, d.location?.name, d.title, d.createdBy, d.region));
-  }, [draftReports, adminScope]);
+    return draftReports.filter(d => isItemInScope(
+      adminScope,
+      d.department,
+      d.location?.name,
+      d.title,
+      d.createdBy,
+      d.region,
+      d.nip,
+      employees,
+      userAccounts,
+      d.employeeId,
+      d.employeeName
+    ));
+  }, [draftReports, adminScope, employees, userAccounts]);
 
   // Synchronize Google Sheets reports on load and on custom connection events
   useEffect(() => {
@@ -828,10 +879,22 @@ export default function App() {
   };
 
   const handleAddEmployee = async (newEmp: Employee) => {
+    const determinedRegion = resolveEntityRegion({
+      region: newEmp.region,
+      createdBy: newEmp.createdBy || loggedInUserId,
+      nip: newEmp.nip,
+      employeeId: newEmp.id,
+      employeeName: newEmp.name,
+      department: newEmp.department,
+      currentScope: adminScope,
+      userAccounts,
+      employees,
+    });
+
     const enrichedEmp: Employee = {
       ...newEmp,
       createdBy: newEmp.createdBy || loggedInUserId,
-      region: newEmp.region || (adminScope === 'jatim' ? 'jatim' : (adminScope === 'babel' ? 'babel' : 'all')),
+      region: determinedRegion,
     };
     // 1. Save locally first (instant UI update)
     setEmployees(prev => {
@@ -883,10 +946,21 @@ export default function App() {
   };
 
   const handleAddAttendance = async (newAtt: Attendance) => {
+    const determinedRegion = resolveEntityRegion({
+      region: newAtt.region,
+      createdBy: newAtt.createdBy || loggedInUserId,
+      employeeId: newAtt.employeeId,
+      employeeName: newAtt.employeeName,
+      department: newAtt.department,
+      currentScope: adminScope,
+      userAccounts,
+      employees,
+    });
+
     const enrichedAtt: Attendance = {
       ...newAtt,
       createdBy: newAtt.createdBy || loggedInUserId,
-      region: newAtt.region || (adminScope === 'jatim' ? 'jatim' : (adminScope === 'babel' ? 'babel' : 'all')),
+      region: determinedRegion,
     };
     // 1. Save locally first (instant UI update)
     setAttendance(prev => {
@@ -904,10 +978,25 @@ export default function App() {
   };
 
   const handleAddReport = async (newRep: Report) => {
+    const determinedRegion = resolveEntityRegion({
+      region: newRep.region,
+      createdBy: newRep.createdBy || loggedInUserId,
+      nip: newRep.nip,
+      employeeId: newRep.employeeId,
+      employeeName: newRep.employeeName,
+      department: newRep.department,
+      locationName: newRep.location?.name,
+      title: newRep.title,
+      extraText: newRep.description,
+      currentScope: adminScope,
+      userAccounts,
+      employees,
+    });
+
     const enrichedRep: Report = {
       ...newRep,
       createdBy: newRep.createdBy || loggedInUserId,
-      region: newRep.region || (adminScope === 'jatim' ? 'jatim' : (adminScope === 'babel' ? 'babel' : 'all')),
+      region: determinedRegion,
     };
     // 1. Save locally first (instant UI update)
     setReports(prev => {
@@ -969,10 +1058,25 @@ export default function App() {
   };
 
   const handleAddDraftReport = (draft: Report) => {
+    const determinedRegion = resolveEntityRegion({
+      region: draft.region,
+      createdBy: draft.createdBy || loggedInUserId,
+      nip: draft.nip,
+      employeeId: draft.employeeId,
+      employeeName: draft.employeeName,
+      department: draft.department,
+      locationName: draft.location?.name,
+      title: draft.title,
+      extraText: draft.description,
+      currentScope: adminScope,
+      userAccounts,
+      employees,
+    });
+
     const enrichedDraft: Report = {
       ...draft,
       createdBy: draft.createdBy || loggedInUserId,
-      region: draft.region || (adminScope === 'jatim' ? 'jatim' : (adminScope === 'babel' ? 'babel' : 'all')),
+      region: determinedRegion,
     };
     setDraftReports(prev => {
       const updated = [...prev.filter(d => d.id !== enrichedDraft.id), enrichedDraft];
@@ -1084,10 +1188,19 @@ export default function App() {
   };
 
   const handleAddUserAccount = async (newAcc: UserAccount) => {
+    const userScope = getAdminScope(newAcc.userId, undefined, employees);
+    const resolvedRegion = newAcc.region || (
+      adminScope === 'jatim' ? 'jatim' : (
+        adminScope === 'babel' ? 'babel' : (
+          userScope === 'jatim' ? 'jatim' : (userScope === 'babel' ? 'babel' : 'all')
+        )
+      )
+    );
+
     const enrichedAcc: UserAccount = {
       ...newAcc,
       createdBy: newAcc.createdBy || loggedInUserId,
-      region: newAcc.region || (adminScope === 'jatim' ? 'jatim' : (adminScope === 'babel' ? 'babel' : 'all')),
+      region: resolvedRegion,
     };
     setUserAccounts(prev => {
       const updated = [...prev.filter(a => a.id !== enrichedAcc.id), enrichedAcc];
@@ -1212,9 +1325,27 @@ export default function App() {
         return;
       }
 
-      // Save locally first
+      // Save locally first with resolved regions
+      const enrichedNew = filteredNew.map(r => ({
+        ...r,
+        region: resolveEntityRegion({
+          region: r.region,
+          createdBy: r.createdBy,
+          nip: r.nip,
+          employeeId: r.employeeId,
+          employeeName: r.employeeName,
+          department: r.department,
+          locationName: r.location?.name,
+          title: r.title,
+          extraText: r.description,
+          currentScope: adminScope,
+          userAccounts,
+          employees,
+        }),
+      }));
+
       setReports(prev => {
-        const updated = [...prev, ...filteredNew];
+        const updated = [...prev, ...enrichedNew];
         updated.sort((a, b) => {
           const dateA = a.date || "";
           const dateB = b.date || "";
@@ -1226,7 +1357,7 @@ export default function App() {
       });
 
       // Firebase sync in background
-      for (const r of filteredNew) {
+      for (const r of enrichedNew) {
         await setDoc(doc(db, 'dashboard', r.id), r);
       }
       handleShowAlert('Impor Berhasil', `Berhasil menyinkronkan & mengimpor ${filteredNew.length} laporan baru dari Google Sheets.`, 'success');

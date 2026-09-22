@@ -11,7 +11,9 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     phone: '081234567890',
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
     status: 'Aktif',
-    joinDate: '2023-01-15'
+    joinDate: '2023-01-15',
+    region: 'babel',
+    createdBy: 'admin'
   },
   {
     id: 'EMP_2',
@@ -23,7 +25,9 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     phone: '081298765432',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
     status: 'Aktif',
-    joinDate: '2023-03-20'
+    joinDate: '2023-03-20',
+    region: 'babel',
+    createdBy: 'admin'
   },
   {
     id: 'EMP_3',
@@ -35,7 +39,9 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     phone: '081345678901',
     avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=200',
     status: 'Aktif',
-    joinDate: '2023-06-10'
+    joinDate: '2023-06-10',
+    region: 'babel',
+    createdBy: 'admin'
   },
   {
     id: 'EMP_4',
@@ -47,7 +53,9 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     phone: '081231122334',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
     status: 'Aktif',
-    joinDate: '2023-02-10'
+    joinDate: '2023-02-10',
+    region: 'jatim',
+    createdBy: 'adminJatim'
   },
   {
     id: 'EMP_5',
@@ -59,7 +67,9 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     phone: '081235566778',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
     status: 'Aktif',
-    joinDate: '2023-04-12'
+    joinDate: '2023-04-12',
+    region: 'jatim',
+    createdBy: 'adminJatim'
   },
   {
     id: 'EMP_6',
@@ -71,7 +81,9 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     phone: '081239988776',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
     status: 'Aktif',
-    joinDate: '2023-05-18'
+    joinDate: '2023-05-18',
+    region: 'jatim',
+    createdBy: 'adminJatim'
   },
   {
     id: 'EMP_7',
@@ -83,7 +95,9 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     phone: '081237766554',
     avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=200',
     status: 'Aktif',
-    joinDate: '2023-07-22'
+    joinDate: '2023-07-22',
+    region: 'jatim',
+    createdBy: 'adminJatim'
   }
 ];
 
@@ -106,7 +120,9 @@ export const INITIAL_REPORTS: Report[] = [
       coordinates: '-2.1299, 106.1138'
     },
     photoIndoor: 'https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&q=80&w=400',
-    photoOutdoor: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=400'
+    photoOutdoor: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=400',
+    region: 'babel',
+    createdBy: 'admin'
   },
   {
     id: 'REP_2',
@@ -126,7 +142,9 @@ export const INITIAL_REPORTS: Report[] = [
       coordinates: '-2.1299, 106.1138'
     },
     photoIndoor: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&q=80&w=400',
-    photoOutdoor: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&q=80&w=400'
+    photoOutdoor: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&q=80&w=400',
+    region: 'babel',
+    createdBy: 'admin'
   },
   {
     id: 'REP_3',
@@ -146,7 +164,9 @@ export const INITIAL_REPORTS: Report[] = [
       coordinates: '-7.3512, 112.7278'
     },
     photoIndoor: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&q=80&w=400',
-    photoOutdoor: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&q=80&w=400'
+    photoOutdoor: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&q=80&w=400',
+    region: 'jatim',
+    createdBy: 'adminJatim'
   },
   {
     id: 'REP_4',
@@ -166,7 +186,9 @@ export const INITIAL_REPORTS: Report[] = [
       coordinates: '-7.2575, 112.7521'
     },
     photoIndoor: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&q=80&w=400',
-    photoOutdoor: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=400'
+    photoOutdoor: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=400',
+    region: 'jatim',
+    createdBy: 'adminJatim'
   },
   {
     id: 'REP_5',
@@ -186,7 +208,9 @@ export const INITIAL_REPORTS: Report[] = [
       coordinates: '-7.9797, 112.6304'
     },
     photoIndoor: 'https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&q=80&w=400',
-    photoOutdoor: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&q=80&w=400'
+    photoOutdoor: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&q=80&w=400',
+    region: 'jatim',
+    createdBy: 'adminJatim'
   }
 ];
 
@@ -201,7 +225,9 @@ export const INITIAL_ATTENDANCE: Attendance[] = [
     clockOut: '16:05',
     status: 'Tepat Waktu',
     locationIn: '-2.1299, 106.1138',
-    locationOut: '-2.1299, 106.1138'
+    locationOut: '-2.1299, 106.1138',
+    region: 'babel',
+    createdBy: 'admin'
   },
   {
     id: 'ATT_2',
@@ -211,7 +237,9 @@ export const INITIAL_ATTENDANCE: Attendance[] = [
     date: '2026-07-06',
     clockIn: '07:55',
     status: 'Terlambat',
-    locationIn: '-2.1299, 106.1138'
+    locationIn: '-2.1299, 106.1138',
+    region: 'babel',
+    createdBy: 'admin'
   },
   {
     id: 'ATT_3',
@@ -223,7 +251,9 @@ export const INITIAL_ATTENDANCE: Attendance[] = [
     clockOut: '16:00',
     status: 'Tepat Waktu',
     locationIn: '-7.3512, 112.7278',
-    locationOut: '-7.3512, 112.7278'
+    locationOut: '-7.3512, 112.7278',
+    region: 'jatim',
+    createdBy: 'adminJatim'
   },
   {
     id: 'ATT_4',
@@ -233,7 +263,9 @@ export const INITIAL_ATTENDANCE: Attendance[] = [
     date: '2026-07-06',
     clockIn: '07:28',
     status: 'Tepat Waktu',
-    locationIn: '-7.2575, 112.7521'
+    locationIn: '-7.2575, 112.7521',
+    region: 'jatim',
+    createdBy: 'adminJatim'
   }
 ];
 

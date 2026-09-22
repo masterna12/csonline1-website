@@ -12,16 +12,161 @@ import { UserAccount, Employee } from '../types';
 export type AdminScope = 'babel' | 'jatim' | 'all';
 
 /**
- * Determines the administrative scope based on the logged-in user ID.
+ * Determines the administrative scope based on the logged-in user ID, user accounts, and employee data.
  */
-export function getAdminScope(userId?: string): AdminScope {
+export function getAdminScope(
+  userId?: string,
+  userAccounts?: UserAccount[],
+  employeesList?: Employee[]
+): AdminScope {
   if (!userId) return 'babel';
   const clean = userId.trim();
-  if (clean === 'adminJatim') return 'jatim';
-  if (clean === 'adminUtama') return 'all';
+  if (clean === 'adminJatim' || clean.toLowerCase() === 'adminjatim') return 'jatim';
+  if (clean === 'adminUtama' || clean.toLowerCase() === 'adminutama') return 'all';
   if (clean.toLowerCase() === 'admin') return 'babel';
-  // Default for field staff or other users: show their regional scope (or all if not specified)
+
+  // 1. Check if user belongs to userAccounts
+  if (userAccounts && userAccounts.length > 0) {
+    const acc = userAccounts.find(
+      a => a.userId && a.userId.toLowerCase() === clean.toLowerCase()
+    );
+    if (acc) {
+      const scope = getUserAccountScope(acc, employeesList);
+      if (scope === 'jatim' || scope === 'babel') return scope;
+    }
+  }
+
+  // 2. Check if user is in employee list
+  if (employeesList && employeesList.length > 0) {
+    const emp = employeesList.find(
+      e => (e.nip && e.nip.toLowerCase() === clean.toLowerCase()) ||
+           (e.id && e.id.toLowerCase() === clean.toLowerCase())
+    );
+    if (emp) {
+      if (emp.region === 'jatim' || emp.createdBy === 'adminJatim') return 'jatim';
+      if (emp.region === 'babel' || emp.createdBy === 'admin') return 'babel';
+      const empDept = emp.department || '';
+      if (/jawa\s*timur|jatim|surabaya|malang|sidoarjo|gresik|madiun/i.test(empDept)) return 'jatim';
+      if (/bangka|belitung|pangkalpinang|babel/i.test(empDept)) return 'babel';
+    }
+  }
+
+  // 3. Fallback heuristics: 9826010-9826019 are Jatim staff, 9826001-9826009 are Babel staff
+  if (/982601[0-9]/i.test(clean)) {
+    return 'jatim';
+  }
+  if (/982600[0-9]/i.test(clean)) {
+    return 'babel';
+  }
+
   return 'all';
+}
+
+export interface ResolveEntityRegionParams {
+  region?: 'babel' | 'jatim' | 'all';
+  createdBy?: string;
+  nip?: string;
+  employeeId?: string;
+  employeeName?: string;
+  department?: string;
+  locationName?: string;
+  title?: string;
+  extraText?: string;
+  currentScope?: AdminScope;
+  userAccounts?: UserAccount[];
+  employees?: Employee[];
+}
+
+/**
+ * Resolves the accurate regional scope ('jatim' | 'babel' | 'all') of any entity
+ * (report, draft, employee, attendance) using accounts, employee identities, and keywords.
+ */
+export function resolveEntityRegion(params: ResolveEntityRegionParams): 'babel' | 'jatim' | 'all' {
+  // 1. Direct explicit region property
+  if (params.region === 'jatim') return 'jatim';
+  if (params.region === 'babel') return 'babel';
+
+  // 2. Direct creator check
+  const cleanCreator = (params.createdBy || '').trim();
+  if (cleanCreator === 'adminJatim' || cleanCreator.toLowerCase() === 'adminjatim') {
+    return 'jatim';
+  }
+  if (cleanCreator === 'admin' || cleanCreator.toLowerCase() === 'admin') {
+    return 'babel';
+  }
+
+  // 3. Creator user account lookup
+  if (cleanCreator && params.userAccounts && params.userAccounts.length > 0) {
+    const acc = params.userAccounts.find(
+      a => a.userId && a.userId.toLowerCase() === cleanCreator.toLowerCase()
+    );
+    if (acc) {
+      const s = getUserAccountScope(acc, params.employees);
+      if (s === 'jatim' || s === 'babel') return s;
+    }
+  }
+
+  // 4. Employee NIP / user identifier check
+  const cleanNip = (params.nip || '').trim();
+  if (cleanNip) {
+    if (params.userAccounts && params.userAccounts.length > 0) {
+      const acc = params.userAccounts.find(
+        a => a.userId && a.userId.toLowerCase() === cleanNip.toLowerCase()
+      );
+      if (acc) {
+        const s = getUserAccountScope(acc, params.employees);
+        if (s === 'jatim' || s === 'babel') return s;
+      }
+    }
+    if (params.employees && params.employees.length > 0) {
+      const emp = params.employees.find(
+        e => (e.nip && e.nip.toLowerCase() === cleanNip.toLowerCase()) ||
+             (e.id && e.id.toLowerCase() === cleanNip.toLowerCase())
+      );
+      if (emp) {
+        if (emp.region === 'jatim' || emp.createdBy === 'adminJatim') return 'jatim';
+        if (emp.region === 'babel' || emp.createdBy === 'admin') return 'babel';
+        const empDept = emp.department || '';
+        if (/jawa\s*timur|jatim|surabaya|malang|sidoarjo|gresik|madiun/i.test(empDept)) return 'jatim';
+        if (/bangka|belitung|pangkalpinang|babel/i.test(empDept)) return 'babel';
+      }
+    }
+    if (/982601[0-9]/i.test(cleanNip)) return 'jatim';
+    if (/982600[0-9]/i.test(cleanNip)) return 'babel';
+  }
+
+  // 5. Employee ID / Name check in employees list
+  if (params.employees && params.employees.length > 0) {
+    const emp = params.employees.find(
+      e => (params.employeeId && e.id === params.employeeId) ||
+           (params.employeeName && e.name && e.name.toLowerCase().trim() === params.employeeName.toLowerCase().trim())
+    );
+    if (emp) {
+      if (emp.region === 'jatim' || emp.createdBy === 'adminJatim') return 'jatim';
+      if (emp.region === 'babel' || emp.createdBy === 'admin') return 'babel';
+      const empDept = emp.department || '';
+      if (/jawa\s*timur|jatim|surabaya|malang|sidoarjo|gresik|madiun/i.test(empDept)) return 'jatim';
+      if (/bangka|belitung|pangkalpinang|babel/i.test(empDept)) return 'babel';
+    }
+  }
+
+  // 6. Keywords in text, department, location, title, extraText
+  const combined = `${params.department || ''} ${params.locationName || ''} ${params.title || ''} ${params.extraText || ''}`.toLowerCase();
+  const isJatim = /jawa\s*timur|jatim|surabaya|malang|sidoarjo|gresik|madiun|kediri|jember|banyuwangi|mojokerto|pasuruan|probolinggo|blitar/i.test(combined);
+  const isBabel = /bangka|belitung|pangkalpinang|babel|manggar|toboali|mentok|muntok|koba|tanjung\s*pandan/i.test(combined);
+
+  if (isJatim && !isBabel) return 'jatim';
+  if (isBabel && !isJatim) return 'babel';
+
+  // 7. Context scope
+  if (params.currentScope === 'jatim') return 'jatim';
+  if (params.currentScope === 'babel') return 'babel';
+
+  // 8. Creator string heuristic
+  if (/jatim/i.test(cleanCreator)) return 'jatim';
+  if (/babel/i.test(cleanCreator)) return 'babel';
+
+  return 'babel';
 }
 
 /**
@@ -33,46 +178,33 @@ export function isItemInScope(
   locationName?: string,
   extraText?: string,
   createdBy?: string,
-  region?: 'babel' | 'jatim' | 'all'
+  region?: 'babel' | 'jatim' | 'all',
+  nip?: string,
+  employees?: Employee[],
+  userAccounts?: UserAccount[],
+  employeeId?: string,
+  employeeName?: string
 ): boolean {
   if (scope === 'all') return true;
 
-  // 1. Direct createdBy check - strict account level isolation
-  const cleanCreator = (createdBy || '').trim();
-  if (cleanCreator === 'adminJatim' || cleanCreator.toLowerCase() === 'adminjatim') {
-    return scope === 'jatim';
-  }
-  if (cleanCreator === 'admin' || cleanCreator.toLowerCase() === 'admin') {
-    return scope === 'babel';
-  }
-
-  // 2. Direct region property check
-  if (region === 'jatim') {
-    return scope === 'jatim';
-  }
-  if (region === 'babel') {
-    return scope === 'babel';
-  }
-
-  // 3. Fallback keyword / location matching
-  const combined = `${department || ''} ${locationName || ''} ${extraText || ''}`.toLowerCase();
-
-  // Pattern identifying Bangka Belitung, Pangkalpinang, and related regions
-  const isBabel = /bangka|belitung|pangkalpinang|babel|manggar|toboali|mentok|muntok|koba|tanjung\s*pandan/i.test(combined);
-
-  // Pattern identifying Jawa Timur, Surabaya, Malang, etc.
-  const isJatim = /jawa\s*timur|jatim|surabaya|malang|sidoarjo|gresik|madiun|kediri|jember|banyuwangi|mojokerto|pasuruan|probolinggo|blitar/i.test(combined);
+  const entityRegion = resolveEntityRegion({
+    region,
+    createdBy,
+    nip,
+    employeeId,
+    employeeName,
+    department,
+    locationName,
+    extraText,
+    userAccounts,
+    employees
+  });
 
   if (scope === 'jatim') {
-    // Bangka Belitung data must NEVER appear in Jawa Timur account
-    if (isBabel) return false;
-    return isJatim;
+    return entityRegion === 'jatim';
   }
-
   if (scope === 'babel') {
-    // Jawa Timur data must NEVER appear in Bangka Belitung account
-    if (isJatim) return false;
-    return isBabel || !isJatim;
+    return entityRegion === 'babel';
   }
 
   return true;
@@ -207,10 +339,11 @@ export function getUserAccountScope(acc: UserAccount, employeesList?: Employee[]
     if (matchedEmp.createdBy === 'admin' || matchedEmp.region === 'babel') {
       return 'babel';
     }
-    if (isItemInScope('jatim', matchedEmp.department, undefined, matchedEmp.name, matchedEmp.createdBy, matchedEmp.region)) {
+    const empDept = matchedEmp.department || '';
+    if (/jawa\s*timur|jatim|surabaya|malang|sidoarjo|gresik|madiun/i.test(empDept)) {
       return 'jatim';
     }
-    if (isItemInScope('babel', matchedEmp.department, undefined, matchedEmp.name, matchedEmp.createdBy, matchedEmp.region)) {
+    if (/bangka|belitung|pangkalpinang|babel/i.test(empDept)) {
       return 'babel';
     }
   }

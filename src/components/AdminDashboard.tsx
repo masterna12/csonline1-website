@@ -7,6 +7,7 @@ import {
   getScopeTitle, 
   getScopeBadge, 
   getScopeDefaults, 
+  resolveEntityRegion,
   AdminScope 
 } from "../lib/regionFilter";
 import {
@@ -282,7 +283,10 @@ export default function AdminDashboard({
   onDbError,
 }: AdminDashboardProps) {
   // Multi-tenant administrative scope calculation
-  const adminScope = useMemo<AdminScope>(() => getAdminScope(loggedInUserId), [loggedInUserId]);
+  const adminScope = useMemo<AdminScope>(
+    () => getAdminScope(loggedInUserId, userAccounts, employees),
+    [loggedInUserId, userAccounts, employees]
+  );
   const scopeDefaults = useMemo(() => getScopeDefaults(adminScope), [adminScope]);
   const scopeBadge = useMemo(() => getScopeBadge(adminScope), [adminScope]);
   const scopeTitle = useMemo(() => getScopeTitle(adminScope), [adminScope]);
@@ -638,8 +642,14 @@ export default function AdminDashboard({
           setAddRepNip(selfEmp.nip);
           setAddRepRole(selfEmp.role);
           setAddRepDept(selfEmp.department);
+          const empScope = isItemInScope('jatim', selfEmp.department, undefined, selfEmp.name, selfEmp.createdBy, selfEmp.region, selfEmp.nip, employees, userAccounts, selfEmp.id, selfEmp.name) ? 'jatim' : 'babel';
+          const defaults = getScopeDefaults(empScope);
+          setAddRepLocName(defaults.locationName);
+          setAddRepCoord(defaults.coordinates);
         } else {
           setAddRepNip(loggedInUserId);
+          setAddRepLocName(scopeDefaults.locationName);
+          setAddRepCoord(scopeDefaults.coordinates);
         }
       } else {
         // Set default department & location based on regional scope
@@ -650,7 +660,7 @@ export default function AdminDashboard({
         setAddRepCoord(scopeDefaults.coordinates);
       }
     }
-  }, [isAddReportModalOpen, hasFullAccess, loggedInUserId, employees, scopeDefaults]);
+  }, [isAddReportModalOpen, hasFullAccess, loggedInUserId, employees, userAccounts, scopeDefaults]);
 
   React.useEffect(() => {
     if ((isAddModalOpen || isAddingInline) && !newEmpDept) {
@@ -675,8 +685,8 @@ export default function AdminDashboard({
   const [addRepOutdoorMetadata, setAddRepOutdoorMetadata] = useState<any>(null);
   const [newEmpAvatarMetadata, setNewEmpAvatarMetadata] = useState<any>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const [addRepLocName, setAddRepLocName] = useState("Sektor Bangka Belitung");
-  const [addRepCoord, setAddRepCoord] = useState("-2.1299, 106.1138");
+  const [addRepLocName, setAddRepLocName] = useState(scopeDefaults.locationName);
+  const [addRepCoord, setAddRepCoord] = useState(scopeDefaults.coordinates);
   const [isFetchingGPS, setIsFetchingGPS] = useState(false);
 
   // Date range filters for reports
@@ -1359,6 +1369,18 @@ export default function AdminDashboard({
 
     const brandNewNip =
       newEmpNip || `199${Math.floor(100000 + Math.random() * 899999)}`;
+
+    const resolvedRegion = resolveEntityRegion({
+      region: adminScope === "jatim" ? "jatim" : (adminScope === "babel" ? "babel" : undefined),
+      createdBy: loggedInUserId,
+      nip: brandNewNip,
+      employeeName: newEmpName,
+      department: newEmpDept,
+      currentScope: adminScope,
+      userAccounts,
+      employees,
+    });
+
     const newEmp: Employee = {
       id: brandNewId,
       name: newEmpName,
@@ -1375,7 +1397,7 @@ export default function AdminDashboard({
         year: "numeric",
       }),
       createdBy: loggedInUserId,
-      region: adminScope === "jatim" ? "jatim" : (adminScope === "babel" ? "babel" : "all"),
+      region: resolvedRegion,
     };
 
     onAddEmployee(newEmp);
@@ -1451,11 +1473,11 @@ export default function AdminDashboard({
         }
         onShowAlert(
           "GPS Tertunda",
-          `${errorMsg} Menggunakan koordinat default Sektor Bangka Belitung.`,
+          `${errorMsg} Menggunakan koordinat default ${scopeDefaults.locationName}.`,
           "alert",
         );
-        setAddRepCoord("-2.1299, 106.1138");
-        setAddRepLocName("Sektor Bangka (Default)");
+        setAddRepCoord(scopeDefaults.coordinates);
+        setAddRepLocName(`${scopeDefaults.locationName} (Default)`);
       },
       { enableHighAccuracy: true, timeout: 8000 },
     );
@@ -1474,6 +1496,23 @@ export default function AdminDashboard({
       setAddRepNip(emp.nip || "");
       setAddRepRole(emp.role);
       setAddRepDept(emp.department);
+      // Auto-set location & coordinates according to selected employee's region
+      const empScope = isItemInScope(
+        'jatim',
+        emp.department,
+        undefined,
+        emp.name,
+        emp.createdBy,
+        emp.region,
+        emp.nip,
+        employees,
+        userAccounts,
+        emp.id,
+        emp.name
+      ) ? 'jatim' : 'babel';
+      const empDefaults = getScopeDefaults(empScope);
+      setAddRepLocName(empDefaults.locationName);
+      setAddRepCoord(empDefaults.coordinates);
     }
   };
 
@@ -1680,6 +1719,21 @@ export default function AdminDashboard({
       ? resolvedEmp.id
       : `EMP_ADM_${Math.floor(100 + Math.random() * 899)}`;
 
+    const resolvedRegion = resolveEntityRegion({
+      region: adminScope === "jatim" ? "jatim" : (adminScope === "babel" ? "babel" : undefined),
+      createdBy: loggedInUserId,
+      nip: addRepNip,
+      employeeId: matchedEmployeeId,
+      employeeName: addRepName,
+      department: addRepDept,
+      locationName: addRepLocName,
+      title: finalTitle,
+      extraText: finalDesc,
+      currentScope: adminScope,
+      userAccounts,
+      employees,
+    });
+
     const newReport: Report = {
       id: `REP_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`,
       employeeId: matchedEmployeeId,
@@ -1701,7 +1755,7 @@ export default function AdminDashboard({
         coordinates: addRepCoord,
       },
       createdBy: loggedInUserId,
-      region: adminScope === "jatim" ? "jatim" : (adminScope === "babel" ? "babel" : "all"),
+      region: resolvedRegion,
     };
 
     if (!navigator.onLine) {
@@ -1735,8 +1789,8 @@ export default function AdminDashboard({
     setAddRepOutdoor("");
     setAddRepIndoorMetadata(null);
     setAddRepOutdoorMetadata(null);
-    setAddRepLocName("Sektor Bangka Belitung");
-    setAddRepCoord("-2.1299, 106.1138");
+    setAddRepLocName(scopeDefaults.locationName);
+    setAddRepCoord(scopeDefaults.coordinates);
     setIsAddReportModalOpen(false);
   };
 
@@ -1779,6 +1833,21 @@ export default function AdminDashboard({
       addRepDesc.trim() ||
       "Menyelesaikan aktivitas patroli harian, inspeksi kelayakan instrumen, dan sinkronisasi laporan koordinat lapangan PT Haleyora Powerindo.";
 
+    const resolvedDraftRegion = resolveEntityRegion({
+      region: adminScope === "jatim" ? "jatim" : (adminScope === "babel" ? "babel" : undefined),
+      createdBy: loggedInUserId,
+      nip: addRepNip,
+      employeeId: `EMP_DFT_${Math.floor(100 + Math.random() * 899)}`,
+      employeeName: addRepName,
+      department: addRepDept,
+      locationName: addRepLocName,
+      title: finalTitle,
+      extraText: finalDesc,
+      currentScope: adminScope,
+      userAccounts,
+      employees,
+    });
+
     const draftReport: Report = {
       id: `DRAFT_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`,
       employeeId: `EMP_DFT_${Math.floor(100 + Math.random() * 899)}`,
@@ -1808,7 +1877,7 @@ export default function AdminDashboard({
         coordinates: addRepCoord,
       },
       createdBy: loggedInUserId,
-      region: adminScope === "jatim" ? "jatim" : (adminScope === "babel" ? "babel" : "all"),
+      region: resolvedDraftRegion,
     };
 
     onAddDraftReport(draftReport);
@@ -1824,8 +1893,8 @@ export default function AdminDashboard({
     setAddRepOutdoor("");
     setAddRepIndoorMetadata(null);
     setAddRepOutdoorMetadata(null);
-    setAddRepLocName("Sektor Bangka Belitung");
-    setAddRepCoord("-2.1299, 106.1138");
+    setAddRepLocName(scopeDefaults.locationName);
+    setAddRepCoord(scopeDefaults.coordinates);
     setIsAddReportModalOpen(false);
   };
 
@@ -1868,6 +1937,23 @@ export default function AdminDashboard({
       } catch (e) {
         console.warn("Upload outdoor draft photo failed:", e);
       }
+    }
+
+    if (!syncedDraft.region) {
+      syncedDraft.region = resolveEntityRegion({
+        region: syncedDraft.region,
+        createdBy: syncedDraft.createdBy || loggedInUserId,
+        nip: syncedDraft.nip,
+        employeeId: syncedDraft.employeeId,
+        employeeName: syncedDraft.employeeName,
+        department: syncedDraft.department,
+        locationName: syncedDraft.location?.name,
+        title: syncedDraft.title,
+        extraText: syncedDraft.description,
+        currentScope: adminScope,
+        userAccounts,
+        employees,
+      });
     }
 
     syncedDraft.status = "Disetujui";
