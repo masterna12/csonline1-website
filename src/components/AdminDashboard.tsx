@@ -295,6 +295,31 @@ export default function AdminDashboard({
     return userAccounts.filter((acc) => isUserAccountInScope(adminScope, acc, employees));
   }, [userAccounts, adminScope, employees]);
 
+  // Dynamic subtitle under "CS online" customized by loggedInUserId:
+  // - admin: PT. HALEYORA POWERINDO BANGKA BELITUNG
+  // - adminJatim: PT. HALEYORA POWERINDO JAWA TIMUR
+  // - adminUtama: PT. HALEYORA POWERINDO
+  const companySubtitle = useMemo(() => {
+    const cleanId = (loggedInUserId || "").trim().toLowerCase();
+    if (cleanId === "adminjatim") {
+      return "PT. HALEYORA POWERINDO JAWA TIMUR";
+    }
+    if (cleanId === "adminutama") {
+      return "PT. HALEYORA POWERINDO";
+    }
+    if (cleanId === "admin") {
+      return "PT. HALEYORA POWERINDO BANGKA BELITUNG";
+    }
+    // Fallback for field staff or other roles by scope
+    if (adminScope === "jatim") {
+      return "PT. HALEYORA POWERINDO JAWA TIMUR";
+    }
+    if (adminScope === "all") {
+      return "PT. HALEYORA POWERINDO";
+    }
+    return "PT. HALEYORA POWERINDO BANGKA BELITUNG";
+  }, [loggedInUserId, adminScope]);
+
   const isAdmin = loggedInUserId === "admin" || loggedInUserId === "adminJatim" || loggedInUserId === "adminUtama" || !loggedInUserId;
   const hasFullAccess = isAdmin || loggedInUserId === "9826003HPI";
 
@@ -2758,7 +2783,7 @@ export default function AdminDashboard({
               CS online
             </h2>
             <p className="text-[7.5px] font-sans font-bold text-slate-400 tracking-tighter mt-1">
-              PT. HALEYORA POWERINDO BANGKA BELITUNG
+              {companySubtitle}
             </p>
           </div>
         </div>

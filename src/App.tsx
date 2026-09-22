@@ -1264,7 +1264,7 @@ export default function App() {
               CS ONLINE
             </h1>
             <p className="text-[9.5px] text-slate-300 font-bold tracking-[0.1em] uppercase mt-1.5 max-w-[280px] mx-auto leading-relaxed">
-              PT Haleyora Powerindo Bangka Belitung
+              PT HALEYORA POWERINDO
             </p>
           </div>
 
