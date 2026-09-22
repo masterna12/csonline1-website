@@ -429,8 +429,13 @@ export default function App() {
     };
   }, []);
 
-  // Auto-sync Firebase database migration selection from adminUtama to all accounts
+  // Auto-sync Firebase database migration selection from adminUtama to all accounts:
+  // Catatan penting: Akun Admin Wilayah dan Super Admin selalu terhubung langsung ke database portal-dashboard-cs-online
   useEffect(() => {
+    const currentId = (loggedInUserId || localStorage.getItem('step_logged_in_user_id') || '').trim().toLowerCase();
+    if (currentId.startsWith('admin') || currentId === 'admin' || currentId === 'adminjatim' || currentId === 'adminutama') {
+      return;
+    }
     try {
       const unsub = onSnapshot(doc(db, "system_settings", "database_config"), (snap) => {
         if (snap.exists()) {
@@ -453,7 +458,7 @@ export default function App() {
     } catch (e) {
       console.warn("Failed to listen to database_config:", e);
     }
-  }, []);
+  }, [loggedInUserId]);
 
   // Real-time synchronization and automatic seeding with Firestore
   React.useEffect(() => {
@@ -799,8 +804,9 @@ export default function App() {
         sessionStorage.setItem('step_logged_in_user_id', 'admin');
         localStorage.setItem('step_is_logged_in', 'true');
         localStorage.setItem('step_logged_in_user_id', 'admin');
+        localStorage.setItem('firebase_migration_completed_to_new', 'false');
         setLoginError('');
-        handleShowAlert('Login Berhasil', `Selamat datang, ${matchedAdminAcc?.name || adminInfo.name}. Anda masuk ke sistem khusus wilayah Bangka Belitung (Pangkalpinang termasuk).`, 'success');
+        handleShowAlert('Login Berhasil', `Selamat datang, ${matchedAdminAcc?.name || adminInfo.name}. Anda masuk ke sistem khusus wilayah Bangka Belitung (Pangkalpinang termasuk) langsung terhubung ke database portal-dashboard-cs-online.`, 'success');
         return;
       } else {
         setLoginError('ID User atau Password salah!');
@@ -821,8 +827,9 @@ export default function App() {
         sessionStorage.setItem('step_logged_in_user_id', 'adminJatim');
         localStorage.setItem('step_is_logged_in', 'true');
         localStorage.setItem('step_logged_in_user_id', 'adminJatim');
+        localStorage.setItem('firebase_migration_completed_to_new', 'false');
         setLoginError('');
-        handleShowAlert('Login Berhasil', `Selamat datang, ${matchedJatimAcc?.name || jatimInfo.name}. Anda masuk ke sistem khusus wilayah Jawa Timur.`, 'success');
+        handleShowAlert('Login Berhasil', `Selamat datang, ${matchedJatimAcc?.name || jatimInfo.name}. Anda masuk ke sistem khusus wilayah Jawa Timur langsung terhubung ke database portal-dashboard-cs-online.`, 'success');
         return;
       } else {
         setLoginError('ID User atau Password salah!');
@@ -841,8 +848,9 @@ export default function App() {
         sessionStorage.setItem('step_logged_in_user_id', 'adminUtama');
         localStorage.setItem('step_is_logged_in', 'true');
         localStorage.setItem('step_logged_in_user_id', 'adminUtama');
+        localStorage.setItem('firebase_migration_completed_to_new', 'false');
         setLoginError('');
-        handleShowAlert('Login Berhasil', `Selamat datang, ${utamaInfo.name}. Anda memantau seluruh data wilayah (Nasional).`, 'success');
+        handleShowAlert('Login Berhasil', `Selamat datang, ${utamaInfo.name}. Anda memantau seluruh data wilayah (Nasional) langsung terhubung ke database portal-dashboard-cs-online.`, 'success');
         return;
       } else {
         setLoginError('ID User atau Password salah!');

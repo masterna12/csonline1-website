@@ -74,7 +74,7 @@ export function getAdminScope(
 }
 
 export interface ResolveEntityRegionParams {
-  region?: 'babel' | 'jatim' | 'all';
+  region?: 'babel' | 'jatim' | 'all' | string;
   createdBy?: string;
   nip?: string;
   employeeId?: string;
@@ -193,7 +193,7 @@ export function isItemInScope(
   locationName?: string,
   extraText?: string,
   createdBy?: string,
-  region?: 'babel' | 'jatim' | 'all',
+  region?: 'babel' | 'jatim' | 'all' | string,
   nip?: string,
   employees?: Employee[],
   userAccounts?: UserAccount[],
@@ -419,18 +419,39 @@ export function isUserAccountInScope(scope: AdminScope, acc: UserAccount, employ
 /**
  * Detects whether the 'before' (photoIndoor) and 'after' (photoOutdoor) photos in a report
  * are identical / duplicate (meaning no actual work or progress was done).
- * When identical, the report is deemed INVALID in monthly performance calculations.
+ * When identical, the report is deemed INVALID in monthly performance calculations,
+ * with the note: "foto sebelum dan sesudah tersebut sama persis".
  */
-export function isReportPhotosIdentical(r?: { photoIndoor?: string; photoOutdoor?: string; imagePath?: string } | null): boolean {
+export function isReportPhotosIdentical(r?: { 
+  photoIndoor?: string; 
+  photoOutdoor?: string; 
+  imagePath?: string;
+  photo?: string;
+  statusKoreksiFoto?: string;
+} | null): boolean {
   if (!r) return false;
+  if (r.statusKoreksiFoto === 'tidak_valid_foto_sama') return true;
+
   const before = (r.photoIndoor || '').trim();
-  const after = (r.photoOutdoor || '').trim();
+  const after = (r.photoOutdoor || r.imagePath || r.photo || '').trim();
   if (!before || !after) return false;
   if (before === after) return true;
+
   try {
-    const cleanBefore = before.split('?')[0];
-    const cleanAfter = after.split('?')[0];
+    const cleanBefore = before.split('?')[0].split('#')[0].trim().toLowerCase();
+    const cleanAfter = after.split('?')[0].split('#')[0].trim().toLowerCase();
     if (cleanBefore === cleanAfter && cleanBefore.length > 5) return true;
+
+    // Compare filenames or Cloudinary public_ids if full path matches
+    const getFileName = (url: string) => {
+      const parts = url.split('/');
+      return parts[parts.length - 1] || '';
+    };
+    const fnBefore = getFileName(cleanBefore);
+    const fnAfter = getFileName(cleanAfter);
+    if (fnBefore && fnAfter && fnBefore === fnAfter && fnBefore.length > 4 && !fnBefore.includes('placeholder')) {
+      return true;
+    }
   } catch {}
   return false;
 }

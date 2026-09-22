@@ -2692,12 +2692,14 @@ export default function AdminDashboard({
           return r.date.slice(0, 10) === dayStr;
         });
 
-        const hasPhoto = repsOnDay.some(
+        const repsWithPhoto = repsOnDay.filter(
           (r) =>
             (r.photoIndoor && r.photoIndoor.trim() !== "") ||
             (r.photoOutdoor && r.photoOutdoor.trim() !== ""),
         );
-        if (hasPhoto) {
+
+        const validReps = repsWithPhoto.filter((r) => !isReportPhotosIdentical(r));
+        if (validReps.length > 0) {
           countHariKirimLaporan++;
         }
       });
@@ -3212,6 +3214,12 @@ export default function AdminDashboard({
               <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-extrabold hidden sm:inline">
                 ● Posko {scopeBadge.text} Online
               </span>
+            </div>
+
+            {/* Direct database connection status */}
+            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold" title="Database terhubung langsung ke portal-dashboard-cs-online">
+              <Database size={11} className="text-emerald-400 shrink-0" />
+              <span>portal-dashboard-cs-online</span>
             </div>
           </div>
 
@@ -5576,6 +5584,56 @@ export default function AdminDashboard({
                           <div className="flex items-end gap-2 shrink-0 self-end lg:self-auto">
                             <button
                               onClick={() => {
+                                const monthName = monthsList.find((m) => m.value === rekapMonth)?.label || String(rekapMonth);
+                                const headers = [
+                                  "No",
+                                  "Nama Personil",
+                                  "NIP",
+                                  "Jabatan",
+                                  "Unit Kerja",
+                                  "Total Hari Kerja",
+                                  "Hari Kirim Foto Valid",
+                                  "Hari Dibatalkan (Foto Sama)",
+                                  "Persentase Kinerja (%)",
+                                  "Predikat Kinerja",
+                                  "Keterangan Koreksi Foto"
+                                ];
+                                const rows = displayedEmployeePerformance.map((item, idx) => {
+                                  const emp = item.employee;
+                                  const statusKet = item.hasPhotoCorrection
+                                    ? `Nilai Tidak Valid - Keterangan: foto sebelum dan sesudah tersebut sama persis (${item.countHariFotoSama} hari dibatalkan)`
+                                    : "Valid - Seluruh foto sebelum dan sesudah terverifikasi";
+                                  return [
+                                    idx + 1,
+                                    `"${emp.name || ''}"`,
+                                    `"${emp.nip || ''}"`,
+                                    `"${emp.role || ''}"`,
+                                    `"${emp.department || ''}"`,
+                                    item.totalHariKerja,
+                                    item.countHariKirimLaporan,
+                                    item.countHariFotoSama,
+                                    `${item.photoPercentage}%`,
+                                    `"${item.scoreText}"`,
+                                    `"${statusKet}"`
+                                  ].join(",");
+                                });
+                                const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows].join("\n");
+                                const encodedUri = encodeURI(csvContent);
+                                const link = document.createElement("a");
+                                link.setAttribute("href", encodedUri);
+                                link.setAttribute("download", `Rekap_Kinerja_Bulanan_${monthName}_${rekapYear}.csv`);
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              }}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-3 rounded-xl transition cursor-pointer active:scale-95 flex items-center gap-1.5 shadow"
+                              title="Unduh Rekapitulasi Kinerja Bulanan (termasuk status koreksi foto sama persis) format CSV/Excel"
+                            >
+                              <Download size={13} />
+                              <span>Unduh Rekap CSV</span>
+                            </button>
+                            <button
+                              onClick={() => {
                                 setRekapMonth(new Date().getMonth() + 1);
                                 setRekapYear(new Date().getFullYear());
                                 setRekapSearchText("");
@@ -5848,13 +5906,22 @@ export default function AdminDashboard({
                                             >
                                               {item.scoreText}
                                             </span>
-                                            {item.hasPhotoCorrection && (
-                                              <span 
-                                                className="inline-flex items-center gap-1 text-[8px] font-bold text-rose-700 bg-rose-50 border border-rose-300 px-2 py-0.5 rounded-md text-left"
+                                            {item.hasPhotoCorrection ? (
+                                              <div 
+                                                className="mt-1 flex flex-col items-center bg-rose-50 border border-rose-300 px-2 py-1 rounded-lg text-center max-w-[210px] shadow-2xs"
                                                 title="Keterangan: foto sebelum dan sesudah tersebut sama persis sehingga nilai otomatis tidak valid"
                                               >
-                                                <AlertTriangle size={9} className="shrink-0 text-rose-600" />
-                                                <span>Foto Sama: Tidak Valid</span>
+                                                <div className="flex items-center gap-1 text-[8.5px] font-black text-rose-700 uppercase">
+                                                  <AlertTriangle size={10} className="shrink-0 text-rose-600" />
+                                                  <span>Nilai Tidak Valid</span>
+                                                </div>
+                                                <span className="text-[7.5px] text-rose-700 font-semibold leading-tight mt-0.5">
+                                                  Keterangan: foto sebelum dan sesudah tersebut sama persis
+                                                </span>
+                                              </div>
+                                            ) : (
+                                              <span className="text-[8px] text-emerald-600 font-bold mt-0.5">
+                                                ✓ Foto Sebelum/Sesudah Valid
                                               </span>
                                             )}
                                           </div>

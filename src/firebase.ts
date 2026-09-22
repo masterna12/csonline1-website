@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import firebaseAppletConfig from '../firebase-applet-config.json';
 
@@ -26,22 +26,61 @@ export const NEW_FIREBASE_CONFIG = {
 // Check if migration has been successfully completed
 const isCompleted = true;
 
-// Expose active configuration (default to the workspace target database, but allow fallback if explicitly toggled)
-export const firebaseConfig = (typeof window !== 'undefined' && localStorage.getItem("firebase_migration_completed_to_new") === "false")
-  ? OLD_FIREBASE_CONFIG
-  : NEW_FIREBASE_CONFIG;
+// Expose active configuration:
+// Tiap akun user ADMIN WILAYAH dan Akun Utama (Super Admin) databasenya langsung terhubung ke portal-dashboard-cs-online.
+const getActiveFirebaseConfig = () => {
+  if (typeof window === 'undefined') return OLD_FIREBASE_CONFIG;
+  try {
+    const currentUserId = (
+      sessionStorage.getItem('step_logged_in_user_id') ||
+      localStorage.getItem('step_logged_in_user_id') ||
+      ''
+    ).trim().toLowerCase();
+
+    // Akun admin wilayah (admin, adminJatim) dan akun utama (adminUtama/super admin) langsung terhubung ke portal-dashboard-cs-online
+    const isAdminOrSuperAdmin = 
+      !currentUserId || 
+      currentUserId.startsWith('admin') || 
+      currentUserId === 'admin' || 
+      currentUserId === 'adminjatim' || 
+      currentUserId === 'adminutama';
+
+    if (isAdminOrSuperAdmin) {
+      return OLD_FIREBASE_CONFIG;
+    }
+
+    return localStorage.getItem("firebase_migration_completed_to_new") === "true"
+      ? NEW_FIREBASE_CONFIG
+      : OLD_FIREBASE_CONFIG;
+  } catch {
+    return OLD_FIREBASE_CONFIG;
+  }
+};
+
+export const firebaseConfig = getActiveFirebaseConfig();
 
 // Initialize standard default Firebase app
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// Initialize Default Firestore with standard setup for the new project, including offline local cache and forceLongPolling fallback
-export const db = initializeFirestore(app, {
-  ignoreUndefinedProperties: true,
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  }),
-  experimentalForceLongPolling: true
-});
+const activeDatabaseId = (firebaseConfig === NEW_FIREBASE_CONFIG && firebaseAppletConfig.firestoreDatabaseId)
+  ? firebaseAppletConfig.firestoreDatabaseId
+  : undefined;
+
+// Initialize Default Firestore with standard setup for the active project, including offline local cache and forceLongPolling fallback
+let dbInstance;
+try {
+  dbInstance = initializeFirestore(app, {
+    ignoreUndefinedProperties: true,
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    }),
+    experimentalForceLongPolling: true
+  }, activeDatabaseId);
+} catch {
+  dbInstance = getFirestore(app, activeDatabaseId);
+}
+
+export const db = dbInstance;
 
 export const auth = getAuth(app);
 
@@ -49,20 +88,40 @@ export const auth = getAuth(app);
 export function getSourceFirestore() {
   const existingApp = getApps().find(a => a.name === "source_app_migration");
   const sourceApp = existingApp || initializeApp(OLD_FIREBASE_CONFIG, "source_app_migration");
-  return initializeFirestore(sourceApp, {
-    ignoreUndefinedProperties: true,
-    experimentalForceLongPolling: true
-  });
+  try {
+    return initializeFirestore(sourceApp, {
+      ignoreUndefinedProperties: true,
+      experimentalForceLongPolling: true
+    });
+  } catch {
+    return getFirestore(sourceApp);
+  }
 }
 
 export function getTargetFirestore() {
   const existingApp = getApps().find(a => a.name === "target_app_migration");
   const targetApp = existingApp || initializeApp(NEW_FIREBASE_CONFIG, "target_app_migration");
-  return initializeFirestore(targetApp, {
-    ignoreUndefinedProperties: true,
-    experimentalForceLongPolling: true
-  });
+  const targetDbId = firebaseAppletConfig.firestoreDatabaseId || undefined;
+  try {
+    return initializeFirestore(targetApp, {
+      ignoreUndefinedProperties: true,
+      experimentalForceLongPolling: true
+    }, targetDbId);
+  } catch {
+    return getFirestore(targetApp, targetDbId);
+  }
 }
+
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Please check your Firebase configuration.");
+    }
+  }
+}
+testConnection();
 
 // Operation types for custom error logging as required by standard integration guidelines
 export enum OperationType {
