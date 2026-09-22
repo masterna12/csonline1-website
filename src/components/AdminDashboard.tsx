@@ -322,6 +322,7 @@ export default function AdminDashboard({
 
   const isAdmin = loggedInUserId === "admin" || loggedInUserId === "adminJatim" || loggedInUserId === "adminUtama" || !loggedInUserId;
   const hasFullAccess = isAdmin || loggedInUserId === "9826003HPI";
+  const isSuperAdminUtama = loggedInUserId === "adminUtama";
 
   // Sidebar tab management
   // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun, 'kelola_akun' = Kelola Akun
@@ -333,7 +334,7 @@ export default function AdminDashboard({
       return "laporan";
     }
     const hash = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
-    const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun", "migrasi"];
+    const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun", ...(isSuperAdminUtama ? ["migrasi"] : [])];
     if (validTabs.includes(hash)) {
       return hash as any;
     }
@@ -345,7 +346,7 @@ export default function AdminDashboard({
     const isFull = hasFullAccess;
     const handleHashChange = () => {
       const hash = window.location.hash.replace("#", "");
-      const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun", "migrasi"];
+      const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun", ...(isSuperAdminUtama ? ["migrasi"] : [])];
       if (validTabs.includes(hash)) {
         if (!isFull && hash !== "laporan" && hash !== "pengaturan") {
           setActiveSubTab("laporan");
@@ -353,21 +354,26 @@ export default function AdminDashboard({
         } else {
           setActiveSubTab(hash as any);
         }
+      } else if (hash === "migrasi" && !isSuperAdminUtama) {
+        setActiveSubTab("ringkasan");
+        window.location.hash = "ringkasan";
       }
     };
 
     handleHashChange();
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
-  }, [hasFullAccess]);
+  }, [hasFullAccess, isSuperAdminUtama]);
 
   // Enforce tab access control reactively
   React.useEffect(() => {
     const isFull = hasFullAccess;
     if (!isFull && activeSubTab !== "laporan" && activeSubTab !== "pengaturan") {
       setActiveSubTab("laporan");
+    } else if (activeSubTab === "migrasi" && !isSuperAdminUtama) {
+      setActiveSubTab("ringkasan");
     }
-  }, [hasFullAccess, activeSubTab]);
+  }, [hasFullAccess, activeSubTab, isSuperAdminUtama]);
 
   // Sync hash with active tab state
   React.useEffect(() => {
@@ -2945,7 +2951,7 @@ export default function AdminDashboard({
                 )}
               </a>
 
-              {!hideMigrationFeature && (
+              {isSuperAdminUtama && !hideMigrationFeature && (
                 <a
                   id="sidebar_btn_migrasi"
                   href="#migrasi"
@@ -6835,8 +6841,8 @@ export default function AdminDashboard({
                         </div>
                       </div>
 
-                      {/* Section 3: Konfigurasi Tampilan Fitur (Hanya Admin / Full Access) */}
-                      {hasFullAccess && (
+                      {/* Section 3: Konfigurasi Tampilan Fitur (Hanya Admin Utama) */}
+                      {hasFullAccess && isSuperAdminUtama && (
                         <div className="space-y-4 pt-4 border-t border-slate-100">
                           <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-2">
                             <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
@@ -6909,8 +6915,8 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
-                {/* Database Migration Center */}
-                {hasFullAccess && !hideMigrationFeature && (
+                {/* Database Migration Center - Khusus adminUtama */}
+                {hasFullAccess && isSuperAdminUtama && !hideMigrationFeature && (
                   <DatabaseMigrationCenter
                     employees={employees}
                     attendance={attendance}
@@ -7192,7 +7198,7 @@ export default function AdminDashboard({
               </motion.div>
             )}
 
-            {activeSubTab === "migrasi" && hasFullAccess && !hideMigrationFeature && (
+            {activeSubTab === "migrasi" && hasFullAccess && isSuperAdminUtama && !hideMigrationFeature && (
               <motion.div
                 key="tab_prisma_migrasi"
                 initial={{ opacity: 0, y: 10 }}

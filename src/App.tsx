@@ -355,6 +355,32 @@ export default function App() {
     };
   }, []);
 
+  // Auto-sync Firebase database migration selection from adminUtama to all accounts
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(doc(db, "system_settings", "database_config"), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (typeof data?.useNewFirebase === "boolean") {
+            const currentSetting = localStorage.getItem("firebase_migration_completed_to_new") !== "false";
+            if (currentSetting !== data.useNewFirebase) {
+              localStorage.setItem("firebase_migration_completed_to_new", String(data.useNewFirebase));
+              // Automatically reload to connect to the migrated database configured by adminUtama
+              if (window.location.hash !== "#migrasi") {
+                window.location.reload();
+              }
+            }
+          }
+        }
+      }, (err) => {
+        console.warn("Database config sync listener notice:", err);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn("Failed to listen to database_config:", e);
+    }
+  }, []);
+
   // Real-time synchronization and automatic seeding with Firestore
   React.useEffect(() => {
     // Cache configuration: 10 minutes cache validity for secondary metadata collections

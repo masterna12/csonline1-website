@@ -629,12 +629,30 @@ export default function DatabaseMigrationCenter({
   };
 
   // 4. Flip Connection Flag & Refresh App
-  const activateNewFirebase = () => {
+  const activateNewFirebase = async () => {
     localStorage.setItem("firebase_migration_completed_to_new", "true");
     setActiveDbMode("new");
     onShowAlert("Firebase Diaktifkan", `Menghubungkan aplikasi ke Firebase ${NEW_FIREBASE_CONFIG.projectId} baru...`, "success");
     addLog(`=== MENGAKTIFKAN KONEKSI ${NEW_FIREBASE_CONFIG.projectId.toUpperCase()} SECARA PERMANEN ===`);
     
+    // Sync configuration to Firestore so all other accounts automatically align with adminUtama
+    try {
+      const configPayload = {
+        useNewFirebase: true,
+        updatedBy: "adminUtama",
+        updatedAt: new Date().toISOString(),
+      };
+      const targetDb = getTargetFirestore();
+      const sourceDb = getSourceFirestore();
+      await Promise.allSettled([
+        setDoc(doc(targetDb, "system_settings", "database_config"), configPayload, { merge: true }),
+        setDoc(doc(sourceDb, "system_settings", "database_config"), configPayload, { merge: true })
+      ]);
+      addLog("✅ Status migrasi database baru berhasil disinkronkan otomatis ke seluruh akun.");
+    } catch (err: any) {
+      console.warn("Sync system_settings error:", err);
+    }
+
     if (onRefreshAllData) {
       setTimeout(() => {
         onRefreshAllData();
@@ -643,12 +661,30 @@ export default function DatabaseMigrationCenter({
   };
 
   // 5. Revert Connection Flag to Old Project
-  const revertToOldFirebase = () => {
+  const revertToOldFirebase = async () => {
     localStorage.setItem("firebase_migration_completed_to_new", "false");
     setActiveDbMode("old");
     onShowAlert("Firebase Dikembalikan", `Mengembalikan koneksi aplikasi ke Firebase ${OLD_FIREBASE_CONFIG.projectId} lama...`, "alert");
     addLog(`=== MENGEMBALIKAN KONEKSI KE FIREBASE LAMA ${OLD_FIREBASE_CONFIG.projectId.toUpperCase()} ===`);
     
+    // Sync configuration to Firestore so all other accounts automatically align with adminUtama
+    try {
+      const configPayload = {
+        useNewFirebase: false,
+        updatedBy: "adminUtama",
+        updatedAt: new Date().toISOString(),
+      };
+      const targetDb = getTargetFirestore();
+      const sourceDb = getSourceFirestore();
+      await Promise.allSettled([
+        setDoc(doc(targetDb, "system_settings", "database_config"), configPayload, { merge: true }),
+        setDoc(doc(sourceDb, "system_settings", "database_config"), configPayload, { merge: true })
+      ]);
+      addLog("✅ Status database lama berhasil disinkronkan otomatis ke seluruh akun.");
+    } catch (err: any) {
+      console.warn("Sync system_settings error:", err);
+    }
+
     if (onRefreshAllData) {
       setTimeout(() => {
         onRefreshAllData();

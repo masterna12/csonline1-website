@@ -41,5 +41,9 @@ service cloud.firestore {
     match /hpi_user_accounts/{id} {
       allow read, write: if true;
     }
+
+    match /system_settings/{id} {
+      allow read, write: if true;
+    }
   }
 }
