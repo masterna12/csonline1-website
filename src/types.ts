@@ -12,6 +12,8 @@ export interface Employee {
   avatarMetadata?: CloudinaryMetadata;
   status: 'Aktif' | 'Cuti' | 'Nonaktif';
   joinDate: string;
+  createdBy?: string;
+  region?: 'babel' | 'jatim' | 'all';
 }
 
 export interface Report {
@@ -36,6 +38,8 @@ export interface Report {
   photoOutdoor?: string;
   photoOutdoorMetadata?: CloudinaryMetadata;
   imagePath?: string;
+  createdBy?: string;
+  region?: 'babel' | 'jatim' | 'all';
 }
 
 export interface Attendance {
@@ -49,6 +53,8 @@ export interface Attendance {
   status: 'Tepat Waktu' | 'Terlambat' | 'Alpa' | 'Izin';
   locationIn?: string;
   locationOut?: string;
+  createdBy?: string;
+  region?: 'babel' | 'jatim' | 'all';
 }
 
 export interface SystemNotification {
@@ -67,5 +73,6 @@ export interface UserAccount {
   createdAt: string;
   region?: 'babel' | 'jatim' | 'all';
   department?: string;
+  createdBy?: string;
 }
 

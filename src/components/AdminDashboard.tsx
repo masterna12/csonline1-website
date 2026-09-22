@@ -647,10 +647,10 @@ export default function AdminDashboard({
   }, [isAddReportModalOpen, hasFullAccess, loggedInUserId, employees, scopeDefaults]);
 
   React.useEffect(() => {
-    if (isAddModalOpen && !newEmpDept) {
+    if ((isAddModalOpen || isAddingInline) && !newEmpDept) {
       setNewEmpDept(scopeDefaults.department);
     }
-  }, [isAddModalOpen, scopeDefaults]);
+  }, [isAddModalOpen, isAddingInline, scopeDefaults]);
 
   const [addRepName, setAddRepName] = useState("");
   const [addRepNip, setAddRepNip] = useState("");
@@ -1368,6 +1368,8 @@ export default function AdminDashboard({
         month: "short",
         year: "numeric",
       }),
+      createdBy: loggedInUserId,
+      region: adminScope === "jatim" ? "jatim" : (adminScope === "babel" ? "babel" : "all"),
     };
 
     onAddEmployee(newEmp);
@@ -1692,6 +1694,8 @@ export default function AdminDashboard({
         name: addRepLocName,
         coordinates: addRepCoord,
       },
+      createdBy: loggedInUserId,
+      region: adminScope === "jatim" ? "jatim" : (adminScope === "babel" ? "babel" : "all"),
     };
 
     if (!navigator.onLine) {
@@ -1797,6 +1801,8 @@ export default function AdminDashboard({
         name: addRepLocName,
         coordinates: addRepCoord,
       },
+      createdBy: loggedInUserId,
+      region: adminScope === "jatim" ? "jatim" : (adminScope === "babel" ? "babel" : "all"),
     };
 
     onAddDraftReport(draftReport);
@@ -6990,7 +6996,8 @@ export default function AdminDashboard({
                           userId: userIdVal,
                           password: passwordVal,
                           createdAt: new Date().toLocaleDateString("id-ID"),
-                          region: selectedRegion as any
+                          region: adminScope === "jatim" ? "jatim" : (adminScope === "babel" ? "babel" : (selectedRegion as any)),
+                          createdBy: loggedInUserId,
                         });
 
                         onShowAlert(

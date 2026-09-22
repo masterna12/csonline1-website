@@ -31,10 +31,30 @@ export function isItemInScope(
   scope: AdminScope,
   department?: string,
   locationName?: string,
-  extraText?: string
+  extraText?: string,
+  createdBy?: string,
+  region?: 'babel' | 'jatim' | 'all'
 ): boolean {
   if (scope === 'all') return true;
 
+  // 1. Direct createdBy check - strict account level isolation
+  const cleanCreator = (createdBy || '').trim();
+  if (cleanCreator === 'adminJatim' || cleanCreator.toLowerCase() === 'adminjatim') {
+    return scope === 'jatim';
+  }
+  if (cleanCreator === 'admin' || cleanCreator.toLowerCase() === 'admin') {
+    return scope === 'babel';
+  }
+
+  // 2. Direct region property check
+  if (region === 'jatim') {
+    return scope === 'jatim';
+  }
+  if (region === 'babel') {
+    return scope === 'babel';
+  }
+
+  // 3. Fallback keyword / location matching
   const combined = `${department || ''} ${locationName || ''} ${extraText || ''}`.toLowerCase();
 
   // Pattern identifying Bangka Belitung, Pangkalpinang, and related regions
@@ -157,6 +177,15 @@ export function getScopeDefaults(scope: AdminScope) {
  * Determines whether a user account belongs to the specified administrative scope.
  */
 export function getUserAccountScope(acc: UserAccount, employeesList?: Employee[]): AdminScope {
+  // Direct creator check
+  const cleanCreator = (acc.createdBy || '').trim();
+  if (cleanCreator === 'adminJatim' || cleanCreator.toLowerCase() === 'adminjatim') {
+    return 'jatim';
+  }
+  if (cleanCreator === 'admin' || cleanCreator.toLowerCase() === 'admin') {
+    return 'babel';
+  }
+
   if (acc.region === 'jatim' || acc.region === 'babel' || acc.region === 'all') {
     return acc.region;
   }
@@ -172,10 +201,16 @@ export function getUserAccountScope(acc: UserAccount, employeesList?: Employee[]
          (e.id && e.id.toLowerCase() === acc.userId.toLowerCase())
   );
   if (matchedEmp) {
-    if (isItemInScope('jatim', matchedEmp.department, undefined, matchedEmp.name)) {
+    if (matchedEmp.createdBy === 'adminJatim' || matchedEmp.region === 'jatim') {
       return 'jatim';
     }
-    if (isItemInScope('babel', matchedEmp.department, undefined, matchedEmp.name)) {
+    if (matchedEmp.createdBy === 'admin' || matchedEmp.region === 'babel') {
+      return 'babel';
+    }
+    if (isItemInScope('jatim', matchedEmp.department, undefined, matchedEmp.name, matchedEmp.createdBy, matchedEmp.region)) {
+      return 'jatim';
+    }
+    if (isItemInScope('babel', matchedEmp.department, undefined, matchedEmp.name, matchedEmp.createdBy, matchedEmp.region)) {
       return 'babel';
     }
   }
@@ -193,6 +228,16 @@ export function getUserAccountScope(acc: UserAccount, employeesList?: Employee[]
 
 export function isUserAccountInScope(scope: AdminScope, acc: UserAccount, employeesList?: Employee[]): boolean {
   if (scope === 'all') return true;
+
+  // Direct creator check
+  const cleanCreator = (acc.createdBy || '').trim();
+  if (cleanCreator === 'adminJatim' || cleanCreator.toLowerCase() === 'adminjatim') {
+    return scope === 'jatim';
+  }
+  if (cleanCreator === 'admin' || cleanCreator.toLowerCase() === 'admin') {
+    return scope === 'babel';
+  }
+
   const accScope = getUserAccountScope(acc, employeesList);
   if (scope === 'jatim') {
     return accScope === 'jatim';

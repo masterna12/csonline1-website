@@ -297,19 +297,19 @@ export default function App() {
 
   // Regional data isolation
   const scopedEmployees = useMemo(() => {
-    return employees.filter(emp => isItemInScope(adminScope, emp.department, undefined, emp.name));
+    return employees.filter(emp => isItemInScope(adminScope, emp.department, undefined, emp.name, emp.createdBy, emp.region));
   }, [employees, adminScope]);
 
   const scopedAttendance = useMemo(() => {
-    return attendance.filter(att => isItemInScope(adminScope, att.department, undefined, att.employeeName));
+    return attendance.filter(att => isItemInScope(adminScope, att.department, undefined, att.employeeName, att.createdBy, att.region));
   }, [attendance, adminScope]);
 
   const scopedReports = useMemo(() => {
-    return mergedReports.filter(rep => isItemInScope(adminScope, rep.department, rep.location?.name, rep.title));
+    return mergedReports.filter(rep => isItemInScope(adminScope, rep.department, rep.location?.name, rep.title, rep.createdBy, rep.region));
   }, [mergedReports, adminScope]);
 
   const scopedDraftReports = useMemo(() => {
-    return draftReports.filter(d => isItemInScope(adminScope, d.department, d.location?.name, d.title));
+    return draftReports.filter(d => isItemInScope(adminScope, d.department, d.location?.name, d.title, d.createdBy, d.region));
   }, [draftReports, adminScope]);
 
   // Synchronize Google Sheets reports on load and on custom connection events
@@ -802,16 +802,21 @@ export default function App() {
   };
 
   const handleAddEmployee = async (newEmp: Employee) => {
+    const enrichedEmp: Employee = {
+      ...newEmp,
+      createdBy: newEmp.createdBy || loggedInUserId,
+      region: newEmp.region || (adminScope === 'jatim' ? 'jatim' : (adminScope === 'babel' ? 'babel' : 'all')),
+    };
     // 1. Save locally first (instant UI update)
     setEmployees(prev => {
-      const updated = [...prev.filter(e => e.id !== newEmp.id), newEmp];
+      const updated = [...prev.filter(e => e.id !== enrichedEmp.id), enrichedEmp];
       localStorage.setItem('db_employees', JSON.stringify(updated));
       return updated;
     });
 
     // 2. Sync with Firestore in background
     try {
-      await setDoc(doc(db, 'employees', newEmp.id), newEmp);
+      await setDoc(doc(db, 'employees', enrichedEmp.id), enrichedEmp);
     } catch (error: any) {
       console.warn("Firestore save employee failed, stored locally instead:", error);
       setDbError(`Penyimpanan Lokal Aktif: Aturan Keamanan Firestore membatasi sinkronisasi cloud (${error.message || error})`);
@@ -852,25 +857,35 @@ export default function App() {
   };
 
   const handleAddAttendance = async (newAtt: Attendance) => {
+    const enrichedAtt: Attendance = {
+      ...newAtt,
+      createdBy: newAtt.createdBy || loggedInUserId,
+      region: newAtt.region || (adminScope === 'jatim' ? 'jatim' : (adminScope === 'babel' ? 'babel' : 'all')),
+    };
     // 1. Save locally first (instant UI update)
     setAttendance(prev => {
-      const updated = [...prev.filter(a => a.id !== newAtt.id), newAtt];
+      const updated = [...prev.filter(a => a.id !== enrichedAtt.id), enrichedAtt];
       safeSaveToLocalStorage('db_attendance', updated);
       return updated;
     });
 
     // 2. Sync with Firestore in background
     try {
-      await setDoc(doc(db, 'attendance', newAtt.id), newAtt);
+      await setDoc(doc(db, 'attendance', enrichedAtt.id), enrichedAtt);
     } catch (error: any) {
       console.warn("Firestore save attendance failed, stored locally instead:", error);
     }
   };
 
   const handleAddReport = async (newRep: Report) => {
+    const enrichedRep: Report = {
+      ...newRep,
+      createdBy: newRep.createdBy || loggedInUserId,
+      region: newRep.region || (adminScope === 'jatim' ? 'jatim' : (adminScope === 'babel' ? 'babel' : 'all')),
+    };
     // 1. Save locally first (instant UI update)
     setReports(prev => {
-      const updated = [...prev.filter(r => r.id !== newRep.id), newRep];
+      const updated = [...prev.filter(r => r.id !== enrichedRep.id), enrichedRep];
       updated.sort((a, b) => {
         const dateA = a.date || "";
         const dateB = b.date || "";
@@ -884,7 +899,7 @@ export default function App() {
     // 2. Sync with Firestore in background
     let firestoreFailed = false;
     try {
-      await setDoc(doc(db, 'dashboard', newRep.id), newRep);
+      await setDoc(doc(db, 'dashboard', enrichedRep.id), enrichedRep);
     } catch (error: any) {
       firestoreFailed = true;
       console.warn("Firestore save report failed, stored locally instead:", error);
@@ -907,12 +922,12 @@ export default function App() {
       try {
         console.log("Database limit/offline mode active. Saving report to Google Spreadsheet as backup database...");
         const { appendReportToSpreadsheet } = await import('./lib/sheetsService');
-        await appendReportToSpreadsheet(googleToken, spreadsheetId, newRep);
+        await appendReportToSpreadsheet(googleToken, spreadsheetId, enrichedRep);
         console.log("Successfully saved report to Google Spreadsheet backup!");
         
         // Update sheetReports state immediately so it's merged and visible in the UI
         setSheetReports(prev => {
-          const updated = [...prev.filter(r => r.id !== newRep.id), newRep];
+          const updated = [...prev.filter(r => r.id !== enrichedRep.id), enrichedRep];
           return updated;
         });
 
@@ -928,8 +943,13 @@ export default function App() {
   };
 
   const handleAddDraftReport = (draft: Report) => {
+    const enrichedDraft: Report = {
+      ...draft,
+      createdBy: draft.createdBy || loggedInUserId,
+      region: draft.region || (adminScope === 'jatim' ? 'jatim' : (adminScope === 'babel' ? 'babel' : 'all')),
+    };
     setDraftReports(prev => {
-      const updated = [...prev.filter(d => d.id !== draft.id), draft];
+      const updated = [...prev.filter(d => d.id !== enrichedDraft.id), enrichedDraft];
       safeSaveToLocalStorage('db_draft_reports', updated);
       return updated;
     });
@@ -1038,14 +1058,19 @@ export default function App() {
   };
 
   const handleAddUserAccount = async (newAcc: UserAccount) => {
+    const enrichedAcc: UserAccount = {
+      ...newAcc,
+      createdBy: newAcc.createdBy || loggedInUserId,
+      region: newAcc.region || (adminScope === 'jatim' ? 'jatim' : (adminScope === 'babel' ? 'babel' : 'all')),
+    };
     setUserAccounts(prev => {
-      const updated = [...prev.filter(a => a.id !== newAcc.id), newAcc];
+      const updated = [...prev.filter(a => a.id !== enrichedAcc.id), enrichedAcc];
       localStorage.setItem('db_user_accounts', JSON.stringify(updated));
       return updated;
     });
 
     try {
-      await setDoc(doc(db, 'hpi_user_accounts', newAcc.id), newAcc);
+      await setDoc(doc(db, 'hpi_user_accounts', enrichedAcc.id), enrichedAcc);
     } catch (e: any) {
       console.warn("Firestore save user account failed, stored locally:", e);
     }
