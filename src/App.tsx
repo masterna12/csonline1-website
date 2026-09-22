@@ -130,10 +130,26 @@ export default function App() {
 
   const getAdminAccountInfo = (uId: string) => {
     const clean = (uId || '').trim();
-    const config = ADMIN_CONFIGS[clean] || ADMIN_CONFIGS.admin;
-    const savedName = localStorage.getItem(`step_admin_name_${clean}`) || (clean === 'admin' ? localStorage.getItem('step_admin_name') : null) || config.name;
+    let accountFromStorage: UserAccount | undefined;
+    try {
+      const stored = localStorage.getItem('db_user_accounts');
+      if (stored) {
+        const parsed: UserAccount[] = JSON.parse(stored);
+        accountFromStorage = parsed.find(a => a.userId && a.userId.toLowerCase() === clean.toLowerCase());
+      }
+    } catch (e) {}
+
+    const config = ADMIN_CONFIGS[clean] || (
+      accountFromStorage ? {
+        name: accountFromStorage.name || `Admin ${accountFromStorage.region === 'jatim' ? 'Jawa Timur' : accountFromStorage.region === 'babel' ? 'Bangka Belitung' : clean}`,
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+        defaultPass: accountFromStorage.password || clean,
+        region: accountFromStorage.region === 'jatim' ? 'Jawa Timur' : accountFromStorage.region === 'babel' ? 'Bangka Belitung' : 'Semua Wilayah'
+      } : ADMIN_CONFIGS.admin
+    );
+    const savedName = localStorage.getItem(`step_admin_name_${clean}`) || (clean === 'admin' ? localStorage.getItem('step_admin_name') : null) || accountFromStorage?.name || config.name;
     const savedAvatar = localStorage.getItem(`step_admin_avatar_${clean}`) || (clean === 'admin' ? localStorage.getItem('step_admin_avatar') : null) || config.avatar;
-    const savedPass = localStorage.getItem(`step_admin_password_${clean}`) || (clean === 'admin' ? localStorage.getItem('step_admin_password') : null) || config.defaultPass;
+    const savedPass = accountFromStorage?.password || localStorage.getItem(`step_admin_password_${clean}`) || (clean === 'admin' ? localStorage.getItem('step_admin_password') : null) || config.defaultPass;
     return {
       name: savedName,
       avatar: savedAvatar,
@@ -186,13 +202,15 @@ export default function App() {
   const defaultAttendanceList: Attendance[] = INITIAL_ATTENDANCE;
 
   const defaultUserAccounts: UserAccount[] = [
-    { id: 'ACC_1', userId: '9826003HPI', password: '27111998', createdAt: '2023-01-15', region: 'babel' },
-    { id: 'ACC_2', userId: '9826004HPI', password: '27111998', createdAt: '2023-03-20', region: 'babel' },
-    { id: 'ACC_3', userId: '9826005HPI', password: '27111998', createdAt: '2023-06-10', region: 'babel' },
-    { id: 'ACC_4', userId: '9826010HPI', password: '27111998', createdAt: '2023-02-10', region: 'jatim' },
-    { id: 'ACC_5', userId: '9826011HPI', password: '27111998', createdAt: '2023-04-12', region: 'jatim' },
-    { id: 'ACC_6', userId: '9826012HPI', password: '27111998', createdAt: '2023-05-18', region: 'jatim' },
-    { id: 'ACC_7', userId: '9826013HPI', password: '27111998', createdAt: '2023-07-22', region: 'jatim' }
+    { id: 'ACC_ADMIN_BABEL', userId: 'admin', password: 'admin', createdAt: '2023-01-15', region: 'babel', role: 'admin', name: 'Admin Bangka Belitung', createdBy: 'adminUtama' },
+    { id: 'ACC_ADMIN_JATIM', userId: 'adminJatim', password: 'adminJatim', createdAt: '2023-02-10', region: 'jatim', role: 'admin', name: 'Admin Jawa Timur', createdBy: 'adminUtama' },
+    { id: 'ACC_1', userId: '9826003HPI', password: '27111998', createdAt: '2023-01-15', region: 'babel', role: 'operator', name: 'Zul' },
+    { id: 'ACC_2', userId: '9826004HPI', password: '27111998', createdAt: '2023-03-20', region: 'babel', role: 'operator', name: 'Rian' },
+    { id: 'ACC_3', userId: '9826005HPI', password: '27111998', createdAt: '2023-06-10', region: 'babel', role: 'operator', name: 'Dedi' },
+    { id: 'ACC_4', userId: '9826010HPI', password: '27111998', createdAt: '2023-02-10', region: 'jatim', role: 'operator', name: 'Bambang' },
+    { id: 'ACC_5', userId: '9826011HPI', password: '27111998', createdAt: '2023-04-12', region: 'jatim', role: 'operator', name: 'Siti Rahma' },
+    { id: 'ACC_6', userId: '9826012HPI', password: '27111998', createdAt: '2023-05-18', region: 'jatim', role: 'operator', name: 'Agus Santoso' },
+    { id: 'ACC_7', userId: '9826013HPI', password: '27111998', createdAt: '2023-07-22', region: 'jatim', role: 'operator', name: 'Dimas Prasetyo' }
   ];
 
   // Global React States
@@ -242,11 +260,16 @@ export default function App() {
         const parsed = JSON.parse(saved);
         if (parsed && Array.isArray(parsed) && parsed.length > 0) {
           const merged = mergeMissingById(parsed, defaultUserAccounts);
-          // Ensure default accounts have region tagged
+          // Ensure accounts have region, role, name, and createdBy tagged
           return merged.map(acc => {
-            if (acc.region) return acc;
-            const def = defaultUserAccounts.find(d => d.userId === acc.userId);
-            return def?.region ? { ...acc, region: def.region } : acc;
+            const def = defaultUserAccounts.find(d => d.userId.toLowerCase() === acc.userId.toLowerCase());
+            return {
+              ...acc,
+              region: acc.region || def?.region || 'babel',
+              role: acc.role || def?.role || (acc.userId.toLowerCase().startsWith('admin') ? 'admin' : 'operator'),
+              name: acc.name || def?.name,
+              createdBy: acc.createdBy || def?.createdBy || 'adminUtama'
+            };
           });
         }
       } catch (e) {}
@@ -766,8 +789,10 @@ export default function App() {
 
     // 1. Akun admin (Khusus Bangka Belitung & Pangkalpinang)
     if (cleanUserId.toLowerCase() === 'admin') {
+      const matchedAdminAcc = userAccounts.find(a => a.userId.toLowerCase() === 'admin');
       const adminInfo = getAdminAccountInfo('admin');
-      if (password === adminInfo.password) {
+      const expectedPassword = matchedAdminAcc ? matchedAdminAcc.password : adminInfo.password;
+      if (password === expectedPassword) {
         setIsLoggedIn(true);
         setLoggedInUserId('admin');
         sessionStorage.setItem('step_is_logged_in', 'true');
@@ -775,7 +800,7 @@ export default function App() {
         localStorage.setItem('step_is_logged_in', 'true');
         localStorage.setItem('step_logged_in_user_id', 'admin');
         setLoginError('');
-        handleShowAlert('Login Berhasil', `Selamat datang, ${adminInfo.name}. Anda masuk ke sistem khusus wilayah Bangka Belitung (Pangkalpinang termasuk).`, 'success');
+        handleShowAlert('Login Berhasil', `Selamat datang, ${matchedAdminAcc?.name || adminInfo.name}. Anda masuk ke sistem khusus wilayah Bangka Belitung (Pangkalpinang termasuk).`, 'success');
         return;
       } else {
         setLoginError('ID User atau Password salah!');
@@ -786,8 +811,10 @@ export default function App() {
 
     // 2. Akun adminJatim (Khusus Jawa Timur, Bangka Belitung tidak masuk)
     if (cleanUserId === 'adminJatim' || cleanUserId.toLowerCase() === 'adminjatim') {
+      const matchedJatimAcc = userAccounts.find(a => a.userId.toLowerCase() === 'adminjatim');
       const jatimInfo = getAdminAccountInfo('adminJatim');
-      if (password === jatimInfo.password) {
+      const expectedPassword = matchedJatimAcc ? matchedJatimAcc.password : jatimInfo.password;
+      if (password === expectedPassword) {
         setIsLoggedIn(true);
         setLoggedInUserId('adminJatim');
         sessionStorage.setItem('step_is_logged_in', 'true');
@@ -795,7 +822,7 @@ export default function App() {
         localStorage.setItem('step_is_logged_in', 'true');
         localStorage.setItem('step_logged_in_user_id', 'adminJatim');
         setLoginError('');
-        handleShowAlert('Login Berhasil', `Selamat datang, ${jatimInfo.name}. Anda masuk ke sistem khusus wilayah Jawa Timur.`, 'success');
+        handleShowAlert('Login Berhasil', `Selamat datang, ${matchedJatimAcc?.name || jatimInfo.name}. Anda masuk ke sistem khusus wilayah Jawa Timur.`, 'success');
         return;
       } else {
         setLoginError('ID User atau Password salah!');
@@ -844,8 +871,8 @@ export default function App() {
       }
     }
 
-    // Check dynamic user accounts
-    const matchedAccount = userAccounts.find(acc => acc.userId === cleanUserId);
+    // Check dynamic user accounts & regional admin accounts created by adminUtama
+    const matchedAccount = userAccounts.find(acc => acc.userId.toLowerCase() === cleanUserId.toLowerCase());
     if (matchedAccount) {
       if (matchedAccount.password === password) {
         setIsLoggedIn(true);
@@ -855,10 +882,16 @@ export default function App() {
         localStorage.setItem('step_is_logged_in', 'true');
         localStorage.setItem('step_logged_in_user_id', matchedAccount.userId);
         setLoginError('');
-        handleShowAlert('Login Berhasil', `Selamat datang kembali, ${matchedAccount.userId}.`, 'success');
+        const isAdm = matchedAccount.role === 'admin' || matchedAccount.userId.toLowerCase().startsWith('admin');
+        const roleLabel = isAdm 
+          ? `Administrator Wilayah (${matchedAccount.region === 'jatim' ? 'Jawa Timur' : matchedAccount.region === 'babel' ? 'Bangka Belitung' : 'Semua Wilayah'})`
+          : 'Petugas Lapangan';
+        handleShowAlert('Login Berhasil', `Selamat datang kembali, ${matchedAccount.name || matchedAccount.userId} (${roleLabel}).`, 'success');
+        return;
       } else {
         setLoginError('ID User atau Password salah!');
         handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
+        return;
       }
     } else {
       setLoginError('ID User atau Password salah!');
@@ -1197,13 +1230,35 @@ export default function App() {
       )
     );
 
+    const isAdmRole = newAcc.role === 'admin' || newAcc.userId.toLowerCase().startsWith('admin');
+
     const enrichedAcc: UserAccount = {
       ...newAcc,
       createdBy: newAcc.createdBy || loggedInUserId,
       region: resolvedRegion,
+      role: isAdmRole ? 'admin' : (newAcc.role || 'operator'),
+      name: newAcc.name || (
+        newAcc.userId.toLowerCase() === 'admin' 
+          ? 'Admin Bangka Belitung' 
+          : newAcc.userId.toLowerCase() === 'adminjatim' 
+          ? 'Admin Jawa Timur' 
+          : undefined
+      ),
     };
+
+    // Synchronize localStorage password so credentials stay immediately aligned
+    if (newAcc.userId.toLowerCase() === 'admin') {
+      localStorage.setItem('step_admin_password_admin', newAcc.password);
+      localStorage.setItem('step_admin_password', newAcc.password);
+    } else if (newAcc.userId.toLowerCase() === 'adminjatim') {
+      localStorage.setItem('step_admin_password_adminJatim', newAcc.password);
+    } else {
+      localStorage.setItem(`step_admin_password_${newAcc.userId}`, newAcc.password);
+      localStorage.setItem(`step_user_password_${newAcc.userId}`, newAcc.password);
+    }
+
     setUserAccounts(prev => {
-      const updated = [...prev.filter(a => a.id !== enrichedAcc.id), enrichedAcc];
+      const updated = [...prev.filter(a => a.id !== enrichedAcc.id && a.userId.toLowerCase() !== enrichedAcc.userId.toLowerCase()), enrichedAcc];
       localStorage.setItem('db_user_accounts', JSON.stringify(updated));
       return updated;
     });
@@ -1216,14 +1271,18 @@ export default function App() {
   };
 
   const handleDeleteUserAccount = async (id: string) => {
+    const targetAcc = userAccounts.find(a => a.id === id || a.userId.toLowerCase() === id.toLowerCase());
+    const docId = targetAcc?.id || id;
+    const targetUserId = targetAcc?.userId || id;
+
     setUserAccounts(prev => {
-      const updated = prev.filter(a => a.id !== id);
+      const updated = prev.filter(a => a.id !== docId && a.userId.toLowerCase() !== targetUserId.toLowerCase());
       localStorage.setItem('db_user_accounts', JSON.stringify(updated));
       return updated;
     });
 
     try {
-      await deleteDoc(doc(db, 'hpi_user_accounts', id));
+      await deleteDoc(doc(db, 'hpi_user_accounts', docId));
     } catch (e: any) {
       console.warn("Firestore delete user account failed, stored locally:", e);
     }

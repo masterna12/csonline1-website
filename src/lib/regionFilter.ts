@@ -31,9 +31,20 @@ export function getAdminScope(
       a => a.userId && a.userId.toLowerCase() === clean.toLowerCase()
     );
     if (acc) {
+      if (acc.region === 'jatim' || acc.region === 'babel' || acc.region === 'all') {
+        return acc.region;
+      }
       const scope = getUserAccountScope(acc, employeesList);
-      if (scope === 'jatim' || scope === 'babel') return scope;
+      if (scope === 'jatim' || scope === 'babel' || scope === 'all') return scope;
     }
+  }
+
+  // Heuristics for regional admin user IDs (e.g. adminJatim, adminBabel, adminSurabaya)
+  if (/jatim|surabaya|malang|sidoarjo|gresik/i.test(clean)) {
+    return 'jatim';
+  }
+  if (/babel|bangka|belitung|pangkalpinang/i.test(clean)) {
+    return 'babel';
   }
 
   // 2. Check if user is in employee list
@@ -82,9 +93,13 @@ export interface ResolveEntityRegionParams {
  * (report, draft, employee, attendance) using accounts, employee identities, and keywords.
  */
 export function resolveEntityRegion(params: ResolveEntityRegionParams): 'babel' | 'jatim' | 'all' {
-  // 1. Direct explicit region property
-  if (params.region === 'jatim') return 'jatim';
-  if (params.region === 'babel') return 'babel';
+  // 1. Direct explicit region property (handling custom typed strings like "Jawa Timur", "Bangka Belitung", etc.)
+  if (params.region) {
+    const r = params.region.toLowerCase().trim();
+    if (r === 'jatim' || /jawa\s*timur|surabaya|malang|sidoarjo|gresik|madiun/i.test(r)) return 'jatim';
+    if (r === 'babel' || /bangka|belitung|pangkalpinang/i.test(r)) return 'babel';
+    if (r === 'all' || /semua|nasional/i.test(r)) return 'all';
+  }
 
   // 2. Direct creator check
   const cleanCreator = (params.createdBy || '').trim();
@@ -318,14 +333,17 @@ export function getUserAccountScope(acc: UserAccount, employeesList?: Employee[]
     return 'babel';
   }
 
-  if (acc.region === 'jatim' || acc.region === 'babel' || acc.region === 'all') {
-    return acc.region;
+  if (acc.region) {
+    const r = acc.region.toLowerCase().trim();
+    if (r === 'jatim' || /jawa\s*timur|surabaya|malang|sidoarjo|gresik|madiun/i.test(r)) return 'jatim';
+    if (r === 'babel' || /bangka|belitung|pangkalpinang/i.test(r)) return 'babel';
+    if (r === 'all' || /semua|nasional/i.test(r)) return 'all';
   }
 
   // Admin user IDs
-  if (acc.userId === 'adminJatim') return 'jatim';
-  if (acc.userId === 'admin') return 'babel';
-  if (acc.userId === 'adminUtama') return 'all';
+  if (acc.userId.toLowerCase() === 'adminjatim' || /jatim|surabaya|malang/i.test(acc.userId)) return 'jatim';
+  if (acc.userId.toLowerCase() === 'admin' || /babel|bangka|belitung/i.test(acc.userId)) return 'babel';
+  if (acc.userId.toLowerCase() === 'adminutama') return 'all';
 
   // Check matched employee NIP or ID
   const matchedEmp = employeesList?.find(
@@ -362,6 +380,23 @@ export function getUserAccountScope(acc: UserAccount, employeesList?: Employee[]
 export function isUserAccountInScope(scope: AdminScope, acc: UserAccount, employeesList?: Employee[]): boolean {
   if (scope === 'all') return true;
 
+  // Direct region check on account takes highest precedence!
+  if (acc.region) {
+    const r = acc.region.toLowerCase().trim();
+    if (r === 'jatim' || /jawa\s*timur|surabaya|malang|sidoarjo|gresik|madiun/i.test(r)) {
+      return scope === 'jatim';
+    }
+    if (r === 'babel' || /bangka|belitung|pangkalpinang/i.test(r)) {
+      return scope === 'babel';
+    }
+    if (r === 'all' || /semua|nasional/i.test(r)) {
+      return true;
+    }
+    if (r === scope.toLowerCase()) {
+      return true;
+    }
+  }
+
   // Direct creator check
   const cleanCreator = (acc.createdBy || '').trim();
   if (cleanCreator === 'adminJatim' || cleanCreator.toLowerCase() === 'adminjatim') {
@@ -379,4 +414,23 @@ export function isUserAccountInScope(scope: AdminScope, acc: UserAccount, employ
     return accScope === 'babel';
   }
   return true;
+}
+
+/**
+ * Detects whether the 'before' (photoIndoor) and 'after' (photoOutdoor) photos in a report
+ * are identical / duplicate (meaning no actual work or progress was done).
+ * When identical, the report is deemed INVALID in monthly performance calculations.
+ */
+export function isReportPhotosIdentical(r?: { photoIndoor?: string; photoOutdoor?: string; imagePath?: string } | null): boolean {
+  if (!r) return false;
+  const before = (r.photoIndoor || '').trim();
+  const after = (r.photoOutdoor || '').trim();
+  if (!before || !after) return false;
+  if (before === after) return true;
+  try {
+    const cleanBefore = before.split('?')[0];
+    const cleanAfter = after.split('?')[0];
+    if (cleanBefore === cleanAfter && cleanBefore.length > 5) return true;
+  } catch {}
+  return false;
 }

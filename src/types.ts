@@ -13,7 +13,7 @@ export interface Employee {
   status: 'Aktif' | 'Cuti' | 'Nonaktif';
   joinDate: string;
   createdBy?: string;
-  region?: 'babel' | 'jatim' | 'all';
+  region?: 'babel' | 'jatim' | 'all' | string;
 }
 
 export interface Report {
@@ -39,7 +39,7 @@ export interface Report {
   photoOutdoorMetadata?: CloudinaryMetadata;
   imagePath?: string;
   createdBy?: string;
-  region?: 'babel' | 'jatim' | 'all';
+  region?: 'babel' | 'jatim' | 'all' | string;
 }
 
 export interface Attendance {
@@ -54,7 +54,7 @@ export interface Attendance {
   locationIn?: string;
   locationOut?: string;
   createdBy?: string;
-  region?: 'babel' | 'jatim' | 'all';
+  region?: 'babel' | 'jatim' | 'all' | string;
 }
 
 export interface SystemNotification {
@@ -71,8 +71,10 @@ export interface UserAccount {
   userId: string;
   password: string;
   createdAt: string;
-  region?: 'babel' | 'jatim' | 'all';
+  region?: 'babel' | 'jatim' | 'all' | string;
   department?: string;
   createdBy?: string;
+  role?: 'admin' | 'operator';
+  name?: string;
 }
 

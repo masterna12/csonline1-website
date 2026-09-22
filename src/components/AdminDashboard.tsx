@@ -8,6 +8,7 @@ import {
   getScopeBadge, 
   getScopeDefaults, 
   resolveEntityRegion,
+  isReportPhotosIdentical,
   AdminScope 
 } from "../lib/regionFilter";
 import {
@@ -35,8 +36,14 @@ import {
   Building2,
   UserCheck,
   Eye,
+  EyeOff,
   Trash2,
   Shield,
+  ShieldCheck,
+  ShieldAlert,
+  Key,
+  Sparkles,
+  Copy,
   Settings,
   Menu,
   ChevronRight,
@@ -324,9 +331,30 @@ export default function AdminDashboard({
     return "PT. HALEYORA POWERINDO BANGKA BELITUNG";
   }, [loggedInUserId, adminScope]);
 
-  const isAdmin = loggedInUserId === "admin" || loggedInUserId === "adminJatim" || loggedInUserId === "adminUtama" || !loggedInUserId;
+  const currentLoggedInAccount = useMemo(() => {
+    return userAccounts.find(a => a.userId.toLowerCase() === (loggedInUserId || '').toLowerCase());
+  }, [userAccounts, loggedInUserId]);
+
+  const isAdmin = 
+    loggedInUserId === "admin" || 
+    loggedInUserId === "adminJatim" || 
+    loggedInUserId === "adminUtama" || 
+    currentLoggedInAccount?.role === "admin" ||
+    (loggedInUserId ? loggedInUserId.toLowerCase().startsWith("admin") : true);
   const hasFullAccess = isAdmin || loggedInUserId === "9826003HPI";
-  const isSuperAdminUtama = loggedInUserId === "adminUtama";
+  const isSuperAdminUtama = loggedInUserId === "adminUtama" || loggedInUserId?.toLowerCase() === "adminutama";
+
+  // Kelola Akun User form & table state
+  const [accountFormUserId, setAccountFormUserId] = useState("");
+  const [accountFormName, setAccountFormName] = useState("");
+  const [accountFormPassword, setAccountFormPassword] = useState("");
+  const [accountFormRole, setAccountFormRole] = useState<"admin" | "operator">("admin");
+  const [accountFormRegion, setAccountFormRegion] = useState<string>("Bangka Belitung & Pangkalpinang");
+  const [accountFormShowPassword, setAccountFormShowPassword] = useState(false);
+  const [accountTableSearch, setAccountTableSearch] = useState("");
+  const [accountTableRegionFilter, setAccountTableRegionFilter] = useState<string>("all");
+  const [accountTableRoleFilter, setAccountTableRoleFilter] = useState<"all" | "admin" | "operator">("all");
+  const [accountIsEditing, setAccountIsEditing] = useState(false);
 
   // Sidebar tab management
   // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun, 'kelola_akun' = Kelola Akun
@@ -890,6 +918,7 @@ export default function AdminDashboard({
   const [selectedEmpForRekapDetail, setSelectedEmpForRekapDetail] = useState<
     string | null
   >(null);
+  const [rekapFilterOnlyDuplicate, setRekapFilterOnlyDuplicate] = useState<boolean>(false);
   const [editingReport, setEditingReport] = useState<Report | null>(null);
   const [clickedStatType, setClickedStatType] = useState<'total' | 'sudah' | 'belum' | 'lokasi_ada_pegawai' | 'lokasi_tanpa_pegawai' | 'pegawai_punya_lokasi' | 'pegawai_tanpa_lokasi' | null>(null);
   const [statModalSearch, setStatModalSearch] = useState("");
@@ -4869,6 +4898,8 @@ export default function AdminDashboard({
                                       );
                                     }
 
+                                    const isIdentical = isReportPhotosIdentical(activePhotoModalRow);
+
                                     const photoSlots = [
                                       {
                                         key: "sebelum",
@@ -4881,15 +4912,31 @@ export default function AdminDashboard({
                                       {
                                         key: "sesudah",
                                         title: "FOTO SESUDAH",
-                                        subTitle: "SESUDAH PENGERJAAN",
-                                        badge: "SESUDAH KERJA",
-                                        badgeClass: "bg-sky-50 text-sky-700 border-sky-200",
+                                        subTitle: isIdentical ? "TERDETEKSI SAMA PERSIS (KOREKSI OTOMATIS)" : "SESUDAH PENGERJAAN",
+                                        badge: isIdentical ? "⚠️ SAMA DENGAN SEBELUM" : "SESUDAH KERJA",
+                                        badgeClass: isIdentical ? "bg-rose-100 text-rose-800 border-rose-300 font-black animate-pulse" : "bg-sky-50 text-sky-700 border-sky-200",
                                         url: photoAfter,
                                       },
                                     ];
 
                                     return (
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+                                      <div className="w-full space-y-3">
+                                        {isIdentical && (
+                                          <div className="p-3 bg-rose-50 border border-rose-300 rounded-2xl flex items-center gap-3 text-rose-800 text-left shadow-xs">
+                                            <div className="p-2 bg-rose-100 rounded-xl text-rose-600 shrink-0">
+                                              <AlertTriangle size={18} />
+                                            </div>
+                                            <div>
+                                              <span className="font-black text-xs block text-rose-900">
+                                                KOREKSI FOTO OTOMATIS: Foto Sebelum dan Sesudah Terdeteksi Sama Persis
+                                              </span>
+                                              <span className="text-[10px] text-rose-700 font-semibold block leading-tight mt-0.5">
+                                                Foto sesudah sama persis seperti foto sebelum (tidak ada perubahan). Laporan ini otomatis <strong>TIDAK MASUK / TIDAK VALID</strong> pada Rekap Kinerja Bulanan pegawai.
+                                              </span>
+                                            </div>
+                                          </div>
+                                        )}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
                                         {photoSlots.map((slot) => {
                                           const isTrimmed = slot.url && slot.url.includes("placeholder_trimmed");
 
@@ -4955,6 +5002,7 @@ export default function AdminDashboard({
                                             </div>
                                           );
                                         })}
+                                        </div>
                                       </div>
                                     );
                                   })()}
@@ -5324,8 +5372,11 @@ export default function AdminDashboard({
                       );
                       const workingDaysCount = uniqueDates.length;
 
-                      // Check which weekdays has valid reporting photo
+                      // Check which weekdays has valid reporting photo (Automatic Photo Correction)
                       let countHariKirimLaporan = 0;
+                      let countHariFotoSama = 0;
+                      let countLaporanFotoSama = 0;
+
                       activeWeekdaysList.forEach(dayStr => {
                         const repsOnDay = empReports.filter((r) => {
                           if (!r.date) return false;
@@ -5333,15 +5384,28 @@ export default function AdminDashboard({
                           return r.date.slice(0, 10) === dayStr;
                         });
 
-                        const hasPhoto = repsOnDay.some(r => 
+                        const repsWithPhoto = repsOnDay.filter(r => 
                           (r.photoIndoor && r.photoIndoor.trim() !== "") ||
                           (r.photoOutdoor && r.photoOutdoor.trim() !== "")
                         );
-                        if (hasPhoto) {
+
+                        // Identical photos check: photo sesudah sama persis dengan photo sebelum
+                        const identicalReps = repsWithPhoto.filter(r => isReportPhotosIdentical(r));
+                        const validReps = repsWithPhoto.filter(r => !isReportPhotosIdentical(r));
+
+                        countLaporanFotoSama += identicalReps.length;
+
+                        // Aturan Koreksi Foto Otomatis:
+                        // Jika petugas membuat laporan foto sesudah sama seperti foto sebelum (tidak ada perubahan),
+                        // maka nilainya otomatis tidak masuk / tidak valid
+                        if (identicalReps.length > 0 && validReps.length === 0) {
+                          countHariFotoSama++;
+                        } else if (validReps.length > 0) {
                           countHariKirimLaporan++;
                         }
                       });
 
+                      const hasPhotoCorrection = countHariFotoSama > 0 || countLaporanFotoSama > 0;
                       const isKoordinator = emp.role && emp.role.toLowerCase().includes("koordinator");
                       const photoPercentage = isKoordinator ? 100 : (totalHariKerja > 0 
                         ? Math.round((countHariKirimLaporan / totalHariKerja) * 100)
@@ -5406,6 +5470,12 @@ export default function AdminDashboard({
                         countHariKirimLaporan: displayCountHariKirimLaporan,
                         totalHariKerja,
                         performancePercent: photoPercentage,
+                        countHariFotoSama,
+                        countLaporanFotoSama,
+                        hasPhotoCorrection,
+                        keteranganFotoSama: hasPhotoCorrection
+                          ? `Foto sebelum dan sesudah tersebut sama persis (${countHariFotoSama > 0 ? countHariFotoSama + ' hari kerja' : countLaporanFotoSama + ' laporan'} tidak masuk/tidak valid)`
+                          : undefined,
                       };
                     });
 
@@ -5415,6 +5485,13 @@ export default function AdminDashboard({
                     const perfectPerformers = employeePerformance.filter(
                       (x) => x.photoPercentage >= 90,
                     ).length;
+                    const totalPegawaiFotoSama = employeePerformance.filter(
+                      (x) => x.hasPhotoCorrection,
+                    ).length;
+                    const totalHariFotoSama = employeePerformance.reduce(
+                      (acc, x) => acc + x.countHariFotoSama,
+                      0,
+                    );
                     const totalMonthlyPhotos = reports.filter(
                       (r) =>
                         belongsToMonthYear(r.date, rekapMonth, rekapYear)
@@ -5424,6 +5501,13 @@ export default function AdminDashboard({
                       if (r.photoOutdoor && r.photoOutdoor.trim() !== "" && r.photoOutdoor !== r.photoIndoor) cnt++;
                       return acc + cnt;
                     }, 0);
+
+                    const displayedEmployeePerformance = employeePerformance.filter((item) => {
+                      if (rekapFilterOnlyDuplicate) {
+                        return item.hasPhotoCorrection;
+                      }
+                      return true;
+                    });
 
                     return (
                       <div className="space-y-5 text-slate-800 font-sans mt-3">
@@ -5495,6 +5579,7 @@ export default function AdminDashboard({
                                 setRekapMonth(new Date().getMonth() + 1);
                                 setRekapYear(new Date().getFullYear());
                                 setRekapSearchText("");
+                                setRekapFilterOnlyDuplicate(false);
                               }}
                               className="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold px-4 py-3 rounded-xl transition cursor-pointer active:scale-95"
                             >
@@ -5503,7 +5588,8 @@ export default function AdminDashboard({
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Summary Metrics */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                           <div className="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-100 p-4 rounded-2xl flex items-center justify-between shadow-sm">
                             <div className="space-y-1 text-left">
                               <span className="text-[9px] font-black text-sky-600 block uppercase tracking-wider">
@@ -5534,7 +5620,7 @@ export default function AdminDashboard({
                                 {perfectPerformers} Pegawai
                               </h3>
                               <p className="text-[9px] text-slate-400 font-semibold">
-                                Mengirim foto Indoor & Outdoor rutin
+                                Mengirim foto Sebelum & Sesudah rutin
                               </p>
                             </div>
                             <div className="bg-emerald-100/85 text-emerald-600 p-2.5 rounded-xl">
@@ -5545,20 +5631,83 @@ export default function AdminDashboard({
                           <div className="bg-gradient-to-r from-teal-50 to-sky-50 border border-teal-100 p-4 rounded-2xl flex items-center justify-between shadow-sm">
                             <div className="space-y-1 text-left">
                               <span className="text-[9px] font-black text-teal-600 block uppercase tracking-wider">
-                                ● Total Foto Sebelum & Sesudah
+                                ● Total Foto Dokumentasi
                               </span>
                               <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
                                 {totalMonthlyPhotos} Foto
                               </h3>
                               <p className="text-[9px] text-slate-400 font-semibold">
-                                Total dokumentasi foto masuk dan pulang kerja terkirim
+                                Foto sebelum & sesudah terkirim
                               </p>
                             </div>
                             <div className="bg-teal-100/85 text-teal-600 p-2.5 rounded-xl">
                               <Camera size={18} />
                             </div>
                           </div>
+
+                          {/* Card Koreksi Foto Otomatis */}
+                          <div 
+                            onClick={() => setRekapFilterOnlyDuplicate(prev => !prev)}
+                            className={`p-4 rounded-2xl flex items-center justify-between shadow-sm cursor-pointer transition-all border ${
+                              rekapFilterOnlyDuplicate
+                                ? "bg-rose-100 border-rose-400 ring-2 ring-rose-400 shadow-md"
+                                : totalPegawaiFotoSama > 0
+                                ? "bg-gradient-to-r from-rose-50 via-amber-50/50 to-rose-50 border-rose-200 hover:border-rose-300 hover:shadow-md"
+                                : "bg-gradient-to-r from-slate-50 to-slate-100 border-slate-200"
+                            }`}
+                            title="Klik untuk filter: tampilkan hanya pegawai yang terkena koreksi foto sama persis"
+                          >
+                            <div className="space-y-1 text-left">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-black text-rose-600 block uppercase tracking-wider">
+                                  ● Koreksi Foto Otomatis
+                                </span>
+                                {rekapFilterOnlyDuplicate && (
+                                  <span className="bg-rose-600 text-white text-[7.5px] font-black px-1.5 py-0.2 rounded uppercase">
+                                    Filter Aktif
+                                  </span>
+                                )}
+                              </div>
+                              <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                                {totalPegawaiFotoSama} Pegawai
+                              </h3>
+                              <p className="text-[9px] text-rose-600 font-bold">
+                                {totalHariFotoSama > 0 
+                                  ? `${totalHariFotoSama} Hari Dibatalkan (Foto Sama)`
+                                  : "Semua foto valid (berbeda)"}
+                              </p>
+                            </div>
+                            <div className={`p-2.5 rounded-xl ${totalPegawaiFotoSama > 0 ? "bg-rose-100 text-rose-600" : "bg-slate-200 text-slate-500"}`}>
+                              <AlertTriangle size={18} />
+                            </div>
+                          </div>
                         </div>
+
+                        {/* Banner jika filter aktif */}
+                        {rekapFilterOnlyDuplicate && (
+                          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 flex items-center justify-between text-xs text-rose-900 animate-fade-in shadow-xs">
+                            <div className="flex items-center gap-2.5 text-left">
+                              <div className="p-1.5 bg-rose-200 rounded-lg text-rose-700 shrink-0">
+                                <AlertTriangle size={16} />
+                              </div>
+                              <div>
+                                <span className="font-extrabold block text-rose-950">
+                                  Filter Koreksi Foto Otomatis Aktif
+                                </span>
+                                <span className="text-[11px] text-rose-700">
+                                  Menampilkan <strong>{displayedEmployeePerformance.length} pegawai</strong> yang membuat laporan dengan <strong>foto sesudah sama seperti foto sebelum (tidak ada perubahan)</strong> sehingga nilainya tidak masuk/tidak valid.
+                                </span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setRekapFilterOnlyDuplicate(false)}
+                              className="text-[10px] font-black text-rose-700 bg-white border border-rose-200 px-3 py-1.5 rounded-xl hover:bg-rose-100 transition cursor-pointer shadow-xs shrink-0 ml-2"
+                            >
+                              Tampilkan Semua Pegawai
+                            </button>
+                          </div>
+                        )}
 
                         <div className="bg-white rounded-2xl border border-slate-205 overflow-hidden shadow-sm">
                           <div className="overflow-x-auto max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300">
@@ -5573,7 +5722,7 @@ export default function AdminDashboard({
                                   </th>
                                   <th className="py-3 px-4 bg-slate-50 sticky top-0 z-10 text-slate-500">Jabatan & Unit</th>
                                   <th className="py-3 px-4 text-center bg-slate-50 sticky top-0 z-10 text-slate-500">
-                                    Hari Memenuhi Kewajiban (Kirim Foto)
+                                    Hari Memenuhi Kewajiban (Kirim Foto Valid)
                                   </th>
                                   <th className="py-3 px-4 text-center bg-slate-50 sticky top-0 z-10 text-slate-500">
                                     Persentase Kinerja Bulanan
@@ -5587,18 +5736,19 @@ export default function AdminDashboard({
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100 text-xs">
-                                {employeePerformance.length === 0 ? (
+                                {displayedEmployeePerformance.length === 0 ? (
                                   <tr>
                                     <td
                                       colSpan={7}
                                       className="py-10 text-center text-slate-400 italic font-semibold"
                                     >
-                                      Tidak ada pegawai yang ditemukan. Silakan
-                                      sesuaikan pencarian.
+                                      {rekapFilterOnlyDuplicate 
+                                        ? "Tidak ada pegawai dengan laporan foto sama persis di periode ini."
+                                        : "Tidak ada pegawai yang ditemukan. Silakan sesuaikan pencarian."}
                                     </td>
                                   </tr>
                                 ) : (
-                                  employeePerformance.map((item, index) => {
+                                  displayedEmployeePerformance.map((item, index) => {
                                     const emp = item.employee;
                                     return (
                                       <tr
@@ -5644,9 +5794,20 @@ export default function AdminDashboard({
                                         </td>
 
                                         <td className="py-3 px-4 text-center">
-                                          <span className="font-mono bg-slate-100 text-[#0f766e] border border-slate-200 px-2 rounded-lg font-bold whitespace-nowrap">
-                                            {item.countHariKirimLaporan} / {item.totalHariKerja} Hari
-                                          </span>
+                                          <div className="flex flex-col items-center gap-1">
+                                            <span className="font-mono bg-slate-100 text-[#0f766e] border border-slate-200 px-2 rounded-lg font-bold whitespace-nowrap">
+                                              {item.countHariKirimLaporan} / {item.totalHariKerja} Hari
+                                            </span>
+                                            {item.countHariFotoSama > 0 && (
+                                              <div 
+                                                className="flex items-center justify-center gap-1 text-[8px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md"
+                                                title="Nilai kinerja hari ini tidak masuk karena foto sebelum dan sesudah sama persis"
+                                              >
+                                                <AlertTriangle size={10} className="shrink-0 text-rose-600" />
+                                                <span>-{item.countHariFotoSama} Hari (Foto Sama)</span>
+                                              </div>
+                                            )}
+                                          </div>
                                         </td>
 
                                         <td className="py-3 px-4">
@@ -5674,18 +5835,29 @@ export default function AdminDashboard({
                                               <span
                                                 className={`text-[9px] font-black ${item.performancePercent >= 80 ? "text-emerald-600" : item.performancePercent >= 50 ? "text-amber-600" : "text-rose-600"}`}
                                               >
-                                                {item.countHariKirimLaporan} Hari Kirim Foto
+                                                {item.countHariKirimLaporan} Hari Kirim Foto Valid
                                               </span>
                                             )}
                                           </div>
                                         </td>
 
                                         <td className="py-3 px-4 text-center select-none">
-                                          <span
-                                            className={`inline-block py-1 px-3.5 rounded-full text-[9px] font-black tracking-wider uppercase ${item.scoreColor}`}
-                                          >
-                                            {item.scoreText}
-                                          </span>
+                                          <div className="flex flex-col items-center gap-1">
+                                            <span
+                                              className={`inline-block py-1 px-3.5 rounded-full text-[9px] font-black tracking-wider uppercase ${item.scoreColor}`}
+                                            >
+                                              {item.scoreText}
+                                            </span>
+                                            {item.hasPhotoCorrection && (
+                                              <span 
+                                                className="inline-flex items-center gap-1 text-[8px] font-bold text-rose-700 bg-rose-50 border border-rose-300 px-2 py-0.5 rounded-md text-left"
+                                                title="Keterangan: foto sebelum dan sesudah tersebut sama persis sehingga nilai otomatis tidak valid"
+                                              >
+                                                <AlertTriangle size={9} className="shrink-0 text-rose-600" />
+                                                <span>Foto Sama: Tidak Valid</span>
+                                              </span>
+                                            )}
+                                          </div>
                                         </td>
 
                                         <td className="py-3 px-4 text-center">
@@ -7023,266 +7195,731 @@ export default function AdminDashboard({
               </motion.div>
             )}
 
-            {activeSubTab === "kelola_akun" && isAdmin && (
-              <motion.div
-                key="tab_prisma_kelola_akun"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-6 text-left font-sans"
-              >
-                <div className="pb-2 border-b border-slate-300 flex items-center justify-between">
-                  <div>
-                    <h1 className="text-xl md:text-2xl font-black text-slate-900 font-sans">
-                      Kelola Akun Pengguna CS Online {adminScope === 'all' ? '(Semua Wilayah)' : adminScope === 'jatim' ? '(Jawa Timur)' : '(Bangka Belitung)'}
-                    </h1>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {adminScope === 'all' 
-                        ? 'Akses penuh seluruh akun administrator dan petugas lapangan dari semua wilayah kerja (Nasional).' 
-                        : adminScope === 'jatim'
-                        ? 'Menampilkan dan mengelola khusus akun pengguna wilayah Jawa Timur.'
-                        : 'Menampilkan dan mengelola khusus akun pengguna wilayah Bangka Belitung (termasuk Pangkalpinang).'}
-                    </p>
-                  </div>
-                  <div className="bg-sky-500/10 text-sky-600 border border-sky-500/20 px-3 py-1 rounded-xl text-xs font-bold font-mono">
-                    Akun: {(adminScope === 'all' ? 3 : 1) + scopedUserAccounts.length} Terdaftar {adminScope === 'all' ? '(Semua)' : adminScope === 'jatim' ? '(Jatim)' : '(Babel)'}
-                  </div>
-                </div>
+            {activeSubTab === "kelola_akun" && isAdmin && (() => {
+              // Unified accounts calculation
+              const allDisplayAccounts: (UserAccount & { isSystemRoot?: boolean })[] = [];
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  {/* Left Column: Form Tambah Akun Baru */}
-                  <div className="lg:col-span-4 bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2">
-                      <UserPlus size={14} className="text-indigo-600" />
-                      Tambah Akun Baru
-                    </h3>
+              // Root Super Admin row (only visible in console utama / adminScope === 'all')
+              if (adminScope === 'all') {
+                allDisplayAccounts.push({
+                  id: 'ACC_SYSTEM_UTAMA',
+                  userId: 'adminUtama',
+                  password: adminPassword,
+                  name: 'Super Admin CS Online',
+                  region: 'all',
+                  role: 'admin',
+                  createdAt: 'Akun Utama Sistem',
+                  createdBy: 'System Root',
+                  isSystemRoot: true,
+                });
+              }
 
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        const target = e.currentTarget;
-                        const fd = new FormData(target);
-                        const userIdVal = (fd.get("new_user_id") as string || "").trim();
-                        const passwordVal = (fd.get("new_password") as string || "").trim();
-                        const selectedRegion = (fd.get("account_region") as string) || (adminScope === 'jatim' ? 'jatim' : adminScope === 'babel' ? 'babel' : 'all');
+              // Ensure default regional admins exist if not already in userAccounts
+              const hasBabelAdmin = userAccounts.some(a => a.userId.toLowerCase() === 'admin');
+              const hasJatimAdmin = userAccounts.some(a => a.userId.toLowerCase() === 'adminjatim');
 
-                        if (!userIdVal || !passwordVal) {
-                          onShowAlert("Error", "ID User dan Password harus diisi!", "alert");
-                          return;
-                        }
+              if (!hasBabelAdmin && (adminScope === 'all' || adminScope === 'babel')) {
+                allDisplayAccounts.push({
+                  id: 'ACC_ADMIN_BABEL',
+                  userId: 'admin',
+                  password: localStorage.getItem('step_admin_password_admin') || 'admin',
+                  name: 'Admin Bangka Belitung',
+                  region: 'babel',
+                  role: 'admin',
+                  createdAt: 'Wilayah Khusus',
+                  createdBy: 'adminUtama',
+                });
+              }
 
-                        // Prevent duplicate usernames
-                        if (["admin", "adminjatim", "adminutama"].includes(userIdVal.toLowerCase()) || userIdVal === "9826003HPI") {
-                          onShowAlert("Gagal", "ID User ini adalah akun default sistem!", "alert");
-                          return;
-                        }
+              if (!hasJatimAdmin && (adminScope === 'all' || adminScope === 'jatim')) {
+                allDisplayAccounts.push({
+                  id: 'ACC_ADMIN_JATIM',
+                  userId: 'adminJatim',
+                  password: localStorage.getItem('step_admin_password_adminJatim') || 'adminJatim',
+                  name: 'Admin Jawa Timur',
+                  region: 'jatim',
+                  role: 'admin',
+                  createdAt: 'Wilayah Khusus',
+                  createdBy: 'adminUtama',
+                });
+              }
 
-                        if (userAccounts.some(acc => acc.userId.toLowerCase() === userIdVal.toLowerCase())) {
-                          onShowAlert("Gagal", "ID User telah terdaftar sebelumnya!", "alert");
-                          return;
-                        }
+              // Include all user accounts from database
+              userAccounts.forEach(acc => {
+                if (acc.userId.toLowerCase() === 'adminutama') return;
+                // Avoid duplicating admin or adminJatim if already added
+                const alreadyAdded = allDisplayAccounts.some(x => x.userId.toLowerCase() === acc.userId.toLowerCase());
+                if (!alreadyAdded) {
+                  allDisplayAccounts.push(acc);
+                } else {
+                  // Replace with userAccounts version (contains updated passwords/metadata)
+                  const idx = allDisplayAccounts.findIndex(x => x.userId.toLowerCase() === acc.userId.toLowerCase());
+                  if (idx !== -1) {
+                    allDisplayAccounts[idx] = acc;
+                  }
+                }
+              });
 
-                        const newAccId = `acc_${Date.now()}`;
-                        onAddUserAccount({
-                          id: newAccId,
-                          userId: userIdVal,
-                          password: passwordVal,
-                          createdAt: new Date().toLocaleDateString("id-ID"),
-                          region: adminScope === "jatim" ? "jatim" : (adminScope === "babel" ? "babel" : (selectedRegion as any)),
-                          createdBy: loggedInUserId,
-                        });
+              // Filter by current adminScope
+              const scopedAccounts = allDisplayAccounts.filter(acc => {
+                if (acc.isSystemRoot) return true;
+                return isUserAccountInScope(adminScope, acc, employees);
+              });
 
-                        onShowAlert(
-                          "Sukses",
-                          `Akun untuk ID User "${userIdVal}" berhasil dibuat secara permanen.`,
-                          "success"
-                        );
-                        target.reset();
-                      }}
-                      className="space-y-4 text-xs"
-                    >
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
-                          ID User / Username
-                        </label>
-                        <input
-                          name="new_user_id"
-                          type="text"
-                          required
-                          placeholder="Masukkan ID User (ex: NIP pegawai)"
-                          className="w-full bg-slate-50 border border-slate-350 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
-                        />
+              // Filter by user interactive filters
+              const filteredAccounts = scopedAccounts.filter(acc => {
+                if (accountTableRegionFilter !== 'all') {
+                  const s = getUserAccountScope(acc, employees);
+                  const f = accountTableRegionFilter.toLowerCase().trim();
+                  const r = (acc.region || '').toLowerCase().trim();
+                  const isMatch = s === f || r === f || r.includes(f) || f.includes(r);
+                  if (!isMatch) return false;
+                }
+
+                if (accountTableRoleFilter !== 'all') {
+                  const isAdm = acc.role === 'admin' || acc.userId.toLowerCase().startsWith('admin');
+                  if (accountTableRoleFilter === 'admin' && !isAdm) return false;
+                  if (accountTableRoleFilter === 'operator' && isAdm) return false;
+                }
+
+                if (accountTableSearch.trim()) {
+                  const q = accountTableSearch.toLowerCase().trim();
+                  const matchId = acc.userId.toLowerCase().includes(q);
+                  const matchName = (acc.name || '').toLowerCase().includes(q);
+                  const matchRegion = (acc.region || '').toLowerCase().includes(q);
+                  const emp = employees.find(e => (e.nip && e.nip.toLowerCase() === acc.userId.toLowerCase()) || (e.id && e.id.toLowerCase() === acc.userId.toLowerCase()));
+                  const matchEmp = emp && (emp.name.toLowerCase().includes(q) || emp.department.toLowerCase().includes(q));
+                  if (!matchId && !matchName && !matchRegion && !matchEmp) return false;
+                }
+
+                return true;
+              });
+
+              const totalAdmins = scopedAccounts.filter(a => a.role === 'admin' || a.userId.toLowerCase().startsWith('admin')).length;
+              const totalOperators = scopedAccounts.filter(a => a.role !== 'admin' && !a.userId.toLowerCase().startsWith('admin') && !a.isSystemRoot).length;
+
+              return (
+                <motion.div
+                  key="tab_prisma_kelola_akun"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-6 text-left font-sans"
+                >
+                  {/* Header Banner */}
+                  <div className="pb-3 border-b border-slate-300 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div>
+                      <h1 className="text-xl md:text-2xl font-black text-slate-900 font-sans flex items-center gap-2">
+                        <Users className="text-indigo-600" size={24} />
+                        Kelola Akun Pengguna CS Online {adminScope === 'all' ? '(Konsol Utama)' : adminScope === 'jatim' ? '(Jawa Timur)' : '(Bangka Belitung)'}
+                      </h1>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {isSuperAdminUtama 
+                          ? 'Sebagai Admin Utama, Anda memiliki hak istimewa untuk membuat, mengedit, dan mengelola akun Administrator Wilayah (admin, adminJatim, dll) dan Petugas Lapangan.' 
+                          : adminScope === 'jatim'
+                          ? 'Menampilkan dan mengelola khusus akun petugas lapangan untuk wilayah Jawa Timur.'
+                          : 'Menampilkan dan mengelola khusus akun petugas lapangan untuk wilayah Bangka Belitung.'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1 rounded-xl text-xs font-bold font-mono flex items-center gap-1.5 shadow-xs">
+                        <ShieldCheck size={14} className="text-indigo-600" />
+                        <span>Admin Wilayah: <strong>{totalAdmins}</strong></span>
                       </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
-                          Kata Sandi (Password)
-                        </label>
-                        <input
-                          name="new_password"
-                          type="password"
-                          required
-                          placeholder="Masukkan Password"
-                          className="w-full bg-slate-50 border border-slate-350 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
-                        />
+                      <div className="bg-sky-50 text-sky-700 border border-sky-200 px-3 py-1 rounded-xl text-xs font-bold font-mono flex items-center gap-1.5 shadow-xs">
+                        <HardHat size={14} className="text-sky-600" />
+                        <span>Petugas: <strong>{totalOperators}</strong></span>
                       </div>
-
-                      {adminScope === 'all' ? (
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
-                            Wilayah Penugasan Akun
-                          </label>
-                          <select
-                            name="account_region"
-                            defaultValue="babel"
-                            className="w-full bg-slate-50 border border-slate-350 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner cursor-pointer"
-                          >
-                            <option value="babel">Bangka Belitung & Pangkalpinang</option>
-                            <option value="jatim">Wilayah Jawa Timur</option>
-                            <option value="all">Semua Wilayah (Nasional)</option>
-                          </select>
-                        </div>
-                      ) : (
-                        <input type="hidden" name="account_region" value={adminScope} />
-                      )}
-
-                      <button
-                        type="submit"
-                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs text-center"
-                      >
-                        <Plus size={14} />
-                        Simpan Akun Pengguna
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* Right Column: List of accounts */}
-                  <div className="lg:col-span-8 bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2">
-                      <Users size={14} className="text-indigo-600" />
-                      Daftar Akun Terdaftar
-                    </h3>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs text-left border-collapse text-slate-600">
-                        <thead>
-                          <tr className="border-b border-slate-100 bg-slate-50 text-slate-500 font-bold uppercase text-[9px] tracking-wider">
-                            <th className="p-3">ID User</th>
-                            <th className="p-3">Password</th>
-                            <th className="p-3">Tanggal Dibuat</th>
-                            <th className="p-3">Tipe Sesi</th>
-                            <th className="p-3 text-center w-24">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {/* Admin Bangka Belitung - Only for adminUtama or admin (Babel) */}
-                          {(adminScope === 'all' || adminScope === 'babel') && (
-                            <tr className="hover:bg-slate-50/50">
-                              <td className="p-3 font-semibold text-slate-900">admin</td>
-                              <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">admin (Bangka Belitung)</td>
-                              <td className="p-3 text-slate-400">Wilayah Khusus</td>
-                              <td className="p-3">
-                                <span className="bg-sky-50 text-sky-700 border border-sky-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase">
-                                  Admin Bangka Belitung & Pangkalpinang
-                                </span>
-                              </td>
-                              <td className="p-3 text-center text-slate-400 italic text-[10px]">System Lock</td>
-                            </tr>
-                          )}
-
-                          {/* Admin Jawa Timur - Only for adminUtama or adminJatim */}
-                          {(adminScope === 'all' || adminScope === 'jatim') && (
-                            <tr className="hover:bg-slate-50/50">
-                              <td className="p-3 font-semibold text-slate-900">adminJatim</td>
-                              <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">adminJatim (Jawa Timur)</td>
-                              <td className="p-3 text-slate-400">Wilayah Khusus</td>
-                              <td className="p-3">
-                                <span className="bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase">
-                                  Admin Khusus Jawa Timur
-                                </span>
-                              </td>
-                              <td className="p-3 text-center text-slate-400 italic text-[10px]">System Lock</td>
-                            </tr>
-                          )}
-
-                          {/* Admin Utama - Only for adminUtama */}
-                          {adminScope === 'all' && (
-                            <tr className="hover:bg-slate-50/50">
-                              <td className="p-3 font-semibold text-slate-900">adminUtama</td>
-                              <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">adminUtama (Nasional)</td>
-                              <td className="p-3 text-slate-400">Semua Wilayah</td>
-                              <td className="p-3">
-                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase">
-                                  Admin Utama (Semua Data)
-                                </span>
-                              </td>
-                              <td className="p-3 text-center text-slate-400 italic text-[10px]">System Lock</td>
-                            </tr>
-                          )}
-
-                          {/* Scoped Dynamic User Accounts */}
-                          {scopedUserAccounts.length === 0 ? (
-                            <tr>
-                              <td colSpan={5} className="p-8 text-center text-slate-400 font-semibold italic">
-                                Belum ada akun petugas lapangan untuk wilayah ini. Silakan gunakan panel di sebelah kiri untuk menambah akun.
-                              </td>
-                            </tr>
-                          ) : (
-                            scopedUserAccounts.map((acc) => {
-                              const accScope = getUserAccountScope(acc, employees);
-                              const isJatimAcc = accScope === 'jatim';
-                              const isBabelAcc = accScope === 'babel';
-                              const isDefaultSysAcc = acc.userId === "9826003HPI";
-                              const emp = employees.find(e => (e.nip && e.nip.toLowerCase() === acc.userId.toLowerCase()) || (e.id && e.id.toLowerCase() === acc.userId.toLowerCase()));
-
-                              return (
-                                <tr key={acc.id} className="hover:bg-slate-50/50">
-                                  <td className="p-3">
-                                    <div className="font-semibold text-slate-900">{acc.userId}</div>
-                                    {emp && <div className="text-[10px] text-slate-400 font-medium">{emp.name} &bull; {emp.department}</div>}
-                                  </td>
-                                  <td className="p-3 font-mono text-slate-500 bg-slate-100/50 rounded px-1.5 py-0.5 text-[10px]">{acc.password}</td>
-                                  <td className="p-3 text-slate-500">{acc.createdAt}</td>
-                                  <td className="p-3">
-                                    <span className={`border px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase ${
-                                      isJatimAcc
-                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                        : isBabelAcc
-                                        ? 'bg-sky-50 text-sky-700 border-sky-200'
-                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    }`}>
-                                      {isJatimAcc ? 'Operator (Jawa Timur)' : isBabelAcc ? 'Operator (Bangka Belitung)' : 'Operator Lapangan'}
-                                    </span>
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    {isDefaultSysAcc ? (
-                                      <span className="text-slate-400 italic text-[10px]">System Lock</span>
-                                    ) : (
-                                      <button
-                                        onClick={() => {
-                                          if (confirm(`Apakah Anda yakin ingin menghapus akun "${acc.userId}"? Pengguna tidak akan bisa log masuk lagi.`)) {
-                                            onDeleteUserAccount(acc.id);
-                                            onShowAlert("Sukses", `User ID "${acc.userId}" berhasil dihapus secara permanen.`, "success");
-                                          }
-                                        }}
-                                        className="mx-auto flex items-center justify-center p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition active:scale-95 cursor-pointer border-none"
-                                        title="Hapus Akun Pengguna"
-                                      >
-                                        <Trash2 size={13} />
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    {/* Left Column: Form Tambah / Edit Akun */}
+                    <div className="lg:col-span-4 bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4 sticky top-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                          {accountIsEditing ? (
+                            <>
+                              <Pencil size={14} className="text-amber-600" />
+                              <span className="text-amber-800">Edit Akun Pengguna / Admin</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus size={14} className="text-indigo-600" />
+                              <span>Tambah Akun Baru</span>
+                            </>
+                          )}
+                        </h3>
+                        {accountIsEditing && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAccountIsEditing(false);
+                              setAccountFormUserId("");
+                              setAccountFormName("");
+                              setAccountFormPassword("");
+                              setAccountFormRole("admin");
+                              setAccountFormRegion("Bangka Belitung & Pangkalpinang");
+                            }}
+                            className="text-[10px] text-slate-500 hover:text-slate-800 font-bold underline cursor-pointer"
+                          >
+                            Batal Edit
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Quick Presets for adminUtama */}
+                      {isSuperAdminUtama && (
+                        <div className="p-3 bg-gradient-to-r from-indigo-50/70 via-sky-50/50 to-indigo-50/70 border border-indigo-100 rounded-2xl space-y-2">
+                          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-indigo-900">
+                            <span className="flex items-center gap-1">
+                              <Sparkles size={12} className="text-indigo-600" />
+                              Template Cepat Akun Wilayah:
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAccountIsEditing(true);
+                                setAccountFormUserId("admin");
+                                setAccountFormName("Admin Bangka Belitung");
+                                setAccountFormRole("admin");
+                                setAccountFormRegion("Bangka Belitung & Pangkalpinang");
+                                const existingBabel = userAccounts.find(a => a.userId.toLowerCase() === 'admin');
+                                setAccountFormPassword(existingBabel?.password || localStorage.getItem('step_admin_password_admin') || "admin");
+                              }}
+                              className="px-2 py-1.5 bg-white hover:bg-sky-50 text-sky-800 border border-sky-200 rounded-xl text-[11px] font-bold text-center transition cursor-pointer shadow-xs flex items-center justify-center gap-1"
+                            >
+                              <span>👑 admin (Babel)</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAccountIsEditing(true);
+                                setAccountFormUserId("adminJatim");
+                                setAccountFormName("Admin Jawa Timur");
+                                setAccountFormRole("admin");
+                                setAccountFormRegion("Jawa Timur");
+                                const existingJatim = userAccounts.find(a => a.userId.toLowerCase() === 'adminjatim');
+                                setAccountFormPassword(existingJatim?.password || localStorage.getItem('step_admin_password_adminJatim') || "adminJatim");
+                              }}
+                              className="px-2 py-1.5 bg-white hover:bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-[11px] font-bold text-center transition cursor-pointer shadow-xs flex items-center justify-center gap-1"
+                            >
+                              <span>👑 adminJatim (Jatim)</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const userIdVal = accountFormUserId.trim();
+                          const passwordVal = accountFormPassword.trim();
+                          const nameVal = accountFormName.trim();
+                          const selectedRole = isSuperAdminUtama ? accountFormRole : "operator";
+                          const selectedRegion = isSuperAdminUtama 
+                            ? (accountFormRegion.trim() || "Bangka Belitung & Pangkalpinang") 
+                            : (adminScope === "jatim" ? "Jawa Timur" : "Bangka Belitung & Pangkalpinang");
+
+                          if (!userIdVal || !passwordVal) {
+                            onShowAlert("Error", "ID User dan Kata Sandi wajib diisi!", "alert");
+                            return;
+                          }
+
+                          // Protect root super admin username
+                          if (userIdVal.toLowerCase() === "adminutama" && !accountIsEditing) {
+                            onShowAlert("Gagal", "ID User 'adminUtama' adalah Super Admin Nasional sistem dan dilindungi dari pembuatan ganda!", "alert");
+                            return;
+                          }
+
+                          // Check if account already exists
+                          const existingAcc = userAccounts.find(acc => acc.userId.toLowerCase() === userIdVal.toLowerCase());
+                          const targetId = existingAcc ? existingAcc.id : `acc_${Date.now()}`;
+
+                          const accountPayload: UserAccount = {
+                            id: targetId,
+                            userId: userIdVal,
+                            password: passwordVal,
+                            name: nameVal || (
+                              userIdVal.toLowerCase() === "admin" 
+                                ? "Admin Bangka Belitung" 
+                                : userIdVal.toLowerCase() === "adminjatim" 
+                                ? "Admin Jawa Timur" 
+                                : selectedRole === "admin" 
+                                ? `Admin Wilayah ${selectedRegion}`
+                                : userIdVal
+                            ),
+                            role: selectedRole,
+                            region: selectedRegion,
+                            createdAt: existingAcc?.createdAt || new Date().toLocaleDateString("id-ID"),
+                            createdBy: loggedInUserId || "adminUtama",
+                          };
+
+                          onAddUserAccount(accountPayload);
+
+                          if (existingAcc) {
+                            onShowAlert(
+                              "Sukses",
+                              `Akun untuk ID User "${userIdVal}" berhasil diperbarui dengan kata sandi dan wilayah penugasan baru.`,
+                              "success"
+                            );
+                          } else {
+                            onShowAlert(
+                              "Sukses",
+                              `Akun ${selectedRole === "admin" ? "Administrator Wilayah" : "Petugas Lapangan"} "${userIdVal}" (${selectedRegion}) berhasil dibuat secara permanen.`,
+                              "success"
+                            );
+                          }
+
+                          // Reset form
+                          setAccountFormUserId("");
+                          setAccountFormName("");
+                          setAccountFormPassword("");
+                          setAccountFormRole("admin");
+                          setAccountFormRegion("Bangka Belitung & Pangkalpinang");
+                          setAccountIsEditing(false);
+                        }}
+                        className="space-y-4 text-xs"
+                      >
+                        {/* ID User */}
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
+                            ID User / Username <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={accountFormUserId}
+                            onChange={(e) => setAccountFormUserId(e.target.value)}
+                            placeholder="Contoh: admin, adminJatim, adminBabel, atau NIP"
+                            className="w-full bg-slate-50 border border-slate-350 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner font-mono font-medium"
+                          />
+                          <p className="text-[10px] text-slate-400">
+                            Gunakan nama unik seperti <strong>admin</strong>, <strong>adminJatim</strong>, <strong>adminSurabaya</strong>, atau NIP pegawai.
+                          </p>
+                        </div>
+
+                        {/* Nama Akun */}
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
+                            Nama / Keterangan Akun
+                          </label>
+                          <input
+                            type="text"
+                            value={accountFormName}
+                            onChange={(e) => setAccountFormName(e.target.value)}
+                            placeholder="Contoh: Admin Bangka Belitung, Admin Jawa Timur"
+                            className="w-full bg-slate-50 border border-slate-350 p-2.5 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner"
+                          />
+                        </div>
+
+                        {/* Kata Sandi */}
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
+                            Kata Sandi (Password) <span className="text-rose-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={accountFormShowPassword ? "text" : "password"}
+                              required
+                              value={accountFormPassword}
+                              onChange={(e) => setAccountFormPassword(e.target.value)}
+                              placeholder="Masukkan kata sandi akun"
+                              className="w-full bg-slate-50 border border-slate-350 p-2.5 pr-10 rounded-xl outline-none focus:border-indigo-400 text-slate-800 text-xs shadow-inner font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setAccountFormShowPassword(!accountFormShowPassword)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                              title={accountFormShowPassword ? "Sembunyikan" : "Tampilkan"}
+                            >
+                              {accountFormShowPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tipe Akun (Hak Akses) */}
+                        {isSuperAdminUtama ? (
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
+                              Tipe Akun (Hak Akses)
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setAccountFormRole("admin")}
+                                className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                                  accountFormRole === "admin"
+                                    ? "bg-indigo-50 border-indigo-400 ring-2 ring-indigo-200 text-indigo-900"
+                                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                                }`}
+                              >
+                                <div className="flex items-center gap-1.5 font-bold text-xs">
+                                  <ShieldCheck size={14} className={accountFormRole === "admin" ? "text-indigo-600" : "text-slate-400"} />
+                                  <span>Admin Wilayah</span>
+                                </div>
+                                <p className="text-[9px] text-slate-500 mt-1 leading-tight">
+                                  Hak akses penuh dashboard wilayah, pegawai & laporan.
+                                </p>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setAccountFormRole("operator")}
+                                className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                                  accountFormRole === "operator"
+                                    ? "bg-sky-50 border-sky-400 ring-2 ring-sky-200 text-sky-900"
+                                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                                }`}
+                              >
+                                <div className="flex items-center gap-1.5 font-bold text-xs">
+                                  <HardHat size={14} className={accountFormRole === "operator" ? "text-sky-600" : "text-slate-400"} />
+                                  <span>Petugas Lapangan</span>
+                                </div>
+                                <p className="text-[9px] text-slate-500 mt-1 leading-tight">
+                                  Akses presensi & pengisian laporan harian.
+                                </p>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
+                              Tipe Akun (Hak Akses)
+                            </label>
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 flex items-center gap-2">
+                              <HardHat size={14} className="text-sky-600" />
+                              <span>Petugas Lapangan (Operator Wilayah)</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Wilayah Penugasan (Bisa Diketik Sendiri / Bebas) */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
+                              Wilayah Penugasan Akun
+                            </label>
+                            <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                              Bisa Diketik Sendiri
+                            </span>
+                          </div>
+                          {isSuperAdminUtama ? (
+                            <div className="space-y-2">
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={accountFormRegion}
+                                  onChange={(e) => setAccountFormRegion(e.target.value)}
+                                  placeholder="Ketik wilayah penugasan akun (contoh: Bangka Belitung, Jawa Timur, Surabaya, dll)..."
+                                  className="w-full bg-slate-50 border border-slate-350 p-2.5 rounded-xl outline-none focus:border-indigo-500 focus:bg-white text-slate-800 text-xs shadow-inner font-bold placeholder:font-normal placeholder:text-slate-400 transition"
+                                  list="region-account-datalist"
+                                />
+                                <datalist id="region-account-datalist">
+                                  <option value="Bangka Belitung & Pangkalpinang" />
+                                  <option value="Jawa Timur (Surabaya, Malang, dsb)" />
+                                  <option value="Semua Wilayah (Nasional)" />
+                                  <option value="Bangka Belitung" />
+                                  <option value="Jawa Timur" />
+                                  <option value="Surabaya" />
+                                  <option value="Pangkalpinang" />
+                                  <option value="Malang" />
+                                  <option value="Sidoarjo" />
+                                  <option value="Madiun" />
+                                </datalist>
+                              </div>
+
+                              {/* Rekomendasi / Preset cepat */}
+                              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                <span className="text-[9px] text-slate-400 font-bold mr-1">Rekomendasi Cepat:</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setAccountFormRegion("Bangka Belitung & Pangkalpinang")}
+                                  className="text-[9px] font-bold px-2 py-0.5 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition active:scale-95 cursor-pointer"
+                                >
+                                  Bangka Belitung
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAccountFormRegion("Jawa Timur")}
+                                  className="text-[9px] font-bold px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition active:scale-95 cursor-pointer"
+                                >
+                                  Jawa Timur
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAccountFormRegion("Semua Wilayah (Nasional)")}
+                                  className="text-[9px] font-bold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition active:scale-95 cursor-pointer"
+                                >
+                                  Semua Wilayah
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 flex items-center justify-between">
+                              <span>{adminScope === "jatim" ? "Jawa Timur" : "Bangka Belitung & Pangkalpinang"}</span>
+                              <span className="text-[9px] text-slate-400 italic">Terkunci (Sesuai Wilayah Admin)</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          type="submit"
+                          className={`w-full py-2.5 font-bold rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs text-center text-white ${
+                            accountIsEditing 
+                              ? "bg-amber-600 hover:bg-amber-500" 
+                              : "bg-indigo-600 hover:bg-indigo-500"
+                          }`}
+                        >
+                          {accountIsEditing ? (
+                            <>
+                              <Pencil size={14} />
+                              <span>Simpan Perubahan Akun</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={14} />
+                              <span>Simpan Akun Pengguna / Admin</span>
+                            </>
+                          )}
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* Right Column: List of accounts */}
+                    <div className="lg:col-span-8 bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4">
+                      {/* Search and Filters */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                        <div className="relative flex-1">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={accountTableSearch}
+                            onChange={(e) => setAccountTableSearch(e.target.value)}
+                            placeholder="Cari ID User, nama, atau kata sandi..."
+                            className="w-full bg-slate-50 border border-slate-200 pl-9 pr-3 py-1.5 rounded-xl text-xs text-slate-800 outline-none focus:border-indigo-400"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {isSuperAdminUtama && (
+                            <select
+                              value={accountTableRegionFilter}
+                              onChange={(e) => setAccountTableRegionFilter(e.target.value)}
+                              className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs text-slate-700 outline-none focus:border-indigo-400 cursor-pointer font-medium"
+                            >
+                              <option value="all">Semua Wilayah</option>
+                              <option value="babel">Bangka Belitung</option>
+                              <option value="jatim">Jawa Timur</option>
+                              {Array.from(new Set(scopedAccounts.map(a => a.region).filter(Boolean))).map(reg => {
+                                const regStr = String(reg);
+                                const regLower = regStr.toLowerCase();
+                                if (regLower === 'babel' || regLower === 'jatim' || regLower === 'all' || regLower.includes('bangka') || regLower.includes('timur')) return null;
+                                return (
+                                  <option key={regStr} value={regStr}>{regStr}</option>
+                                );
+                              })}
+                            </select>
+                          )}
+
+                          <select
+                            value={accountTableRoleFilter}
+                            onChange={(e) => setAccountTableRoleFilter(e.target.value as any)}
+                            className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs text-slate-700 outline-none focus:border-indigo-400 cursor-pointer font-medium"
+                          >
+                            <option value="all">Semua Hak Akses</option>
+                            <option value="admin">👑 Admin Wilayah</option>
+                            <option value="operator">👷 Petugas Lapangan</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs text-left border-collapse text-slate-600">
+                          <thead>
+                            <tr className="border-b border-slate-100 bg-slate-50 text-slate-500 font-bold uppercase text-[9px] tracking-wider">
+                              <th className="p-3">ID User & Nama</th>
+                              <th className="p-3">Kata Sandi</th>
+                              <th className="p-3">Tipe & Hak Akses</th>
+                              <th className="p-3">Wilayah</th>
+                              <th className="p-3">Dibuat Oleh</th>
+                              <th className="p-3 text-center w-28">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredAccounts.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="p-8 text-center text-slate-400 font-semibold italic">
+                                  Tidak ada akun yang sesuai dengan filter pencarian.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredAccounts.map((acc) => {
+                                const isAdm = acc.role === 'admin' || acc.userId.toLowerCase().startsWith('admin');
+                                const accScope = getUserAccountScope(acc, employees);
+                                const isJatim = accScope === 'jatim' || acc.region === 'jatim';
+                                const isBabel = accScope === 'babel' || acc.region === 'babel';
+                                const isRoot = acc.isSystemRoot || acc.userId.toLowerCase() === 'adminutama';
+                                const emp = employees.find(e => (e.nip && e.nip.toLowerCase() === acc.userId.toLowerCase()) || (e.id && e.id.toLowerCase() === acc.userId.toLowerCase()));
+
+                                return (
+                                  <tr 
+                                    key={acc.id} 
+                                    className={`transition-colors ${
+                                      isRoot 
+                                        ? "bg-indigo-50/40 hover:bg-indigo-50/60 font-semibold" 
+                                        : isAdm 
+                                        ? "bg-amber-50/20 hover:bg-amber-50/40" 
+                                        : "hover:bg-slate-50/50"
+                                    }`}
+                                  >
+                                    {/* ID & Name */}
+                                    <td className="p-3">
+                                      <div className="flex items-center gap-1.5">
+                                        {isRoot ? (
+                                          <ShieldCheck size={14} className="text-indigo-600 shrink-0" />
+                                        ) : isAdm ? (
+                                          <Shield size={14} className="text-amber-600 shrink-0" />
+                                        ) : (
+                                          <HardHat size={14} className="text-sky-600 shrink-0" />
+                                        )}
+                                        <span className="font-bold text-slate-900 font-mono text-xs">{acc.userId}</span>
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 font-medium pl-5 mt-0.5">
+                                        {acc.name || emp?.name || (isAdm ? 'Administrator Wilayah' : 'Petugas Lapangan')}
+                                        {emp?.department && <span> &bull; {emp.department}</span>}
+                                      </div>
+                                    </td>
+
+                                    {/* Password */}
+                                    <td className="p-3">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-mono text-slate-700 bg-slate-100 border border-slate-250 rounded px-2 py-0.5 text-[11px] font-semibold">
+                                          {acc.password}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            navigator.clipboard?.writeText(acc.password);
+                                            onShowAlert("Tersalin", `Password untuk "${acc.userId}" disalin ke clipboard!`, "success");
+                                          }}
+                                          className="p-1 text-slate-400 hover:text-indigo-600 cursor-pointer rounded hover:bg-slate-100 transition"
+                                          title="Salin Password"
+                                        >
+                                          <Copy size={12} />
+                                        </button>
+                                      </div>
+                                    </td>
+
+                                    {/* Role Badge */}
+                                    <td className="p-3">
+                                      {isRoot ? (
+                                        <span className="bg-indigo-100 text-indigo-800 border border-indigo-200 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase inline-flex items-center gap-1">
+                                          <ShieldCheck size={10} />
+                                          Super Admin (Utama)
+                                        </span>
+                                      ) : isAdm ? (
+                                        <span className="bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase inline-flex items-center gap-1">
+                                          <Shield size={10} />
+                                          Admin Wilayah
+                                        </span>
+                                      ) : (
+                                        <span className="bg-sky-100 text-sky-800 border border-sky-200 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase inline-flex items-center gap-1">
+                                          <HardHat size={10} />
+                                          Petugas Lapangan
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    {/* Region */}
+                                    <td className="p-3">
+                                      <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase border ${
+                                        isRoot
+                                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                          : isJatim
+                                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                          : isBabel
+                                          ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                          : 'bg-slate-50 text-slate-700 border-slate-200'
+                                      }`}>
+                                        {acc.region || (isRoot ? 'Semua Wilayah' : isJatim ? 'Jawa Timur' : isBabel ? 'Bangka Belitung & Pangkalpinang' : 'Semua Wilayah')}
+                                      </span>
+                                    </td>
+
+                                    {/* Creator & Date */}
+                                    <td className="p-3 text-[10px] text-slate-500">
+                                      <div>{acc.createdAt || 'Default'}</div>
+                                      <div className="text-[9px] text-slate-400">Oleh: {acc.createdBy || (isRoot ? 'System' : 'adminUtama')}</div>
+                                    </td>
+
+                                    {/* Actions */}
+                                    <td className="p-3 text-center">
+                                      {isRoot ? (
+                                        <span className="text-slate-400 italic text-[10px] bg-slate-100 px-2 py-0.5 rounded-md">
+                                          System Lock
+                                        </span>
+                                      ) : (
+                                        <div className="flex items-center justify-center gap-1">
+                                          {/* Edit button */}
+                                          {(isSuperAdminUtama || !isAdm) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setAccountIsEditing(true);
+                                                setAccountFormUserId(acc.userId);
+                                                setAccountFormName(acc.name || "");
+                                                setAccountFormPassword(acc.password);
+                                                setAccountFormRole(isAdm ? "admin" : "operator");
+                                                setAccountFormRegion(acc.region || (isJatim ? "Jawa Timur" : isBabel ? "Bangka Belitung & Pangkalpinang" : "Semua Wilayah (Nasional)"));
+                                                onShowAlert("Mode Edit", `Mengedit akun "${acc.userId}". Silakan perbarui data di panel sebelah kiri.`, "success");
+                                              }}
+                                              className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition active:scale-95 cursor-pointer"
+                                              title={`Edit Akun ${acc.userId}`}
+                                            >
+                                              <Pencil size={13} />
+                                            </button>
+                                          )}
+
+                                          {/* Delete button */}
+                                          {(isSuperAdminUtama || (!isAdm && accScope === adminScope)) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const roleName = isAdm ? "Admin Wilayah" : "Petugas Lapangan";
+                                                if (confirm(`Apakah Anda yakin ingin menghapus akun ${roleName} "${acc.userId}"? Akun ini tidak akan dapat login lagi.`)) {
+                                                  onDeleteUserAccount(acc.id);
+                                                  onShowAlert("Sukses", `Akun "${acc.userId}" berhasil dihapus secara permanen.`, "success");
+                                                }
+                                              }}
+                                              className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition active:scale-95 cursor-pointer"
+                                              title={`Hapus Akun ${acc.userId}`}
+                                            >
+                                              <Trash2 size={13} />
+                                            </button>
+                                          )}
+
+                                          {!isSuperAdminUtama && isAdm && (
+                                            <span className="text-slate-400 italic text-[10px] bg-slate-100 px-2 py-0.5 rounded-md">
+                                              System Lock
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })()}
 
             {activeSubTab === "migrasi" && hasFullAccess && isSuperAdminUtama && !hideMigrationFeature && (
               <motion.div
@@ -9984,13 +10621,24 @@ export default function AdminDashboard({
 
             const totalHariKerjaM = activeWeekdaysM.length;
             let countHariKirimLaporanM = 0;
+            let countHariFotoSamaM = 0;
+            let countLaporanFotoSamaM = 0;
+
             activeWeekdaysM.forEach(dayStr => {
               const repsOnDay = empReports.filter(r => r.date && r.date.startsWith(dayStr));
-              const hasPhoto = repsOnDay.some(r => 
+              const repsWithPhoto = repsOnDay.filter(r => 
                 (r.photoIndoor && r.photoIndoor.trim() !== "") ||
                 (r.photoOutdoor && r.photoOutdoor.trim() !== "")
               );
-              if (hasPhoto) {
+
+              const identicalReps = repsWithPhoto.filter(r => isReportPhotosIdentical(r));
+              const validReps = repsWithPhoto.filter(r => !isReportPhotosIdentical(r));
+
+              countLaporanFotoSamaM += identicalReps.length;
+
+              if (identicalReps.length > 0 && validReps.length === 0) {
+                countHariFotoSamaM++;
+              } else if (validReps.length > 0) {
                 countHariKirimLaporanM++;
               }
             });
@@ -10046,7 +10694,7 @@ export default function AdminDashboard({
                           Ringkasan Pelaporan Bulan Ini (Kerja Mon-Fri)
                         </h4>
                         <p className="text-xs text-slate-600 leading-normal text-left">
-                          Karyawan memenuhi kewajiban mengirim foto sebanyak{" "}
+                          Karyawan memenuhi kewajiban mengirim foto valid sebanyak{" "}
                           <span className="font-extrabold text-[#0284c7]">
                             {displayCountHariKirimLaporanM} hari
                           </span>{" "}
@@ -10054,6 +10702,28 @@ export default function AdminDashboard({
                         </p>
                       </div>
                     </div>
+
+                    {/* Banner Koreksi Foto jika ditemukan foto sama persis */}
+                    {(countHariFotoSamaM > 0 || countLaporanFotoSamaM > 0) && (
+                      <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3 text-rose-800 text-left animate-fade-in shadow-xs">
+                        <div className="p-2 bg-rose-100 rounded-xl text-rose-600 shrink-0 mt-0.5">
+                          <AlertTriangle size={18} />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h5 className="text-xs font-black text-rose-900 uppercase tracking-wide">
+                              Koreksi Foto Otomatis: Nilai Tidak Masuk / Tidak Valid
+                            </h5>
+                            <span className="bg-rose-200 text-rose-800 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+                              {countHariFotoSamaM > 0 ? `${countHariFotoSamaM} Hari Dibatalkan` : `${countLaporanFotoSamaM} Laporan Tidak Valid`}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-rose-700 leading-relaxed font-semibold">
+                            Keterangan: Ditemukan laporan dengan <strong>foto sebelum dan sesudah tersebut sama persis (tidak ada perubahan)</strong>. Sesuai aturan sistem, nilai kinerja untuk hari pelaporan tersebut otomatis <strong>TIDAK MASUK / TIDAK VALID</strong>.
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
                       {daysArray.map((day) => {
@@ -10114,11 +10784,23 @@ export default function AdminDashboard({
                         const hasOutdoor = reportsOnDay.some(
                           (r) => r.photoOutdoor && r.photoOutdoor.trim() !== "",
                         );
+                        const hasIdenticalReport = reportsOnDay.some((r) => isReportPhotosIdentical(r));
+                        const validReportsOnDay = reportsOnDay.filter(
+                          (r) =>
+                            ((r.photoIndoor && r.photoIndoor.trim() !== "") ||
+                              (r.photoOutdoor && r.photoOutdoor.trim() !== "")) &&
+                            !isReportPhotosIdentical(r)
+                        );
+                        const isDayInvalidDueToSamePhoto = hasIdenticalReport && validReportsOnDay.length === 0;
 
                         return (
                           <div
                             key={day}
-                            className="bg-white rounded-2xl p-4 border border-slate-200/80 flex flex-col justify-between gap-3 shadow-xs"
+                            className={`rounded-2xl p-4 border flex flex-col justify-between gap-3 shadow-xs ${
+                              isDayInvalidDueToSamePhoto
+                                ? "bg-rose-50/40 border-rose-300"
+                                : "bg-white border-slate-200/80"
+                            }`}
                           >
                             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                               <div className="text-slate-800 font-bold text-xs flex flex-wrap items-center gap-1.5">
@@ -10129,8 +10811,13 @@ export default function AdminDashboard({
                                   </span>
                                 )}
                               </div>
-                              <div className="flex gap-1 animate-pulse">
-                                {reportsOnDay.length > 0 ? (
+                              <div className="flex gap-1 items-center">
+                                {isDayInvalidDueToSamePhoto ? (
+                                  <span className="bg-rose-100 text-rose-800 border border-rose-300 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1">
+                                    <AlertTriangle size={9} className="shrink-0 text-rose-600" />
+                                    TIDAK VALID (FOTO SAMA)
+                                  </span>
+                                ) : reportsOnDay.length > 0 ? (
                                   <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
                                     {reportsOnDay.length} LAPORAN
                                   </span>
@@ -10153,7 +10840,7 @@ export default function AdminDashboard({
                                     if (r.photoIndoor && r.photoIndoor.trim() !== "") {
                                       dayPhotos.push(r.photoIndoor);
                                     }
-                                    if (r.photoOutdoor && r.photoOutdoor.trim() !== "" && r.photoOutdoor !== r.photoIndoor) {
+                                    if (r.photoOutdoor && r.photoOutdoor.trim() !== "") {
                                       dayPhotos.push(r.photoOutdoor);
                                     }
                                   });
@@ -10193,22 +10880,45 @@ export default function AdminDashboard({
                             </div>
 
                             {reportsOnDay.length > 0 && (
-                              <div className="space-y-1.5 mt-1 max-h-[140px] overflow-y-auto pr-1">
-                                {reportsOnDay.map((rep, rIdx) => (
-                                  <div key={rep.id} className="bg-slate-50 p-2 rounded-xl text-[10px] text-slate-600 border border-slate-200/50 text-left">
-                                    <div className="flex items-center justify-between gap-1 mb-0.5">
-                                      <span className="font-extrabold text-slate-800 text-[9px] truncate">
-                                        ● Lap {rIdx + 1}: {rep.title}
-                                      </span>
-                                      <span className="text-[7.5px] font-mono text-slate-400 shrink-0">
-                                        ID: {rep.id}
-                                      </span>
+                              <div className="space-y-1.5 mt-1 max-h-[160px] overflow-y-auto pr-1">
+                                {reportsOnDay.map((rep, rIdx) => {
+                                  const isDuplicate = isReportPhotosIdentical(rep);
+                                  return (
+                                    <div 
+                                      key={rep.id} 
+                                      className={`p-2 rounded-xl text-[10px] text-slate-600 border text-left ${
+                                        isDuplicate 
+                                          ? "bg-rose-50/80 border-rose-200" 
+                                          : "bg-slate-50 border-slate-200/50"
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                                        <span className="font-extrabold text-slate-800 text-[9px] truncate">
+                                          ● Lap {rIdx + 1}: {rep.title}
+                                        </span>
+                                        <span className="text-[7.5px] font-mono text-slate-400 shrink-0">
+                                          ID: {rep.id}
+                                        </span>
+                                      </div>
+                                      <p className="text-[9px] text-slate-500 whitespace-pre-wrap line-clamp-2">
+                                        {rep.description || "-"}
+                                      </p>
+                                      {isDuplicate && (
+                                        <div className="mt-1.5 p-1.5 bg-rose-100 border border-rose-300 rounded-lg flex items-start gap-1.5 text-rose-800">
+                                          <AlertTriangle size={12} className="shrink-0 text-rose-600 mt-0.5" />
+                                          <div className="text-[8.5px] leading-tight">
+                                            <span className="font-black block uppercase text-rose-900">
+                                              Koreksi Foto: Nilai Tidak Valid
+                                            </span>
+                                            <span className="font-semibold text-rose-700">
+                                              Keterangan: foto sebelum dan sesudah tersebut sama persis (tidak ada perubahan).
+                                            </span>
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
-                                    <p className="text-[9px] text-slate-500 whitespace-pre-wrap line-clamp-2">
-                                      {rep.description || "-"}
-                                    </p>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
