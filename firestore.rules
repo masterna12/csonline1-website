@@ -1,9 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Catch-all default deny
-    match /{document=**} {
-      allow read, write: if false;
+    // Health check test connection rule
+    match /test/{docId} {
+      allow read, write: if true;
     }
 
     // Rules for "dashboard" collection (laporan)

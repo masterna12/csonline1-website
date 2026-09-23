@@ -68,10 +68,12 @@ import {
   FileSpreadsheet,
   Printer,
   Pencil,
+  Leaf,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Employee, Report, Attendance, UserAccount } from "../types";
 import DatabaseMigrationCenter from "./DatabaseMigrationCenter";
+import MongoDbMigrationCenter from "./MongoDbMigrationCenter";
 import { uploadImageToCloudinary } from "../lib/cloudinary";
 import {
   INITIAL_LOCATIONS,
@@ -356,14 +358,14 @@ export default function AdminDashboard({
   // Sidebar tab management
   // 'ringkasan' = Dashboard, 'pegawai' = Data Pegawai, 'laporan' = Data Laporan, 'kehadiran' = Data Master, 'pengaturan' = Pengaturan Akun, 'kelola_akun' = Kelola Akun
   const [activeSubTab, setActiveSubTab] = useState<
-    "ringkasan" | "pegawai" | "laporan" | "kehadiran" | "pengaturan" | "kelola_akun" | "migrasi"
+    "ringkasan" | "pegawai" | "laporan" | "kehadiran" | "pengaturan" | "kelola_akun" | "migrasi" | "migrasi_mongodb"
   >(() => {
     const isFull = hasFullAccess;
     if (!isFull) {
       return "laporan";
     }
     const hash = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
-    const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun", ...(isSuperAdminUtama ? ["migrasi"] : [])];
+    const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun", ...(isSuperAdminUtama ? ["migrasi", "migrasi_mongodb"] : [])];
     if (validTabs.includes(hash)) {
       return hash as any;
     }
@@ -375,7 +377,7 @@ export default function AdminDashboard({
     const isFull = hasFullAccess;
     const handleHashChange = () => {
       const hash = window.location.hash.replace("#", "");
-      const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun", ...(isSuperAdminUtama ? ["migrasi"] : [])];
+      const validTabs = ["ringkasan", "pegawai", "laporan", "kehadiran", "pengaturan", "kelola_akun", ...(isSuperAdminUtama ? ["migrasi", "migrasi_mongodb"] : [])];
       if (validTabs.includes(hash)) {
         if (!isFull && hash !== "laporan" && hash !== "pengaturan") {
           setActiveSubTab("laporan");
@@ -383,7 +385,7 @@ export default function AdminDashboard({
         } else {
           setActiveSubTab(hash as any);
         }
-      } else if (hash === "migrasi" && !isSuperAdminUtama) {
+      } else if ((hash === "migrasi" || hash === "migrasi_mongodb") && !isSuperAdminUtama) {
         setActiveSubTab("ringkasan");
         window.location.hash = "ringkasan";
       }
@@ -399,7 +401,7 @@ export default function AdminDashboard({
     const isFull = hasFullAccess;
     if (!isFull && activeSubTab !== "laporan" && activeSubTab !== "pengaturan") {
       setActiveSubTab("laporan");
-    } else if (activeSubTab === "migrasi" && !isSuperAdminUtama) {
+    } else if ((activeSubTab === "migrasi" || activeSubTab === "migrasi_mongodb") && !isSuperAdminUtama) {
       setActiveSubTab("ringkasan");
     }
   }, [hasFullAccess, activeSubTab, isSuperAdminUtama]);
@@ -3060,35 +3062,69 @@ export default function AdminDashboard({
               </a>
 
               {isSuperAdminUtama && !hideMigrationFeature && (
-                <a
-                  id="sidebar_btn_migrasi"
-                  href="#migrasi"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setActiveSubTab("migrasi");
-                    setSearchQuery("");
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
-                    activeSubTab === "migrasi"
-                      ? "bg-gradient-to-r from-amber-500/20 via-orange-500/10 to-transparent text-amber-400 border-l-4 border-amber-400 shadow-md shadow-amber-500/5"
-                      : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
-                  }`}
-                >
-                  <Database
-                    size={15}
-                    className={
+                <>
+                  <a
+                    id="sidebar_btn_migrasi"
+                    href="#migrasi"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setActiveSubTab("migrasi");
+                      setSearchQuery("");
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
                       activeSubTab === "migrasi"
-                        ? "text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]"
-                        : "text-slate-400"
-                    }
-                  />
-                  {isSidebarOpen && (
-                    <div className="flex-1 flex items-center justify-between">
-                      <span>Migrasi Firebase</span>
-                      <ChevronRight size={12} className="text-slate-500" />
-                    </div>
-                  )}
-                </a>
+                        ? "bg-gradient-to-r from-amber-500/20 via-orange-500/10 to-transparent text-amber-400 border-l-4 border-amber-400 shadow-md shadow-amber-500/5"
+                        : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
+                    }`}
+                  >
+                    <Database
+                      size={15}
+                      className={
+                        activeSubTab === "migrasi"
+                          ? "text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                          : "text-slate-400"
+                      }
+                    />
+                    {isSidebarOpen && (
+                      <div className="flex-1 flex items-center justify-between">
+                        <span>Migrasi Firebase</span>
+                        <ChevronRight size={12} className="text-slate-500" />
+                      </div>
+                    )}
+                  </a>
+
+                  <a
+                    id="sidebar_btn_migrasi_mongodb"
+                    href="#migrasi_mongodb"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setActiveSubTab("migrasi_mongodb");
+                      setSearchQuery("");
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
+                      activeSubTab === "migrasi_mongodb"
+                        ? "bg-gradient-to-r from-emerald-500/20 via-teal-500/10 to-transparent text-emerald-400 border-l-4 border-emerald-400 shadow-md shadow-emerald-500/5"
+                        : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
+                    }`}
+                  >
+                    <Leaf
+                      size={15}
+                      className={
+                        activeSubTab === "migrasi_mongodb"
+                          ? "text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                          : "text-emerald-500/80"
+                      }
+                    />
+                    {isSidebarOpen && (
+                      <div className="flex-1 flex items-center justify-between">
+                        <span>Migrasi MongoDB</span>
+                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-mono px-1.5 py-0.5 rounded font-black border border-emerald-500/30">
+                          PRO
+                        </span>
+                      </div>
+                    )}
+                  </a>
+                </>
               )}
             </div>
           )}
@@ -7233,22 +7269,52 @@ export default function AdminDashboard({
 
                 {/* Database Migration Center - Khusus adminUtama */}
                 {hasFullAccess && isSuperAdminUtama && !hideMigrationFeature && (
-                  <DatabaseMigrationCenter
-                    employees={employees}
-                    attendance={attendance}
-                    reports={reports}
-                    userAccounts={userAccounts}
-                    googleToken={googleToken}
-                    sheetsSpreadsheetId={sheetsSpreadsheetId}
-                    onShowAlert={onShowAlert}
-                    onRefreshAllData={() => {
-                      if (typeof window !== "undefined") {
-                        setTimeout(() => {
-                          window.location.reload();
-                        }, 1500);
-                      }
-                    }}
-                  />
+                  <div className="space-y-6">
+                    <div className="p-5 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/30 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-3 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-2xl">
+                          <Leaf size={22} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-white flex items-center gap-2">
+                            <span>Pusat Migrasi Database MongoDB</span>
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-mono px-2 py-0.5 rounded-full font-bold">
+                              Eksklusif adminUtama
+                            </span>
+                          </h4>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Ingin memindahkan seluruh data sistem ke klaster MongoDB Atlas atau server MongoDB lokal?
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSubTab("migrasi_mongodb")}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-500/20 transition cursor-pointer flex items-center gap-2 shrink-0"
+                      >
+                        <Leaf size={14} />
+                        Buka Migrasi MongoDB
+                      </button>
+                    </div>
+
+                    <DatabaseMigrationCenter
+                      employees={employees}
+                      attendance={attendance}
+                      reports={reports}
+                      userAccounts={userAccounts}
+                      googleToken={googleToken}
+                      sheetsSpreadsheetId={sheetsSpreadsheetId}
+                      onShowAlert={onShowAlert}
+                      onSwitchToMongoMigration={() => setActiveSubTab("migrasi_mongodb")}
+                      onRefreshAllData={() => {
+                        if (typeof window !== "undefined") {
+                          setTimeout(() => {
+                            window.location.reload();
+                          }, 1500);
+                        }
+                      }}
+                    />
+                  </div>
                 )}
               </motion.div>
             )}
@@ -7987,13 +8053,24 @@ export default function AdminDashboard({
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6 text-left font-sans"
               >
-                <div className="pb-2 border-b border-slate-300">
-                  <h1 className="text-xl md:text-2xl font-black text-slate-900 font-sans">
-                    Migrasi Firebase & Database
-                  </h1>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Lakukan pemindahan data lengkap dari Firebase AI Studio Starter ke Firebase portal-dashboard-cs-online milik Anda sendiri.
-                  </p>
+                <div className="pb-2 border-b border-slate-300 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="text-xl md:text-2xl font-black text-slate-900 font-sans">
+                      Migrasi Firebase & Database
+                    </h1>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Lakukan pemindahan data lengkap dari Firebase AI Studio Starter ke Firebase portal-dashboard-cs-online milik Anda sendiri.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setActiveSubTab("migrasi_mongodb")}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-md shadow-emerald-500/10 cursor-pointer"
+                    >
+                      <Leaf size={14} />
+                      Beralih ke Migrasi MongoDB
+                    </button>
+                  </div>
                 </div>
 
                 <DatabaseMigrationCenter
@@ -8004,6 +8081,57 @@ export default function AdminDashboard({
                   googleToken={googleToken}
                   sheetsSpreadsheetId={sheetsSpreadsheetId}
                   onShowAlert={onShowAlert}
+                  onSwitchToMongoMigration={() => setActiveSubTab("migrasi_mongodb")}
+                  onRefreshAllData={() => {
+                    if (typeof window !== "undefined") {
+                      setTimeout(() => {
+                        window.location.reload();
+                      }, 1500);
+                    }
+                  }}
+                />
+              </motion.div>
+            )}
+
+            {activeSubTab === "migrasi_mongodb" && hasFullAccess && isSuperAdminUtama && !hideMigrationFeature && (
+              <motion.div
+                key="tab_prisma_migrasi_mongodb"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6 text-left font-sans"
+              >
+                <div className="pb-2 border-b border-slate-300 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="text-xl md:text-2xl font-black text-slate-900 font-sans flex items-center gap-2">
+                      <span>Migrasi Database MongoDB</span>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-mono px-2 py-0.5 rounded-full border border-emerald-300 font-bold">
+                        Akun Utama: adminUtama
+                      </span>
+                    </h1>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Migrasikan seluruh data koleksi sistem ke klaster MongoDB Atlas atau MongoDB Server lokal Anda.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setActiveSubTab("migrasi")}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-amber-500/30"
+                    >
+                      <Database size={14} />
+                      Beralih ke Migrasi Firebase
+                    </button>
+                  </div>
+                </div>
+
+                <MongoDbMigrationCenter
+                  loggedInUserId={loggedInUserId}
+                  employees={employees}
+                  attendance={attendance}
+                  reports={reports}
+                  userAccounts={userAccounts}
+                  onShowAlert={onShowAlert}
+                  onSwitchToFirebaseMigration={() => setActiveSubTab("migrasi")}
                   onRefreshAllData={() => {
                     if (typeof window !== "undefined") {
                       setTimeout(() => {

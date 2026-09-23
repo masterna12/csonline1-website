@@ -19,7 +19,8 @@ import {
   Lock,
   Download,
   CheckSquare,
-  Sparkles
+  Sparkles,
+  Leaf
 } from "lucide-react";
 import { getSourceFirestore, getTargetFirestore, OLD_FIREBASE_CONFIG, NEW_FIREBASE_CONFIG } from "../firebase";
 import { collection, doc, getDocs, getDoc, setDoc } from "firebase/firestore";
@@ -33,6 +34,7 @@ interface DatabaseMigrationCenterProps {
   userAccounts?: any;
   googleToken?: any;
   sheetsSpreadsheetId?: any;
+  onSwitchToMongoMigration?: () => void;
 }
 
 const FIREBASE_COLLECTIONS = [
@@ -104,7 +106,8 @@ interface VerificationReport {
 
 export default function DatabaseMigrationCenter({
   onShowAlert,
-  onRefreshAllData
+  onRefreshAllData,
+  onSwitchToMongoMigration
 }: DatabaseMigrationCenterProps) {
   // Connection states
   const [activeDbMode, setActiveDbMode] = useState<"old" | "new">(() => {
@@ -733,6 +736,16 @@ export default function DatabaseMigrationCenter({
           </div>
           
           <div className="flex items-center gap-3">
+            {onSwitchToMongoMigration && (
+              <button
+                type="button"
+                onClick={onSwitchToMongoMigration}
+                className="px-4 py-3 rounded-2xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 font-bold text-xs uppercase tracking-wider border border-emerald-500/40 active:scale-95 transition cursor-pointer flex items-center gap-2"
+              >
+                <Leaf size={14} className="text-emerald-400" />
+                Buka Migrasi MongoDB
+              </button>
+            )}
             {activeDbMode === "old" ? (
               <button
                 onClick={activateNewFirebase}

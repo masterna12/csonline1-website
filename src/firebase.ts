@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import firebaseAppletConfig from '../firebase-applet-config.json';
 
@@ -27,33 +27,18 @@ export const NEW_FIREBASE_CONFIG = {
 const isCompleted = true;
 
 // Expose active configuration:
-// Tiap akun user ADMIN WILAYAH dan Akun Utama (Super Admin) databasenya langsung terhubung ke portal-dashboard-cs-online.
+// Defaults to the provisioned AI Studio Firebase project (NEW_FIREBASE_CONFIG)
 const getActiveFirebaseConfig = () => {
-  if (typeof window === 'undefined') return OLD_FIREBASE_CONFIG;
+  if (typeof window === 'undefined') return NEW_FIREBASE_CONFIG;
   try {
-    const currentUserId = (
-      sessionStorage.getItem('step_logged_in_user_id') ||
-      localStorage.getItem('step_logged_in_user_id') ||
-      ''
-    ).trim().toLowerCase();
-
-    // Akun admin wilayah (admin, adminJatim) dan akun utama (adminUtama/super admin) langsung terhubung ke portal-dashboard-cs-online
-    const isAdminOrSuperAdmin = 
-      !currentUserId || 
-      currentUserId.startsWith('admin') || 
-      currentUserId === 'admin' || 
-      currentUserId === 'adminjatim' || 
-      currentUserId === 'adminutama';
-
-    if (isAdminOrSuperAdmin) {
+    // Only revert to old external project if explicitly chosen by admin in Database Migration Center
+    const isExplicitlyReverted = localStorage.getItem("firebase_migration_completed_to_new") === "false";
+    if (isExplicitlyReverted) {
       return OLD_FIREBASE_CONFIG;
     }
-
-    return localStorage.getItem("firebase_migration_completed_to_new") === "true"
-      ? NEW_FIREBASE_CONFIG
-      : OLD_FIREBASE_CONFIG;
+    return NEW_FIREBASE_CONFIG;
   } catch {
-    return OLD_FIREBASE_CONFIG;
+    return NEW_FIREBASE_CONFIG;
   }
 };
 
@@ -111,17 +96,6 @@ export function getTargetFirestore() {
     return getFirestore(targetApp, targetDbId);
   }
 }
-
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
-    }
-  }
-}
-testConnection();
 
 // Operation types for custom error logging as required by standard integration guidelines
 export enum OperationType {
