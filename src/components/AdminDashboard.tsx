@@ -74,9 +74,6 @@ import { Employee, Report, Attendance, UserAccount } from "../types";
 import DatabaseMigrationCenter from "./DatabaseMigrationCenter";
 import { uploadImageToCloudinary } from "../lib/cloudinary";
 import {
-  INITIAL_EMPLOYEES,
-  INITIAL_ATTENDANCE,
-  INITIAL_REPORTS,
   INITIAL_LOCATIONS,
   INITIAL_EMPLOYEE_LOCATIONS,
   INITIAL_JABATANS,
@@ -341,7 +338,7 @@ export default function AdminDashboard({
     loggedInUserId === "adminUtama" || 
     currentLoggedInAccount?.role === "admin" ||
     (loggedInUserId ? loggedInUserId.toLowerCase().startsWith("admin") : true);
-  const hasFullAccess = isAdmin || loggedInUserId === "9826003HPI";
+  const hasFullAccess = isAdmin;
   const isSuperAdminUtama = loggedInUserId === "adminUtama" || loggedInUserId?.toLowerCase() === "adminutama";
 
   // Kelola Akun User form & table state
@@ -1356,24 +1353,18 @@ export default function AdminDashboard({
     return true;
   }).length;
 
-  // Render stats matching the PRISMA screenshot (scaled dynamically based on database state!)
-  const scanPatroliCount =
-    17929 + (reports.length - INITIAL_REPORTS.length) * 15;
-  const absensiMasukCount =
-    738 + (attendance.length - INITIAL_ATTENDANCE.length) * 3;
-  const pergantianShiftCount =
-    528 + reports.filter((r) => r.type === "Operasional").length;
+  // Render stats purely based on real database state
+  const scanPatroliCount = reports.length;
+  const absensiMasukCount = attendance.length;
+  const pergantianShiftCount = reports.filter((r) => r.type === "Operasional").length;
   const tamuMasukCount = 0;
   const kirimanBarangCount = 0;
-  const kerawananCount =
-    26 + reports.filter((r) => r.status === "Ditolak").length;
-  const insidenCount =
-    2 +
-    reports.filter(
-      (r) =>
-        r.title.toLowerCase().includes("darurat") ||
-        r.description.toLowerCase().includes("insiden"),
-    ).length;
+  const kerawananCount = reports.filter((r) => r.status === "Ditolak").length;
+  const insidenCount = reports.filter(
+    (r) =>
+      r.title.toLowerCase().includes("darurat") ||
+      r.description.toLowerCase().includes("insiden"),
+  ).length;
 
   const handleAddEmployeeSubmit = (e: React.FormEvent) => {
     e.preventDefault();

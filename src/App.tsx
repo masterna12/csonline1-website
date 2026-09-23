@@ -187,40 +187,64 @@ export default function App() {
     setAdminPassword(newPass);
   };
 
-  // Helper to merge missing items by ID so both Bangka Belitung and Jawa Timur initial data are guaranteed
+  // Helper to merge missing items by ID
   const mergeMissingById = <T extends { id: string }>(currentList: T[], initialList: T[]): T[] => {
     const currentIds = new Set(currentList.map(item => item.id));
     const missing = initialList.filter(item => !currentIds.has(item.id));
     return missing.length > 0 ? [...currentList, ...missing] : currentList;
   };
 
-  // Initial default datasets for automatic seeding / recovery
-  const defaultEmployeesList: Employee[] = INITIAL_EMPLOYEES;
+  // Helper functions to permanently identify and purge dummy data
+  const isDummyEmployee = (e: any): boolean => {
+    if (!e || !e.id) return false;
+    const id = String(e.id).trim();
+    const nip = String(e.nip || '').trim();
+    return (
+      ['EMP_1', 'EMP_2', 'EMP_3', 'EMP_4', 'EMP_5', 'EMP_6', 'EMP_7'].includes(id) ||
+      ['9826003HPI', '9826004HPI', '9826005HPI', '9826010HPI', '9826011HPI', '9826012HPI', '9826013HPI'].includes(nip)
+    );
+  };
 
-  const defaultReportsList: Report[] = INITIAL_REPORTS;
+  const isDummyReport = (r: any): boolean => {
+    if (!r || !r.id) return false;
+    const id = String(r.id).trim();
+    const title = String(r.title || '').trim();
+    return (
+      ['REP_1', 'REP_2', 'REP_3', 'REP_4', 'REP_5'].includes(id) ||
+      ['Patroli Rutin Gardu Hubung Bangka', 'Perbaikan Kubikel Penyulang Pangkalpinang', 'Inspeksi & Pemeliharaan Gardu Induk Waru Surabaya', 'Perawatan Ruang Server & Panel PLN Surabaya Barat', 'Sterilisasi Ruang Dispatcher Wilayah Malang'].includes(title)
+    );
+  };
 
-  const defaultAttendanceList: Attendance[] = INITIAL_ATTENDANCE;
+  const isDummyAttendance = (a: any): boolean => {
+    if (!a || !a.id) return false;
+    const id = String(a.id).trim();
+    return ['ATT_1', 'ATT_2', 'ATT_3', 'ATT_4'].includes(id);
+  };
+
+  const isDummyAccount = (u: any): boolean => {
+    if (!u || !u.id) return false;
+    const id = String(u.id).trim();
+    return ['ACC_1', 'ACC_2', 'ACC_3', 'ACC_4', 'ACC_5', 'ACC_6', 'ACC_7'].includes(id);
+  };
+
+  // Initial datasets - completely empty of dummy data
+  const defaultEmployeesList: Employee[] = [];
+  const defaultReportsList: Report[] = [];
+  const defaultAttendanceList: Attendance[] = [];
 
   const defaultUserAccounts: UserAccount[] = [
     { id: 'ACC_ADMIN_BABEL', userId: 'admin', password: 'admin', createdAt: '2023-01-15', region: 'babel', role: 'admin', name: 'Admin Bangka Belitung', createdBy: 'adminUtama' },
-    { id: 'ACC_ADMIN_JATIM', userId: 'adminJatim', password: 'adminJatim', createdAt: '2023-02-10', region: 'jatim', role: 'admin', name: 'Admin Jawa Timur', createdBy: 'adminUtama' },
-    { id: 'ACC_1', userId: '9826003HPI', password: '27111998', createdAt: '2023-01-15', region: 'babel', role: 'operator', name: 'Zul' },
-    { id: 'ACC_2', userId: '9826004HPI', password: '27111998', createdAt: '2023-03-20', region: 'babel', role: 'operator', name: 'Rian' },
-    { id: 'ACC_3', userId: '9826005HPI', password: '27111998', createdAt: '2023-06-10', region: 'babel', role: 'operator', name: 'Dedi' },
-    { id: 'ACC_4', userId: '9826010HPI', password: '27111998', createdAt: '2023-02-10', region: 'jatim', role: 'operator', name: 'Bambang' },
-    { id: 'ACC_5', userId: '9826011HPI', password: '27111998', createdAt: '2023-04-12', region: 'jatim', role: 'operator', name: 'Siti Rahma' },
-    { id: 'ACC_6', userId: '9826012HPI', password: '27111998', createdAt: '2023-05-18', region: 'jatim', role: 'operator', name: 'Agus Santoso' },
-    { id: 'ACC_7', userId: '9826013HPI', password: '27111998', createdAt: '2023-07-22', region: 'jatim', role: 'operator', name: 'Dimas Prasetyo' }
+    { id: 'ACC_ADMIN_JATIM', userId: 'adminJatim', password: 'adminJatim', createdAt: '2023-02-10', region: 'jatim', role: 'admin', name: 'Admin Jawa Timur', createdBy: 'adminUtama' }
   ];
 
-  // Global React States
+  // Global React States initialized purely from clean data (dummy filtered out immediately)
   const [employees, setEmployees] = useState<Employee[]>(() => {
     const saved = localStorage.getItem('db_employees');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object' && Array.isArray(parsed) && parsed.length > 0) {
-          return mergeMissingById(parsed, INITIAL_EMPLOYEES);
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(e => !isDummyEmployee(e));
         }
       } catch (e) {}
     }
@@ -233,7 +257,7 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-          return mergeMissingById(parsed, INITIAL_ATTENDANCE);
+          return parsed.filter(a => !isDummyAttendance(a));
         }
       } catch (e) {}
     }
@@ -246,7 +270,7 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-          return mergeMissingById(parsed, INITIAL_REPORTS);
+          return parsed.filter(r => !isDummyReport(r));
         }
       } catch (e) {}
     }
@@ -259,7 +283,8 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-          const merged = mergeMissingById(parsed, defaultUserAccounts);
+          const clean = parsed.filter(u => !isDummyAccount(u));
+          const merged = mergeMissingById(clean, defaultUserAccounts);
           // Ensure accounts have region, role, name, and createdBy tagged
           return merged.map(acc => {
             const def = defaultUserAccounts.find(d => d.userId.toLowerCase() === acc.userId.toLowerCase());
@@ -460,24 +485,45 @@ export default function App() {
     }
   }, [loggedInUserId]);
 
-  // Real-time synchronization and automatic seeding with Firestore
+  // One-time startup purge of any legacy dummy data from localStorage
   React.useEffect(() => {
-    // Cache configuration: 10 minutes cache validity for secondary metadata collections
-    const CACHE_COOLDOWN = 10 * 60 * 1000;
-    const isCacheValid = (key: string): boolean => {
-      const lastSync = localStorage.getItem(key);
-      if (!lastSync) return false;
-      const now = Date.now();
-      return now - parseInt(lastSync, 10) < CACHE_COOLDOWN;
-    };
+    try {
+      ['db_employees', 'db_reports', 'db_attendance', 'db_user_accounts'].forEach(key => {
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const clean = parsed.filter(item => 
+              !isDummyEmployee(item) && 
+              !isDummyReport(item) && 
+              !isDummyAttendance(item) && 
+              !isDummyAccount(item)
+            );
+            localStorage.setItem(key, JSON.stringify(clean));
+          }
+        }
+      });
+      // Clear legacy sync timestamps to ensure fresh real-time connection on startup
+      localStorage.removeItem('last_sync_employees');
+      localStorage.removeItem('last_sync_attendance');
+      localStorage.removeItem('last_sync_user_accounts');
+    } catch (e) {}
+  }, []);
 
-    // 1. Listen to dashboard (reports) collection (Keep completely real-time as requested!)
+  // Real-time synchronization with Firestore (Clean real data only, zero dummy seeding)
+  React.useEffect(() => {
+    // 1. Listen to dashboard (reports) collection in real-time
     const unsubReports = onSnapshot(collection(db, 'dashboard'), (snapshot) => {
       const docsList: Report[] = [];
       snapshot.forEach((docVal) => {
         const d = docVal.data() as any;
         if (d) {
           const reportId = d.id || docVal.id;
+          if (isDummyReport({ id: reportId, title: d.title })) {
+            // Delete legacy dummy report from database permanently
+            deleteDoc(doc(db, 'dashboard', reportId)).catch(() => {});
+            return;
+          }
           const mappedReport: Report = {
             id: reportId,
             employeeId: d.employeeId || d.employee_id || "",
@@ -515,16 +561,8 @@ export default function App() {
         return b.id.localeCompare(a.id);
       });
 
-      if (snapshot.empty) {
-        setReports(defaultReportsList);
-        safeSaveToLocalStorage('db_reports', defaultReportsList);
-        defaultReportsList.forEach((rep) => {
-          setDoc(doc(db, 'dashboard', rep.id), rep).catch(e => console.error('Error seeding report: ', e));
-        });
-      } else {
-        setReports(docsList);
-        safeSaveToLocalStorage('db_reports', docsList);
-      }
+      setReports(docsList);
+      safeSaveToLocalStorage('db_reports', docsList);
     }, (error) => {
       const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
       if (isQuota) {
@@ -538,172 +576,126 @@ export default function App() {
         try {
           const parsed = JSON.parse(saved);
           if (parsed && Array.isArray(parsed)) {
-            setReports(parsed);
+            setReports(parsed.filter(r => !isDummyReport(r)));
           }
         } catch (e) {}
       } else {
-        setReports(defaultReportsList);
+        setReports([]);
       }
     });
 
-    // 2. Listen to employees collection (Cached to optimize read quota)
-    let unsubEmployees = () => {};
-    if (!isCacheValid('last_sync_employees')) {
-      unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
-        const docsList: Employee[] = [];
-        snapshot.forEach((docVal) => {
-          const d = docVal.data() as Employee;
-          if (d && d.id) {
-            docsList.push(d);
+    // 2. Listen to employees collection in real-time
+    const unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
+      const docsList: Employee[] = [];
+      snapshot.forEach((docVal) => {
+        const d = docVal.data() as Employee;
+        if (d && d.id) {
+          if (isDummyEmployee(d)) {
+            // Delete legacy dummy employee from database permanently
+            deleteDoc(doc(db, 'employees', d.id)).catch(() => {});
+            return;
           }
-        });
-        // Sort employees
-        docsList.sort((a, b) => a.id.localeCompare(b.id));
-
-        if (snapshot.empty) {
-          setEmployees(defaultEmployeesList);
-          localStorage.setItem('db_employees', JSON.stringify(defaultEmployeesList));
-          defaultEmployeesList.forEach((emp) => {
-            setDoc(doc(db, 'employees', emp.id), emp).catch(e => console.error('Error seeding employee: ', e));
-          });
-        } else {
-          setEmployees(docsList);
-          localStorage.setItem('db_employees', JSON.stringify(docsList));
-          localStorage.setItem('last_sync_employees', Date.now().toString());
-        }
-      }, (error) => {
-        const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
-        if (isQuota) {
-          console.warn("Firestore onSnapshot 'employees' quota restriction active, falling back to local database. message:", error.message);
-        } else {
-          console.error("Firestore onSnapshot 'employees' error:", error);
-        }
-        setDbError(error.message);
-        const saved = localStorage.getItem('db_employees');
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (parsed && Array.isArray(parsed)) {
-              setEmployees(parsed);
-            }
-          } catch (e) {}
-        } else {
-          setEmployees(defaultEmployeesList);
+          docsList.push(d);
         }
       });
-    } else {
+      // Sort employees by name / id
+      docsList.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+
+      setEmployees(docsList);
+      localStorage.setItem('db_employees', JSON.stringify(docsList));
+    }, (error) => {
+      const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
+      if (isQuota) {
+        console.warn("Firestore onSnapshot 'employees' quota restriction active, falling back to local database. message:", error.message);
+      } else {
+        console.error("Firestore onSnapshot 'employees' error:", error);
+      }
+      setDbError(error.message);
       const saved = localStorage.getItem('db_employees');
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (parsed && Array.isArray(parsed)) {
-            setEmployees(parsed);
+            setEmployees(parsed.filter(e => !isDummyEmployee(e)));
           }
         } catch (e) {}
+      } else {
+        setEmployees([]);
       }
-    }
+    });
 
-    // 3. Listen to attendance collection (Cached to optimize read quota)
-    let unsubAttendance = () => {};
-    if (!isCacheValid('last_sync_attendance')) {
-      unsubAttendance = onSnapshot(collection(db, 'attendance'), (snapshot) => {
-        const docsList: Attendance[] = [];
-        snapshot.forEach((docVal) => {
-          const d = docVal.data() as Attendance;
-          if (d && d.id) {
-            docsList.push(d);
+    // 3. Listen to attendance collection in real-time
+    const unsubAttendance = onSnapshot(collection(db, 'attendance'), (snapshot) => {
+      const docsList: Attendance[] = [];
+      snapshot.forEach((docVal) => {
+        const d = docVal.data() as Attendance;
+        if (d && d.id) {
+          if (isDummyAttendance(d)) {
+            deleteDoc(doc(db, 'attendance', d.id)).catch(() => {});
+            return;
           }
-        });
-        // Sort attendance by date/id
-        docsList.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-
-        if (snapshot.empty) {
-          setAttendance(defaultAttendanceList);
-          localStorage.setItem('db_attendance', JSON.stringify(defaultAttendanceList));
-          defaultAttendanceList.forEach((att) => {
-            setDoc(doc(db, 'attendance', att.id), att).catch(e => console.error('Error seeding attendance: ', e));
-          });
-        } else {
-          setAttendance(docsList);
-          localStorage.setItem('db_attendance', JSON.stringify(docsList));
-          localStorage.setItem('last_sync_attendance', Date.now().toString());
-        }
-      }, (error) => {
-        const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
-        if (isQuota) {
-          console.warn("Firestore onSnapshot 'attendance' quota restriction active, falling back to local database. message:", error.message);
-        } else {
-          console.error("Firestore onSnapshot 'attendance' error:", error);
-        }
-        setDbError(error.message);
-        const saved = localStorage.getItem('db_attendance');
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (parsed && Array.isArray(parsed)) {
-              setAttendance(parsed);
-            }
-          } catch (e) {}
-        } else {
-          setAttendance(defaultAttendanceList);
+          docsList.push(d);
         }
       });
-    } else {
+      docsList.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+
+      setAttendance(docsList);
+      localStorage.setItem('db_attendance', JSON.stringify(docsList));
+    }, (error) => {
+      const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
+      if (isQuota) {
+        console.warn("Firestore onSnapshot 'attendance' quota restriction active, falling back to local database. message:", error.message);
+      } else {
+        console.error("Firestore onSnapshot 'attendance' error:", error);
+      }
+      setDbError(error.message);
       const saved = localStorage.getItem('db_attendance');
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (parsed && Array.isArray(parsed)) {
-            setAttendance(parsed);
+            setAttendance(parsed.filter(a => !isDummyAttendance(a)));
           }
         } catch (e) {}
+      } else {
+        setAttendance([]);
       }
-    }
+    });
 
-    // 4. Listen to user accounts collection (Cached to optimize read quota)
-    let unsubUserAccounts = () => {};
-    if (!isCacheValid('last_sync_user_accounts')) {
-      unsubUserAccounts = onSnapshot(collection(db, 'hpi_user_accounts'), (snapshot) => {
-        const docsList: UserAccount[] = [];
-        snapshot.forEach((docVal) => {
-          const d = docVal.data() as UserAccount;
-          if (d && d.id) {
-            docsList.push(d);
+    // 4. Listen to user accounts collection in real-time
+    const unsubUserAccounts = onSnapshot(collection(db, 'hpi_user_accounts'), (snapshot) => {
+      const docsList: UserAccount[] = [];
+      snapshot.forEach((docVal) => {
+        const d = docVal.data() as UserAccount;
+        if (d && d.id) {
+          if (isDummyAccount(d)) {
+            deleteDoc(doc(db, 'hpi_user_accounts', d.id)).catch(() => {});
+            return;
           }
-        });
-        docsList.sort((a, b) => a.userId.localeCompare(b.userId));
-        setUserAccounts(docsList);
-        localStorage.setItem('db_user_accounts', JSON.stringify(docsList));
-        localStorage.setItem('last_sync_user_accounts', Date.now().toString());
-      }, (error) => {
-        const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
-        if (isQuota) {
-          console.warn("Firestore onSnapshot 'hpi_user_accounts' quota restriction active, falling back to local database. message:", error.message);
-        } else {
-          console.error("Firestore onSnapshot 'hpi_user_accounts' error:", error);
-        }
-        setDbError(error.message);
-        const saved = localStorage.getItem('db_user_accounts');
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (parsed && Array.isArray(parsed)) {
-              setUserAccounts(parsed);
-            }
-          } catch (e) {}
+          docsList.push(d);
         }
       });
-    } else {
+      docsList.sort((a, b) => a.userId.localeCompare(b.userId));
+      setUserAccounts(docsList);
+      localStorage.setItem('db_user_accounts', JSON.stringify(docsList));
+    }, (error) => {
+      const isQuota = error.message?.toLowerCase().includes('quota') || error.message?.toLowerCase().includes('exceeded') || error.message?.toLowerCase().includes('limit');
+      if (isQuota) {
+        console.warn("Firestore onSnapshot 'hpi_user_accounts' quota restriction active, falling back to local database. message:", error.message);
+      } else {
+        console.error("Firestore onSnapshot 'hpi_user_accounts' error:", error);
+      }
+      setDbError(error.message);
       const saved = localStorage.getItem('db_user_accounts');
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (parsed && Array.isArray(parsed)) {
-            setUserAccounts(parsed);
+            setUserAccounts(parsed.filter(u => !isDummyAccount(u)));
           }
         } catch (e) {}
       }
-    }
+    });
 
     return () => {
       unsubReports();
@@ -855,26 +847,6 @@ export default function App() {
       } else {
         setLoginError('ID User atau Password salah!');
         handleShowAlert('Login Gagal', 'Password Admin Utama tidak sesuai.', 'alert');
-        return;
-      }
-    }
-
-    // 4. Default petugas lapangan / 9826003HPI
-    if (cleanUserId === '9826003HPI') {
-      const savedUserPass = localStorage.getItem('step_user_password_' + cleanUserId) || '27111998';
-      if (password === savedUserPass) {
-        setIsLoggedIn(true);
-        setLoggedInUserId('9826003HPI');
-        sessionStorage.setItem('step_is_logged_in', 'true');
-        sessionStorage.setItem('step_logged_in_user_id', '9826003HPI');
-        localStorage.setItem('step_is_logged_in', 'true');
-        localStorage.setItem('step_logged_in_user_id', '9826003HPI');
-        setLoginError('');
-        handleShowAlert('Login Berhasil', 'Selamat datang. Anda masuk sebagai petugas lapangan.', 'success');
-        return;
-      } else {
-        setLoginError('ID User atau Password salah!');
-        handleShowAlert('Login Gagal', 'ID User atau Password tidak sesuai.', 'alert');
         return;
       }
     }
